@@ -38,6 +38,9 @@
 #   POLICY_WAR_ROOM_MIN_GRADE         — war_room.min_acceptable_grade
 #   POLICY_WAR_ROOM_MAX_ROUNDS        — war_room.max_refinement_rounds
 #   POLICY_WAR_ROOM_TABLE             — war_room.log_table
+#   POLICY_WAR_ROOM_COST_CEILING      — war_room.cost_ceiling_cents_per_exchange
+#   POLICY_WAR_ROOM_SLACK_CHANNEL     — war_room.slack_channel
+#   POLICY_WAR_ROOM_REQUIRE_PASSING   — war_room.require_passing_grade_before_lock (1/0)
 
 # Locate policy.yaml
 _policy_candidates=(
@@ -79,10 +82,27 @@ def parse_yaml(path):
     result = {}
     stack = [(0, result)]  # (indent, dict)
 
+    def _strip_inline_comment(s):
+        # Only treat '#' as a comment if preceded by whitespace or at BOL.
+        # Keeps quoted values like "#amg-war-room" intact.
+        out_chars = []
+        in_s = in_d = False
+        prev = ''
+        for ch in s:
+            if ch == "'" and not in_d:
+                in_s = not in_s
+            elif ch == '"' and not in_s:
+                in_d = not in_d
+            elif ch == '#' and not in_s and not in_d and (prev == '' or prev.isspace()):
+                break
+            out_chars.append(ch)
+            prev = ch
+        return ''.join(out_chars).rstrip()
+
     i = 0
     while i < len(lines):
         raw = lines[i]
-        stripped = raw.split('#', 1)[0].rstrip()
+        stripped = _strip_inline_comment(raw)
         if not stripped.strip():
             i += 1
             continue
@@ -189,12 +209,15 @@ exports = {
     'POLICY_DRAIN_SLACK_ENABLED': b(get(cfg, 'idea_drain.slack.enabled', True)),
     'POLICY_DRAIN_SLACK_WEBHOOK_ENV': get(cfg, 'idea_drain.slack.webhook_env', 'SLACK_WEBHOOK_URL'),
     'POLICY_DRAIN_SLACK_TIMEOUT': get(cfg, 'idea_drain.slack.timeout_seconds', 4),
-    # war_room (Phase G.3 — preconfigured for upcoming build)
-    'POLICY_WAR_ROOM_ENABLED':    b(get(cfg, 'war_room.enabled', False)),
-    'POLICY_WAR_ROOM_MODEL':      get(cfg, 'war_room.model', 'sonar-pro'),
-    'POLICY_WAR_ROOM_MIN_GRADE':  get(cfg, 'war_room.min_acceptable_grade', 'B'),
-    'POLICY_WAR_ROOM_MAX_ROUNDS': get(cfg, 'war_room.max_refinement_rounds', 3),
-    'POLICY_WAR_ROOM_TABLE':      get(cfg, 'war_room.log_table', 'war_room_exchanges'),
+    # war_room (Phase G.3)
+    'POLICY_WAR_ROOM_ENABLED':        b(get(cfg, 'war_room.enabled', False)),
+    'POLICY_WAR_ROOM_MODEL':          get(cfg, 'war_room.model', 'sonar-pro'),
+    'POLICY_WAR_ROOM_MIN_GRADE':      get(cfg, 'war_room.min_acceptable_grade', 'B'),
+    'POLICY_WAR_ROOM_MAX_ROUNDS':     get(cfg, 'war_room.max_refinement_rounds', 3),
+    'POLICY_WAR_ROOM_TABLE':          get(cfg, 'war_room.log_table', 'war_room_exchanges'),
+    'POLICY_WAR_ROOM_COST_CEILING':   get(cfg, 'war_room.cost_ceiling_cents_per_exchange', 25),
+    'POLICY_WAR_ROOM_SLACK_CHANNEL':  get(cfg, 'war_room.slack_channel', '#amg-war-room'),
+    'POLICY_WAR_ROOM_REQUIRE_PASSING': b(get(cfg, 'war_room.require_passing_grade_before_lock', True)),
 }
 
 for k, v in exports.items():

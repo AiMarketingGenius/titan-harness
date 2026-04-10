@@ -88,15 +88,13 @@ install_test:
   verification_timeout_seconds: 90
   cleanup_after_test: true
 
-# --- War Room (Phase G.3 — preconfigured for upcoming build) ---
+# --- War Room (Phase G.3 — SHIPPED 2026-04-10) ---
 # The war room is the automated Titan ↔ Perplexity back-and-forth loop that
 # grades plans/designs/phase-closures until convergence. Runs synchronously
 # in-session (via perplexity_review MCP tool) AND from the autonomous
 # titan-queue-watcher daemon on the VPS (via lib/war_room.py direct API call).
-#
-# Set enabled: true once lib/war_room.py + sql/003_war_room_exchanges.sql ship.
 war_room:
-  enabled: false                     # flip to true when G.3 ships
+  enabled: true                      # Phase G.3 shipped 2026-04-10
   model: "sonar-pro"                 # Perplexity model — see api.perplexity.ai/docs
   min_acceptable_grade: "B"          # below this → auto-refine
   max_refinement_rounds: 3           # cap loops so we don't burn tokens
