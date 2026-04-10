@@ -12,11 +12,28 @@ ACTIVE_TASK_FILE="$TITAN_SESSION_DIR/ACTIVE_TASK_ID"
 TASK_ID=""
 [ -f "$ACTIVE_TASK_FILE" ] && TASK_ID=$(cat "$ACTIVE_TASK_FILE" 2>/dev/null)
 
-BYPASS_FILE="$TITAN_SESSION_DIR/.gate_bypass"
+# Phase G.2: Read blocked tools + bypass file from policy.yaml via
+# POLICY_* env vars (loaded by lib/policy-loader.sh). Fallback to
+# hardcoded defaults if policy didn't load.
+BLOCKED_CSV="${POLICY_PRE_TOOL_BLOCKED:-Write,Edit,NotebookEdit}"
+BYPASS_FILENAME="${POLICY_PRE_TOOL_BYPASS_FILE:-.gate_bypass}"
+REQUIRE_TASK="${POLICY_PRE_TOOL_REQUIRE_TASK:-1}"
+
+BYPASS_FILE="$TITAN_SESSION_DIR/$BYPASS_FILENAME"
 BYPASS=0
 [ -f "$BYPASS_FILE" ] && BYPASS=1
 
-if [[ "$TOOL" == "Write" || "$TOOL" == "Edit" || "$TOOL" == "NotebookEdit" ]]; then
+# Check if current tool is in the blocked list (comma-separated)
+TOOL_BLOCKED=0
+IFS=',' read -ra _blocked_arr <<< "$BLOCKED_CSV"
+for _t in "${_blocked_arr[@]}"; do
+  if [ "$TOOL" = "$_t" ]; then
+    TOOL_BLOCKED=1
+    break
+  fi
+done
+
+if [ "$TOOL_BLOCKED" -eq 1 ] && [ "$REQUIRE_TASK" = "1" ]; then
   if [ -z "$TASK_ID" ] && [ "$BYPASS" -eq 0 ]; then
     echo "BLOCKED by titan-harness: no active task claimed on instance '$TITAN_INSTANCE'." >&2
     echo "To proceed: write task id to $ACTIVE_TASK_FILE or touch $BYPASS_FILE" >&2

@@ -87,3 +87,24 @@ install_test:
   mock_prompt: "install test from titan — lock it: titan-harness install verification"
   verification_timeout_seconds: 90
   cleanup_after_test: true
+
+# --- War Room (Phase G.3 — preconfigured for upcoming build) ---
+# The war room is the automated Titan ↔ Perplexity back-and-forth loop that
+# grades plans/designs/phase-closures until convergence. Runs synchronously
+# in-session (via perplexity_review MCP tool) AND from the autonomous
+# titan-queue-watcher daemon on the VPS (via lib/war_room.py direct API call).
+#
+# Set enabled: true once lib/war_room.py + sql/003_war_room_exchanges.sql ship.
+war_room:
+  enabled: false                     # flip to true when G.3 ships
+  model: "sonar-pro"                 # Perplexity model — see api.perplexity.ai/docs
+  min_acceptable_grade: "B"          # below this → auto-refine
+  max_refinement_rounds: 3           # cap loops so we don't burn tokens
+  log_table: "war_room_exchanges"
+  slack_channel: "#amg-war-room"
+  auto_trigger_on:
+    - "phase_completion"             # end of any Phase X.Y
+    - "plan_finalization"            # before marking a plan "locked"
+    - "architecture_decision"        # multi-option design calls
+  require_passing_grade_before_lock: true
+  cost_ceiling_cents_per_exchange: 25   # hard stop at $0.25/review
