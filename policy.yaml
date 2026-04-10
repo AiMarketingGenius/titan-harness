@@ -106,3 +106,39 @@ war_room:
     - "architecture_decision"        # multi-option design calls
   require_passing_grade_before_lock: true
   cost_ceiling_cents_per_exchange: 25   # hard stop at $0.25/review
+
+# --- MP (megaprompt) runs — Phase G.4 ---
+# Wraps MP-1 harvest and MP-2 synthesis under the harness so every phase
+# execution is tracked in public.mp_runs, war-roomed when it produces a
+# planning output, and scoped by project_id for multi-tenancy.
+#
+# This block is read by bin/mp-runner.sh + bin/mp-status.sh + bin/mp-resume.sh.
+mp_runs:
+  enabled: true                        # Phase G.4 shipped 2026-04-10
+  default_project: "EOM"
+  log_table: "mp_runs"
+  log_dir: "/var/log/mp-runs"
+  slack_channel: "#amg-mp-runs"
+  # Per-megaprompt API spend ceilings. Enforced by the runner before it
+  # delegates to the underlying script. A hard exit fires if the prior
+  # ceiling has already been hit.
+  spend_hard_cap_usd: 150              # matches MP-2 megaprompt doctrine
+  spend_soft_alert_usd: 75
+  spend_hard_alert_usd: 135
+  # Phases that are expected to produce a planning/synthesis doc. The runner
+  # will auto-war-room these outputs. Anything NOT in this list is treated
+  # as raw harvest and skips the war room.
+  war_room_phases:
+    - "mp1.8"                          # manifest consolidator summary
+    - "mp2.1"                          # corpus audit report
+    - "mp2.2"                          # voice extraction blueprint
+    - "mp2.3"                          # sales playbook
+    - "mp2.4"                          # decision framework
+    - "mp2.5"                          # operational patterns
+    - "mp2.6"                          # SOP codification
+    - "mp2.7"                          # heldout validation report
+  # Slack noise: runner only pings on 'failed' or 'blocked' status.
+  # War-room C-or-below pings are handled independently by lib/war_room.py.
+  notify_on_status:
+    - "failed"
+    - "blocked"

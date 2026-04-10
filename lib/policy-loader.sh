@@ -41,6 +41,14 @@
 #   POLICY_WAR_ROOM_COST_CEILING      — war_room.cost_ceiling_cents_per_exchange
 #   POLICY_WAR_ROOM_SLACK_CHANNEL     — war_room.slack_channel
 #   POLICY_WAR_ROOM_REQUIRE_PASSING   — war_room.require_passing_grade_before_lock (1/0)
+#   POLICY_MP_RUNS_ENABLED            — mp_runs.enabled (1/0)
+#   POLICY_MP_RUNS_PROJECT            — mp_runs.default_project
+#   POLICY_MP_RUNS_TABLE              — mp_runs.log_table
+#   POLICY_MP_RUNS_LOG_DIR            — mp_runs.log_dir
+#   POLICY_MP_RUNS_SLACK_CHANNEL      — mp_runs.slack_channel
+#   POLICY_MP_RUNS_HARD_CAP_USD       — mp_runs.spend_hard_cap_usd
+#   POLICY_MP_RUNS_SOFT_ALERT_USD     — mp_runs.spend_soft_alert_usd
+#   POLICY_MP_RUNS_HARD_ALERT_USD     — mp_runs.spend_hard_alert_usd
 
 # Locate policy.yaml
 _policy_candidates=(
@@ -218,6 +226,15 @@ exports = {
     'POLICY_WAR_ROOM_COST_CEILING':   get(cfg, 'war_room.cost_ceiling_cents_per_exchange', 25),
     'POLICY_WAR_ROOM_SLACK_CHANNEL':  get(cfg, 'war_room.slack_channel', '#amg-war-room'),
     'POLICY_WAR_ROOM_REQUIRE_PASSING': b(get(cfg, 'war_room.require_passing_grade_before_lock', True)),
+    # mp_runs (Phase G.4)
+    'POLICY_MP_RUNS_ENABLED':         b(get(cfg, 'mp_runs.enabled', False)),
+    'POLICY_MP_RUNS_PROJECT':         get(cfg, 'mp_runs.default_project', 'EOM'),
+    'POLICY_MP_RUNS_TABLE':           get(cfg, 'mp_runs.log_table', 'mp_runs'),
+    'POLICY_MP_RUNS_LOG_DIR':         get(cfg, 'mp_runs.log_dir', '/var/log/mp-runs'),
+    'POLICY_MP_RUNS_SLACK_CHANNEL':   get(cfg, 'mp_runs.slack_channel', '#amg-mp-runs'),
+    'POLICY_MP_RUNS_HARD_CAP_USD':    get(cfg, 'mp_runs.spend_hard_cap_usd', 150),
+    'POLICY_MP_RUNS_SOFT_ALERT_USD':  get(cfg, 'mp_runs.spend_soft_alert_usd', 75),
+    'POLICY_MP_RUNS_HARD_ALERT_USD':  get(cfg, 'mp_runs.spend_hard_alert_usd', 135),
 }
 
 for k, v in exports.items():
