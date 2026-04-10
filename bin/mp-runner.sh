@@ -322,8 +322,11 @@ else
 fi
 
 # ---- War-room the planning output (if applicable) --------------------------
-WAR_ROOM_GROUP_ID="null"
-WAR_ROOM_GRADE="null"
+# Defaults use Python-literal None so the heredoc that builds the PATCH
+# body doesn't see a bareword 'null'. When the war room runs, these get
+# overwritten with quoted strings like '"uuid-here"' which are valid Python.
+WAR_ROOM_GROUP_ID="None"
+WAR_ROOM_GRADE="None"
 WAR_ROOM_COST=0
 
 if [ "$PRODUCES_PLANNING" = "true" ] && [ "$FINAL_STATUS" = "complete" ] && [ "$NO_WAR_ROOM" -eq 0 ]; then
@@ -354,8 +357,10 @@ if [ "$PRODUCES_PLANNING" = "true" ] && [ "$FINAL_STATUS" = "complete" ] && [ "$
       --project "$PROJECT" \
       --json > "$WR_JSON" 2>> "$STDERR_LOG" || true
     if [ -s "$WR_JSON" ]; then
-      WAR_ROOM_GROUP_ID=$(python3 -c "import json; d=json.load(open('$WR_JSON')); print('\"'+d.get('exchange_group_id','')+'\"' if d.get('exchange_group_id') else 'null')" 2>/dev/null || echo null)
-      WAR_ROOM_GRADE=$(python3 -c "import json; d=json.load(open('$WR_JSON')); print('\"'+d.get('final_grade','')+'\"' if d.get('final_grade') else 'null')" 2>/dev/null || echo null)
+      # Emit Python-literal values so the downstream heredoc embeds cleanly:
+      # either a quoted string like '"uuid"' or the bareword None.
+      WAR_ROOM_GROUP_ID=$(python3 -c "import json; d=json.load(open('$WR_JSON')); print('\"'+d.get('exchange_group_id','')+'\"' if d.get('exchange_group_id') else 'None')" 2>/dev/null || echo None)
+      WAR_ROOM_GRADE=$(python3 -c "import json; d=json.load(open('$WR_JSON')); print('\"'+d.get('final_grade','')+'\"' if d.get('final_grade') else 'None')" 2>/dev/null || echo None)
       WAR_ROOM_COST=$(python3 -c "import json; d=json.load(open('$WR_JSON')); print(round(d.get('total_cost_cents',0),4))" 2>/dev/null || echo 0)
       _log "runner: war-room done grade=$WAR_ROOM_GRADE cost=${WAR_ROOM_COST}¢ group=$WAR_ROOM_GROUP_ID"
     else
