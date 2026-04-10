@@ -1,0 +1,35 @@
+{
+  "client": {
+    "business_name": "JDJ Investment Properties",
+    "display_name": "Lavar Jackson",
+    "city_state": "Lynn, Massachusetts",
+    "email": "levar@jdjinvestments.com"
+  },
+  "pricing": {
+    "plans": [
+      {
+        "name": "Infrastructure Setup Fee",
+        "plan_id": "P-40456056SB832583SNHL7VCI",
+        "price_label": "$500/mo × 3",
+        "description": "Covers the full build-out of your digital marketing infrastructure: professional multi-page website, AI chatbot, AI voice agent, A2P 10DLC re-registration, Google Business Profile setup, reputation management system, lead nurture automation, and CRO baseline. Auto-expires after 3 payments."
+      },
+      {
+        "name": "Monthly Marketing Service",
+        "plan_id": "P-9RY420484S5847021NHLQTKQ",
+        "price_label": "$797/mo ongoing",
+        "description": "Your ongoing managed marketing service: SEO, content marketing, GBP posting, review generation, competitor monitoring, lead nurture optimization, CRO, monthly reporting, and strategy calls. Locked at the Growth tier rate for life."
+      }
+    ]
+  },
+  "terms": {
+    "performance_guarantee_days": 90,
+    "cancellation_notice_days": 30,
+    "minimum_term_months": 12,
+    "non_resell_period_months": 0,
+    "ownership_transfer": "full on completion or performance-guarantee trigger"
+  },
+  "metadata": {
+    "proposal_version": "v4",
+    "project_id": "EOM"
+  }
+}
