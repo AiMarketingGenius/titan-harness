@@ -516,6 +516,12 @@ def _log_round_to_supabase(creds: dict[str, str], table: str,
 # Slack notifier
 # ---------------------------------------------------------------------------
 
+#: Grades that trigger a Slack ping. A/B stay silent (noise reduction) —
+#: Solon only wants to see questionable plans. Every round still lands in
+#: Supabase public.war_room_exchanges regardless.
+SLACK_NOTIFY_GRADES = {'C', 'D', 'F', 'ERROR'}
+
+
 def _post_slack(creds: dict[str, str], session: WarRoomSession) -> None:
     webhook = (creds.get('WAR_ROOM_SLACK_WEBHOOK')
                or creds.get('SLACK_WEBHOOK_URL'))
@@ -523,15 +529,22 @@ def _post_slack(creds: dict[str, str], session: WarRoomSession) -> None:
         return
     final = session.rounds[-1] if session.rounds else None
     grade = final.grade_result.grade if final else 'ERROR'
+
+    # Noise filter: only ping for C-or-below sessions.
+    if grade not in SLACK_NOTIFY_GRADES:
+        return
+
     summary = final.grade_result.summary if final else '(no response)'
     emoji = {'A': ':green_heart:', 'B': ':white_check_mark:',
              'C': ':warning:', 'D': ':octagonal_sign:',
              'F': ':x:', 'ERROR': ':rotating_light:'}.get(grade, ':question:')
-    text = (f'{emoji} *War Room* — {session.project_id} / '
-            f'{session.phase or "(no phase)"} / {session.trigger_source}\n'
-            f'> Final grade: *{grade}* after {len(session.rounds)} round(s)\n'
-            f'> Terminal: `{session.terminal_reason}` | '
+    text = (f'{emoji} *War Room — grade {grade} needs eyeballs*\n'
+            f'> Project/Phase: {session.project_id} / '
+            f'{session.phase or "(no phase)"} ({session.trigger_source})\n'
+            f'> Rounds: {len(session.rounds)} | '
+            f'Terminal: `{session.terminal_reason}` | '
             f'Cost: `{session.total_cost_cents:.2f}¢`\n'
+            f'> Group ID: `{session.exchange_group_id}`\n'
             f'> {summary}')
     try:
         _http_post(webhook, {'Content-Type': 'application/json'},
