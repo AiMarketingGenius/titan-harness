@@ -41,6 +41,7 @@
 #   POLICY_WAR_ROOM_COST_CEILING      — war_room.cost_ceiling_cents_per_exchange
 #   POLICY_WAR_ROOM_SLACK_CHANNEL     — war_room.slack_channel
 #   POLICY_WAR_ROOM_REQUIRE_PASSING   — war_room.require_passing_grade_before_lock (1/0)
+#   POLICY_WAR_ROOM_REVISER_MODEL     — war_room.reviser_model (Claude model name)
 #   POLICY_MP_RUNS_ENABLED            — mp_runs.enabled (1/0)
 #   POLICY_MP_RUNS_PROJECT            — mp_runs.default_project
 #   POLICY_MP_RUNS_TABLE              — mp_runs.log_table
@@ -226,6 +227,7 @@ exports = {
     'POLICY_WAR_ROOM_COST_CEILING':   get(cfg, 'war_room.cost_ceiling_cents_per_exchange', 25),
     'POLICY_WAR_ROOM_SLACK_CHANNEL':  get(cfg, 'war_room.slack_channel', '#amg-war-room'),
     'POLICY_WAR_ROOM_REQUIRE_PASSING': b(get(cfg, 'war_room.require_passing_grade_before_lock', True)),
+    'POLICY_WAR_ROOM_REVISER_MODEL':  get(cfg, 'war_room.reviser_model', 'claude-sonnet-4-5-20250929'),
     # mp_runs (Phase G.4)
     'POLICY_MP_RUNS_ENABLED':         b(get(cfg, 'mp_runs.enabled', False)),
     'POLICY_MP_RUNS_PROJECT':         get(cfg, 'mp_runs.default_project', 'EOM'),

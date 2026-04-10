@@ -88,16 +88,20 @@ install_test:
   verification_timeout_seconds: 90
   cleanup_after_test: true
 
-# --- War Room (Phase G.3 — SHIPPED 2026-04-10) ---
+# --- War Room (Phase G.3 — SHIPPED 2026-04-10, upgraded to A-grade floor) ---
 # The war room is the automated Titan ↔ Perplexity back-and-forth loop that
 # grades plans/designs/phase-closures until convergence. Runs synchronously
 # in-session (via perplexity_review MCP tool) AND from the autonomous
 # titan-queue-watcher daemon on the VPS (via lib/war_room.py direct API call).
+#
+# AMG QUALITY FLOOR (Solon directive 2026-04-10): every deliverable must
+# hit 9.4-9.5 out of 10, which maps to war-room grade A. B is a failure
+# and must be rewritten and re-graded. Only A is acceptable.
 war_room:
   enabled: true                      # Phase G.3 shipped 2026-04-10
   model: "sonar-pro"                 # Perplexity model — see api.perplexity.ai/docs
-  min_acceptable_grade: "B"          # below this → auto-refine
-  max_refinement_rounds: 3           # cap loops so we don't burn tokens
+  min_acceptable_grade: "A"          # AMG 9.4/10 floor — A = 9.5-10, B = FAIL
+  max_refinement_rounds: 5           # extra headroom to push past B → A
   log_table: "war_room_exchanges"
   slack_channel: "#amg-war-room"
   auto_trigger_on:
@@ -105,7 +109,8 @@ war_room:
     - "plan_finalization"            # before marking a plan "locked"
     - "architecture_decision"        # multi-option design calls
   require_passing_grade_before_lock: true
-  cost_ceiling_cents_per_exchange: 25   # hard stop at $0.25/review
+  cost_ceiling_cents_per_exchange: 50   # $0.50/review — Sonnet reviser is pricier than Haiku
+  reviser_model: "claude-sonnet-4-6"    # upgraded from Haiku — need Sonnet-grade revisions to reach A
 
 # --- MP (megaprompt) runs — Phase G.4 ---
 # Wraps MP-1 harvest and MP-2 synthesis under the harness so every phase
