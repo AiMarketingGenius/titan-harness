@@ -1,0 +1,14 @@
+[Unit]
+Description=Titan Ideas Drainer - queue -> Supabase (oneshot)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+Environment=TITAN_INSTANCE=vps-titan
+EnvironmentFile=-/opt/amg-titan/.env
+EnvironmentFile=-/root/.titan-env
+ExecStart=/opt/amg-titan/titan-harness/bin/idea-drain.sh
+StandardOutput=journal
+StandardError=journal
+Nice=10

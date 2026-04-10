@@ -1,0 +1,89 @@
+# titan-harness/policy.yaml
+# Policy-as-code for the titan-harness. Phase G.2 — externalized config
+# so behavior can be tuned without touching bash scripts.
+#
+# All hooks and helper scripts read from this file via install.sh, which
+# exports relevant keys into ~/.titan-env so shell scripts can consume
+# them at runtime. Re-run install.sh after editing this file.
+#
+# Document version: 1.0
+# Last updated: 2026-04-10
+
+version: "1.0"
+
+# --- Instance / environment ---
+harness:
+  project_id: "EOM"           # default project tag for captured state
+  session_dir_linux: "/opt/titan-session"
+  session_dir_macos: "$HOME/titan-session"
+
+# --- PreToolUse gate (existing hook) ---
+pre_tool_gate:
+  blocked_tools: ["Write", "Edit", "NotebookEdit"]
+  require_active_task: true   # tools above need ACTIVE_TASK_ID set
+  bypass_file: ".gate_bypass"
+
+# --- Idea capture (UserPromptSubmit hook) ---
+idea_capture:
+  enabled: true
+  trigger_phrase: "lock it"        # change here to alter the trigger
+  emoji_trigger: "🔒"              # iPhone-friendly alternative
+  target_table: "ideas"
+  default_project: "EOM"
+  # Empty-idea behavior: warn and skip (no transcript scraping)
+  empty_behavior: "warn-and-skip"
+  # Secret sanitization patterns (hook redacts these before queueing)
+  redact_patterns:
+    - name: "openai-key"
+      pattern: 'sk-[A-Za-z0-9_-]{20,}'
+      replacement: "[REDACTED_SK]"
+    - name: "shopify-token"
+      pattern: 'shp(ss|at|ca)_[A-Za-z0-9_-]{20,}'
+      replacement: "[REDACTED_SHOPIFY]"
+    - name: "jwt"
+      pattern: 'eyJ[A-Za-z0-9_=-]{40,}\.[A-Za-z0-9_=-]+\.[A-Za-z0-9_=-]+'
+      replacement: "[REDACTED_JWT]"
+    - name: "aws-key"
+      pattern: 'AKIA[0-9A-Z]{16}'
+      replacement: "[REDACTED_AWS]"
+    - name: "github-token"
+      pattern: 'ghp_[A-Za-z0-9]{30,}'
+      replacement: "[REDACTED_GH]"
+    - name: "google-key"
+      pattern: 'AIza[0-9A-Za-z_-]{30,}'
+      replacement: "[REDACTED_GOOGLE]"
+    - name: "email"
+      pattern: '[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}'
+      replacement: "[REDACTED_EMAIL]"
+  # Dedup: hash-based + DB UNIQUE constraint
+  dedup:
+    local_queue_lookback: 10   # check last N queue lines before appending
+    # DB-layer constraint: UNIQUE (idea_hash, created_at::date)
+    # Configured in sql/001_ideas_table.sql
+
+# --- Idea drainer (systemd timer / launchd plist) ---
+idea_drain:
+  interval_seconds: 60
+  concurrency_lock_stale_seconds: 300
+  http_timeout_seconds: 8
+  success_http_codes: [200, 201, 204]
+  dedup_http_code: 409         # DB unique-violation = idempotent success
+  slack:
+    enabled: true              # Slack ping fires AFTER successful insert
+    webhook_env: "IDEA_SLACK_WEBHOOK"   # or falls back to SLACK_WEBHOOK_URL
+    template: "🔒 Idea locked by {instance}: *{title}*\n> id: {id}"
+    timeout_seconds: 4
+
+# --- Security (Phase G.2 — using service role; G.2.5 will migrate to RLS) ---
+security:
+  auth_mode: "service_role"          # current: single service role key
+  # TODO G.2.5: implement Row Level Security with scoped JWT claims
+  # ideas_writer_jwt_claim: "role=ideas_writer"
+  # See sql/002_ideas_rls.sql (not yet written)
+
+# --- Install test mode ---
+install_test:
+  enabled: true
+  mock_prompt: "install test from titan — lock it: titan-harness install verification"
+  verification_timeout_seconds: 90
+  cleanup_after_test: true
