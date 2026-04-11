@@ -28,24 +28,28 @@ from pathlib import Path
 # ─── CONFIG ────────────────────────────────────────────────────────────────────
 PERPLEXITY_API_URL = "https://api.perplexity.ai/chat/completions"
 PERPLEXITY_MODEL   = "sonar-pro"      # Computer-class reasoning
-MAX_SECTION_CHARS  = 6_000            # Per-section trim to stay within token budget
+MAX_SECTION_CHARS  = 4_000            # Per-section trim (2026-04-11 tightened for budget)
 MCP_LOG_ENDPOINT   = os.environ.get("MCP_ENDPOINT", "http://memory.aimarketinggenius.io")
 
 # Transport fallback order (2026-04-12 Solon directive: fully automated, no manual relay):
 #   1. slack-computer — Titan bot in #titan-aristotle @mentions Perplexity Computer,
-#      polls reply, parses JSON. Uses Solon's Pro credits (no API billing). Preferred.
-#   2. perplexity-api — POST to api.perplexity.ai/chat/completions. Dormant fallback
-#      that activates only when SLACK_BOT_TOKEN is missing AND PERPLEXITY_API_KEY
-#      is present AND monthly budget not exceeded.
+#      polls reply, parses JSON. Uses Solon's Pro credits (no API billing). DORMANT
+#      until /oauth SPA unblocks (see RADAR).
+#   2. perplexity-api — POST to api.perplexity.ai/chat/completions. ACTIVE PRIMARY
+#      while Slack path is dormant. Gated by monthly-budget + daily-call-cap.
 #   3. (none available) → exit 2, escalate to Solon.
 TRANSPORT_FALLBACK_ORDER = ["slack-computer", "perplexity-api"]
 
-# Hard monthly budget for Perplexity API fallback path (2026-04-12 Solon directive:
-# "Fallback path: Perplexity API with a hard monthly budget and fail-closed behavior
-# if quota is exhausted.")
-PERPLEXITY_API_MONTHLY_BUDGET_USD = float(os.environ.get("TITAN_PPLX_API_MONTHLY_BUDGET_USD", "20.0"))
+# ── BUDGET GUARDRAIL (2026-04-11 Solon directive, non-negotiable) ─────────────
+# Pool total = $50 (one-time top-up, must last a long time).
+# Target    <= $10 / month spend.
+# Soft cap  <= 30 review_gate calls / day.
+# Fail-closed + escalate to Solon if projected to exceed either cap.
+PERPLEXITY_API_MONTHLY_BUDGET_USD = float(os.environ.get("TITAN_PPLX_API_MONTHLY_BUDGET_USD", "10.0"))
+PERPLEXITY_API_MONTHLY_POOL_USD   = float(os.environ.get("TITAN_PPLX_API_MONTHLY_POOL_USD",   "50.0"))
+PERPLEXITY_API_DAILY_CALL_CAP     = int(  os.environ.get("TITAN_PPLX_API_DAILY_CALL_CAP",     "30"))
 PERPLEXITY_API_SPEND_LOG = Path("/var/log/titan/perplexity-api-spend.jsonl")
-PERPLEXITY_API_COST_PER_CALL_USD = 0.05  # Conservative estimate: sonar-pro ~$5/1M in, ~$15/1M out
+PERPLEXITY_API_COST_PER_CALL_USD = 0.05  # Estimate: sonar-pro ~$5/1M in, ~$15/1M out
                                          # per review bundle averages ~5K tokens → ~$0.05
 
 # ─── CANONICAL SYSTEM PROMPT (blueprint §9.7) ──────────────────────────────────
@@ -262,9 +266,12 @@ def _api_transport_available() -> tuple[bool, str]:
         except ImportError:
             return False, "infisical_fetch not importable and PERPLEXITY_API_KEY not in env"
 
-    # Monthly budget check — fail-closed if exceeded
+    # Budget & daily-call gate — fail-closed if either projection exceeds cap
     this_month = datetime.now(timezone.utc).strftime("%Y-%m")
+    today_utc  = datetime.now(timezone.utc).strftime("%Y-%m-%d")
     month_spend = 0.0
+    month_calls = 0
+    today_calls = 0
     if PERPLEXITY_API_SPEND_LOG.exists():
         try:
             for line in PERPLEXITY_API_SPEND_LOG.read_text().splitlines():
@@ -272,16 +279,32 @@ def _api_transport_available() -> tuple[bool, str]:
                     entry = json.loads(line)
                     if entry.get("month") == this_month:
                         month_spend += float(entry.get("cost_usd", 0))
+                        month_calls += 1
+                    if str(entry.get("ts", "")).startswith(today_utc):
+                        today_calls += 1
                 except Exception:
                     continue
         except Exception:
             pass
-    if month_spend >= PERPLEXITY_API_MONTHLY_BUDGET_USD:
+
+    # Monthly $ cap — hard gate
+    if (month_spend + PERPLEXITY_API_COST_PER_CALL_USD) > PERPLEXITY_API_MONTHLY_BUDGET_USD:
         return False, (
-            f"Perplexity API monthly budget exhausted: ${month_spend:.2f} >= "
-            f"${PERPLEXITY_API_MONTHLY_BUDGET_USD:.2f} — fail-closed"
+            f"API monthly budget would be exceeded by this call: "
+            f"${month_spend:.2f} + ${PERPLEXITY_API_COST_PER_CALL_USD:.2f} > "
+            f"${PERPLEXITY_API_MONTHLY_BUDGET_USD:.2f} — fail-closed, escalate to Solon"
         )
-    return True, f"ready (month spend: ${month_spend:.2f} / ${PERPLEXITY_API_MONTHLY_BUDGET_USD:.2f})"
+    # Daily call soft-cap — hard gate (Solon must batch-approve to exceed)
+    if today_calls >= PERPLEXITY_API_DAILY_CALL_CAP:
+        return False, (
+            f"API daily call cap reached: {today_calls} >= "
+            f"{PERPLEXITY_API_DAILY_CALL_CAP} — batch work and ask Solon"
+        )
+    return True, (
+        f"ready (month: ${month_spend:.2f} / ${PERPLEXITY_API_MONTHLY_BUDGET_USD:.2f}, "
+        f"today: {today_calls}/{PERPLEXITY_API_DAILY_CALL_CAP} calls, "
+        f"pool: ${PERPLEXITY_API_MONTHLY_POOL_USD:.2f})"
+    )
 
 
 def _record_api_spend(cost_usd: float) -> None:
@@ -363,12 +386,43 @@ def select_and_call_transport(bundle: dict, preferred: str = "auto") -> tuple[di
     raise RuntimeError("All reviewer transports unavailable: " + " | ".join(errors))
 
 
-def log_to_mcp(step_id: str, bundle_path: str, result: dict) -> None:
-    """Best-effort MCP log_decision. Failure is non-fatal but printed to stderr."""
+def _read_spend_counters() -> tuple[float, int, int]:
+    """Return (month_spend_usd, month_calls, today_calls) from spend log. Best-effort."""
+    this_month = datetime.now(timezone.utc).strftime("%Y-%m")
+    today_utc  = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    month_spend = 0.0
+    month_calls = 0
+    today_calls = 0
+    if PERPLEXITY_API_SPEND_LOG.exists():
+        try:
+            for line in PERPLEXITY_API_SPEND_LOG.read_text().splitlines():
+                try:
+                    entry = json.loads(line)
+                    if entry.get("month") == this_month:
+                        month_spend += float(entry.get("cost_usd", 0))
+                        month_calls += 1
+                    if str(entry.get("ts", "")).startswith(today_utc):
+                        today_calls += 1
+                except Exception:
+                    continue
+        except Exception:
+            pass
+    return month_spend, month_calls, today_calls
+
+
+def log_to_mcp(step_id: str, bundle_path: str, result: dict, transport_used: str) -> None:
+    """Best-effort MCP log_decision. Failure is non-fatal but printed to stderr.
+
+    For API transport, includes cost estimate and running counters so Solon can
+    see live budget utilisation in MCP without tailing the spend log.
+    """
     try:
+        month_spend, month_calls, today_calls = _read_spend_counters()
+        cost_this_call = PERPLEXITY_API_COST_PER_CALL_USD if transport_used == "perplexity-api" else 0.0
         entry = {
             "step_id":              step_id,
             "bundle_path":          bundle_path,
+            "transport_used":       transport_used,
             "computer_grade":       result["grade"],
             "computer_approved":    result["approved"],
             "risk_tags":            result["risk_tags"],
@@ -376,6 +430,13 @@ def log_to_mcp(step_id: str, bundle_path: str, result: dict) -> None:
             "hard_limit_triggered": any(t.startswith("HARD_LIMIT_") for t in result["risk_tags"]),
             "rationale":            result["rationale"],
             "solon_notified":       not result["approved"],
+            "cost_usd_estimate":    cost_this_call,
+            "month_spend_usd":      round(month_spend, 2),
+            "month_calls":          month_calls,
+            "today_calls":          today_calls,
+            "monthly_cap_usd":      PERPLEXITY_API_MONTHLY_BUDGET_USD,
+            "daily_cap":            PERPLEXITY_API_DAILY_CALL_CAP,
+            "pool_usd":             PERPLEXITY_API_MONTHLY_POOL_USD,
             "timestamp_utc":        datetime.now(timezone.utc).isoformat(),
         }
         payload = json.dumps({"action": "log_decision", "data": entry}).encode("utf-8")
@@ -461,7 +522,7 @@ def main() -> None:
     result = validate_result(raw_result)
 
     # Log to MCP (best-effort — never blocks the exit code)
-    log_to_mcp(step_id, str(bundle_path), result)
+    log_to_mcp(step_id, str(bundle_path), result, transport_used)
 
     # Print final graded JSON to stdout for Titan to parse
     print(json.dumps(result, indent=2))
