@@ -6,6 +6,15 @@
 **Classification:** Doctrine file — feed directly into CORE_CONTRACT and routing rules
 **Ingested:** 2026-04-12 per Solon autonomy directive (this file is the canonical verbatim source of truth)
 **Annotations + conflict analysis + implementation plans live at:** `plans/PLAN_2026-04-12_autonomy-phase{1..5}-*.md`
+**EOM V2 audit fixes applied:** 2026-04-12 per directive — Stripe row removed and replaced with Paddle (sole processor), §0 MCP-as-SoT Contract prepended, PHVP TODO added after §8.
+
+---
+
+## §0 MCP-as-SoT Contract
+
+All decisions, blockers, and phase-transition outcomes must be logged to the Model Context Protocol (MCP) endpoint at memory.aimarketinggenius.io via the log_decision tool.
+In case of conflict between local audit logs and MCP, MCP takes precedence as the single source of truth.
+Every phase must include an MCP log entry at start and end.
 
 ---
 
@@ -131,7 +140,7 @@ This works for any TOTP-based service. The seed is stored once (during your init
 | **Claude.ai** | Browser cookie | Session cookie via grab-cookies.py | 7–14 days | Weekly ritual |
 | **Perplexity.ai** | Browser cookie | Session cookie via grab-cookies.py | 7–14 days | Weekly ritual |
 | **HubSpot** | OAuth 2.0 + TOTP | Refresh token + TOTP seed | Refresh: until revoked | TOTP: never (automated) |
-| **Stripe** | API Key | Restricted key (read/write scopes) | 90 days | Rotate quarterly |
+| **Paddle** | API Key | Restricted vendor auth code + API key (sole processor) | 90 days | Rotate quarterly |
 | **ElevenLabs** | API Key | Per-service scoped key | Platform default | Annual or on breach |
 | **Deepgram** | API Key | Per-service key | Platform default | Annual or on breach |
 | **Loom** | OAuth 2.0 or cookie | Session cookie | 30 days | Monthly ritual |
@@ -677,6 +686,13 @@ These are absolute stops — Titan must escalate to Solon and wait for explicit 
 - **App Store sandboxing**: Mac App Store apps have sandboxed containers — AppleScript and automation access is restricted. Use non-App-Store versions (e.g., direct download) for apps Titan needs to automate.
 
 ---
+
+<!--
+TODO: Run PHVP v1.0 on Infisical (self-hosted), Doppler, Browserless, and Camoufox.
+- Infisical self-hosted likely passes (data ownership, no lock-in).
+- Browserless requires review due to potential lock-in and unbounded cost.
+- Doppler as a SaaS secret store violates the "build ourselves" mantra unless a self-hosted alternative is used.
+-->
 
 ## 8. Recommended Tool Stack
 
