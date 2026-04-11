@@ -50,6 +50,10 @@
 - **Thread 5: Client Reporting Autopilot** — `plans/PLAN_2026-04-11_client-reporting-autopilot.md` (A 9.40/10)
 - **Merchant Stack application package** — `plans/merchant-stack-applications/` (Solon action checklist + 3 cover letter drafts + website audit)
 
+### Canonical doctrine (committed to repo, not gitignored)
+- **AMG Product Tiers + IP Protection** — [`plans/DOCTRINE_AMG_PRODUCT_TIERS.md`](../plans/DOCTRINE_AMG_PRODUCT_TIERS.md) — three-SKU ladder (subs / white-label / Solon OS custom 3a+3b), IP protection architecture, pricing posture (never underprice), standing rule for all customer-facing surfaces. Established 2026-04-11 via Hercules backfill pass.
+- **Hercules Backfill Report** — [`HERCULES_BACKFILL_REPORT.md`](../HERCULES_BACKFILL_REPORT.md) — one-time audit of the recent build era confirming every structural directive is harnessed. Flags 3 structural TODOs (email send-verification gate, pricing engine, Atlas frontend session continuity).
+
 ### Solon OS substrate
 - [`policy.yaml`](../policy.yaml) — all runtime config (capacity, war_room, autopilot, aristotle, alexandria)
 - [`lib/war_room.py`](../lib/war_room.py) — 10-dim A-grade rubric grader
@@ -83,4 +87,4 @@ This way Aristotle, Titan, and Solon always see the same Library state.
   - claude threads: 0 (pending Solon sessionKey)
   - Gmail: 0 (pending OAuth + harvester)
   - Loom: 0 (pending creds)
-- **Last index refresh:** 2026-04-11 14:32 UTC
+- **Last index refresh:** 2026-04-11 14:54 UTC

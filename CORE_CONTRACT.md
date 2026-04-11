@@ -41,7 +41,9 @@ New doctrine files (*.md) must land in:
 - `baselines/`
 - `templates/`
 - `library_of_alexandria/<section>/`
-- Repo root ONLY for: `README.md`, `CORE_CONTRACT.md`, `CLAUDE.md`, `INVENTORY.md`, `RADAR.md`, `IDEA_TO_EXECUTION_PIPELINE.md`, `RELAUNCH_CLAUDE_CODE.md`, `SESSION_PROMPT.md`, `ALEXANDRIA_INDEX.md`, `P9.1_CUTOVER_REPORT.md`
+- Repo root ONLY for: `README.md`, `CORE_CONTRACT.md`, `CLAUDE.md`, `INVENTORY.md`, `RADAR.md`, `IDEA_TO_EXECUTION_PIPELINE.md`, `RELAUNCH_CLAUDE_CODE.md`, `SESSION_PROMPT.md`, `ALEXANDRIA_INDEX.md`, `P9.1_CUTOVER_REPORT.md`, `HERCULES_BACKFILL_REPORT.md`
+
+**Committed doctrine in `plans/`:** `plans/` is gitignored by default (session-level DRs, plans, and blueprints are ephemeral), but any file matching `plans/DOCTRINE_*.md` is exempted from `.gitignore` and committed. This lets canonical product / architecture doctrine live alongside ephemeral DRs with a clean naming convention: `PLAN_*.md` = ephemeral, `DOCTRINE_*.md` = committed canon.
 
 Anything outside triggers `alexandria-preflight` warning at commit/build time.
 

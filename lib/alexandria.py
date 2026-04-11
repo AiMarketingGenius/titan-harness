@@ -66,6 +66,8 @@ APPROVED_ROOT_DOCS = {
     "RELAUNCH_CLAUDE_CODE.md",
     "SESSION_PROMPT.md",
     "P9.1_CUTOVER_REPORT.md",
+    "HERCULES_BACKFILL_REPORT.md",
+    "ALEXANDRIA_INDEX.md",
 }
 
 # Paths where new doctrine files are ALLOWED to land

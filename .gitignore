@@ -5,7 +5,8 @@ __pycache__/
 *.pyd
 *.bak.*
 *.bak
-plans/
+plans/*
+!plans/DOCTRINE_*.md
 RADAR_SUMMARY.md
 .gate_bypass
 *.log

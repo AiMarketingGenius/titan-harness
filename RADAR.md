@@ -1,7 +1,7 @@
 # RADAR — Titan's Never-Lose-Anything Open Queue
 
 **Owner:** Titan (COO). **Canonical state for what's open, blocked, parked, or in-flight.**
-**Last refreshed:** 2026-04-11 14:32 UTC
+**Last refreshed:** 2026-04-11 14:58 UTC
 **Refresh cadence:** every session boot; full regenerate daily via `scripts/radar_refresh.py`.
 
 **Hard rule:** every important idea, DR, megaprompt, or half-finished project must (a) exist as a row in `tasks`/`mp_runs` or a `PLAN_*.md`/`MP_*.md` file, AND (b) have a line here under one of the sections below. No exceptions.
@@ -111,6 +111,28 @@ From `~/titan-session/NEXT_TASK.md`:
 - **Titan-policy repo creation** (Phase G.1.4 finish) — pending
 - **Atlas Layer 2 sweep SOP absorption** — pending
 - **Cross-instance Slack routing** — live
+
+---
+
+## Product / Pricing doctrine (open specs)
+
+**Canonical doctrine:** [`plans/DOCTRINE_AMG_PRODUCT_TIERS.md`](plans/DOCTRINE_AMG_PRODUCT_TIERS.md) (committed 2026-04-11 via Hercules backfill pass, also in MCP memory `project_amg_product_tiers.md` + `feedback_ip_protection.md`)
+
+- **Three-SKU landing-page split** — AMG subs (self-serve funnel) / White-label (application-gated channel partner page) / Solon OS custom (invite-only "apply" page with scoping call). Currently collapsed into one funnel on aimarketinggenius.io. Spec not yet drafted.
+- **White-label agency discount model** — no spec exists. Needs: discount %, minimum volume, branding scope, contractual no-compete, upgrade path from AMG-sub white-label → Atlas white-label. Blocker on agency channel launch.
+- **Tenant-API architecture for custom builds** — standing principle per doctrine §2. Client instances must be tenants calling AMG's API, never standalone copies. Needs: reference architecture doc + client-deliverable template audit to confirm no prompt/persona/orchestration leakage.
+- **Solon OS custom tier 3a vs 3b pricing bands** — Atlas-as-template (3a) vs fully-custom OS in client identity (3b). Price floors not yet set. Must be high enough to not create competition per Solon directive 2026-04-11.
+- **`lib/pricing_engine.py`** — runtime enforcement of floor rules (cost-plus, competitor-displacement, value-share — max of the three). Required for the demo proposal flow Solon wants. Needs DR.
+
+---
+
+## Structural gaps (from Hercules backfill 2026-04-11)
+
+**Report:** [`HERCULES_BACKFILL_REPORT.md`](HERCULES_BACKFILL_REPORT.md)
+
+- **⚠️ Email send-verification preflight gate** — no `bin/email-send-preflight.sh`, no `sql/*_email_send_tests.sql`, no `policy.yaml email_send:` block. Thread 1 Sales Inbox + Thread 3 Marketing Engine both stub outbound send without a preflight (parallel to Gate 3 payment-link tester pattern). P1 gap. Needs DR before implementation. Solon explicitly flagged this as a structural concern.
+- **⚠️ Cross-device session continuity rule** — Atlas frontends (Mac ⇄ web ⇄ iPhone PWA) need a structural rule that all frontends speak to Titan via central `atlas_session_id` handshake, never direct Claude API. Tentative home: `CORE_CONTRACT.md §9`. Flagged here so it doesn't get lost during the Atlas skin build.
+- **⚠️ `lib/pricing_engine.py`** — see "Product / Pricing doctrine" section above.
 
 ---
 
