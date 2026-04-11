@@ -1,0 +1,10 @@
+# Drop full-page Perplexity Threads-list screenshots here.
+#
+# Titan will OCR them via `python3 lib/alexandria.py --ocr-perplexity`
+# (or macOS Shortcuts "Extract Text" fallback), build catalog rows in
+# ../perplexity_catalog.md, and (when promoted) surface candidates to
+# Aristotle in #titan-aristotle.
+#
+# Accepted formats: .png, .jpg, .jpeg, .webp, .pdf
+#
+# This .gitkeep is only here to preserve the empty directory in git.

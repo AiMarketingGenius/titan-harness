@@ -8,6 +8,15 @@
 
 ---
 
+## Library of Alexandria (canonical index)
+
+- **Index:** [`library_of_alexandria/ALEXANDRIA_INDEX.md`](library_of_alexandria/ALEXANDRIA_INDEX.md) — single catalog for everything harvested or authored about Solon/AMG
+- **7 sections:** solon_os, perplexity_threads, claude_threads, emails, looms, fireflies_meetings, other_sources
+- **Helper:** `python3 lib/alexandria.py --refresh|--search|--promote|--preflight`
+- **Placement enforcement:** `bin/alexandria-preflight.sh` warns on doctrine files outside approved tree
+
+---
+
 ## Execution Priority (default pull order when Solon hasn't explicitly overridden)
 
 1. **Thread 1 Sales Inbox Autopilot** (`lib/sales_inbox.py`) — gated on `sql/007_autopilot_suite.sql` apply

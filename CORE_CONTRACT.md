@@ -14,9 +14,73 @@
 | **COO / Head of Execution** | **Titan** (Claude Opus 4.6 1M in `~/titan-harness`) | Queues, harnesses, infra, migrations, Idea → DR → Plan → Execute, ensuring nothing falls through the cracks. |
 | **Strategy + Research Co-pilot** | **Perplexity** via the dedicated AMG Slack war-room channel (long-term context) | Deep research, grading, architecture critique, second-brain review. |
 
-**Routing rule:** for DRs, blueprints, grading, and research — Titan's default is to post to Perplexity in Slack (NOT stateless API). Direct `api.perplexity.ai` / LiteLLM `sonar-pro` is a fallback only when the Slack channel is unavailable or Solon explicitly opts out. The Slack-routed path is implemented in `lib/war_room_slack.py` (shipped commit `f97a7c1`, disabled by default via `policy.yaml war_room.slack_grading_enabled`).
+**Routing rule:** for DRs, blueprints, grading, and research — Titan's default is to post to Aristotle in the `#titan-aristotle` Slack channel (NOT stateless API). Direct `api.perplexity.ai` / LiteLLM `sonar-pro` is a fallback only when the Slack channel is unavailable or Solon explicitly opts out. Aristotle integration lives in `lib/aristotle_slack.py` (shipped commit `4e59440`, disabled by default via `policy.yaml autopilot.aristotle_enabled`). The lower-level Slack-routed grading path lives in `lib/war_room_slack.py` (shipped commit `f97a7c1`).
 
 The 3 roles + brevity contract are documented in `CLAUDE.md` (session-level operating contract).
+
+---
+
+## 0.5 Library of Alexandria rule (amended 2026-04-11 Part 3)
+
+**Everything goes in the Library.** Any artifact about Solon or AMG — harvested source material, generated DRs, blueprints, megaprompt outputs, transcripts, curated threads, whatever — must be reachable from `library_of_alexandria/ALEXANDRIA_INDEX.md` via one of its 7 canonical sections:
+
+1. `solon_os` (doctrine — `plans/` + core operating docs)
+2. `perplexity_threads` (`/opt/amg-titan/solon-corpus/perplexity/` + repo-local screenshots)
+3. `claude_threads` (`/opt/amg-titan/solon-corpus/claude-threads/`)
+4. `emails` (`/opt/amg-titan/solon-corpus/gmail/`)
+5. `looms` (`/opt/amg-titan/solon-corpus/loom/`)
+6. `fireflies_meetings` (`/opt/amg-titan/solon-corpus/fireflies/`)
+7. `other_sources` (slack + mcp-decisions + catch-all)
+
+**The Library is a thin catalog layer, not a copy.** Raw bytes live in their physical homes (`plans/`, VPS corpus). `library_of_alexandria/<section>/MANIFEST.md` points at the authoritative location. No duplication, no drift risk.
+
+**Doctrine placement rule** (enforced by `bin/alexandria-preflight.sh` — warn-only by default, `ALEXANDRIA_PREFLIGHT_STRICT=1` to block):
+
+New doctrine files (*.md) must land in:
+- `plans/` or `plans/<sub>/`
+- `baselines/`
+- `templates/`
+- `library_of_alexandria/<section>/`
+- Repo root ONLY for: `README.md`, `CORE_CONTRACT.md`, `CLAUDE.md`, `INVENTORY.md`, `RADAR.md`, `IDEA_TO_EXECUTION_PIPELINE.md`, `RELAUNCH_CLAUDE_CODE.md`, `SESSION_PROMPT.md`, `ALEXANDRIA_INDEX.md`, `P9.1_CUTOVER_REPORT.md`
+
+Anything outside triggers `alexandria-preflight` warning at commit/build time.
+
+**Promotion-to-canon flow:** when Titan or Aristotle identifies something worth keeping as canonical reference, Titan runs `lib/alexandria.py --promote <section> <path> "<note>"`, which (a) copies the artifact to `library_of_alexandria/<section>/promoted/`, (b) appends an entry to `ALEXANDRIA_INDEX.md`, (c) posts a short note to `#titan-aristotle` via `lib/aristotle_slack.post_update()`.
+
+---
+
+## 0.6 Hercules Triangle — default for all structural directives
+
+Every structural directive from Solon (new subsystem, new rule, new agent, new tree) goes through the **Hercules Triangle**:
+
+1. **Intent** — capture what Solon actually wants in a short written directive (usually posted as a "Mega Prompt" or similar). Titan paraphrases it back in its own words to confirm.
+2. **Harness** — encode the intent in the harness machinery: `CORE_CONTRACT.md` amendment, `policy.yaml` block, a new `lib/*.py` helper, a new `bin/*.sh` preflight, new SQL schema, stub modules. The harness enforces the rule going forward automatically; Titan doesn't need to remember it.
+3. **Mirror** — propagate the change through all mirrors: Mac working tree → VPS working tree (`/opt/titan-harness`) → VPS bare repo (`/opt/titan-harness.git`) → GitHub (`AiMarketingGenius/titan-harness`). Verified via `tail /var/log/titan-harness-mirror.log` after every commit.
+
+**Default behavior:** whenever Solon sends a structural directive, Titan runs Intent → Harness → Mirror sequentially without prompting. The reply is one-screen brevity proof per `CLAUDE.md §2`.
+
+**Applied to:**
+- Autopilot Suite (commit `bea1740`)
+- Roles + Brevity + RADAR (commit `5d7b884`)
+- Aristotle first-class agent (commit `4e59440`)
+- Library of Alexandria (this amendment)
+
+---
+
+## 0.7 Conflict-check hard rule (amended 2026-04-11 Part 3)
+
+**Before Titan creates any new folder, file, or system for a structural directive, Titan MUST:**
+
+1. **Scan for existing equivalents** — folders, indexes, doctrine docs, archives that already play the same role
+2. **If overlap is found, do not duplicate.** Instead, surface it to Solon with:
+   - A 3-bullet merge or migration plan
+   - An explicit line: `Existing structures found: <list>. Recommended change: <short description>.`
+3. **Only create new structures** when either (a) no suitable existing one exists, or (b) Solon approves the merge/migration plan.
+
+**This rule is non-bypassable** and applies to every future "foundation" request: treat every structural directive as *check for an existing foundation first, then merge or extend*.
+
+Applied retroactively:
+- Library of Alexandria — conflict check found overlap with `plans/` + `/opt/amg-titan/solon-corpus/`; merge plan proposed and approved 2026-04-11.
 
 ---
 
