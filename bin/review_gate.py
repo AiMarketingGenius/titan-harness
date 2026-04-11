@@ -31,6 +31,23 @@ PERPLEXITY_MODEL   = "sonar-pro"      # Computer-class reasoning
 MAX_SECTION_CHARS  = 6_000            # Per-section trim to stay within token budget
 MCP_LOG_ENDPOINT   = os.environ.get("MCP_ENDPOINT", "http://memory.aimarketinggenius.io")
 
+# Transport fallback order (2026-04-12 Solon directive: fully automated, no manual relay):
+#   1. slack-computer — Titan bot in #titan-aristotle @mentions Perplexity Computer,
+#      polls reply, parses JSON. Uses Solon's Pro credits (no API billing). Preferred.
+#   2. perplexity-api — POST to api.perplexity.ai/chat/completions. Dormant fallback
+#      that activates only when SLACK_BOT_TOKEN is missing AND PERPLEXITY_API_KEY
+#      is present AND monthly budget not exceeded.
+#   3. (none available) → exit 2, escalate to Solon.
+TRANSPORT_FALLBACK_ORDER = ["slack-computer", "perplexity-api"]
+
+# Hard monthly budget for Perplexity API fallback path (2026-04-12 Solon directive:
+# "Fallback path: Perplexity API with a hard monthly budget and fail-closed behavior
+# if quota is exhausted.")
+PERPLEXITY_API_MONTHLY_BUDGET_USD = float(os.environ.get("TITAN_PPLX_API_MONTHLY_BUDGET_USD", "20.0"))
+PERPLEXITY_API_SPEND_LOG = Path("/var/log/titan/perplexity-api-spend.jsonl")
+PERPLEXITY_API_COST_PER_CALL_USD = 0.05  # Conservative estimate: sonar-pro ~$5/1M in, ~$15/1M out
+                                         # per review bundle averages ~5K tokens → ~$0.05
+
 # ─── CANONICAL SYSTEM PROMPT (blueprint §9.7) ──────────────────────────────────
 # DO NOT MODIFY without a Solon-approved doctrine edit.
 SYSTEM_PROMPT = """\
@@ -198,6 +215,143 @@ def validate_result(raw: dict) -> dict:
     }
 
 
+# ─── TRANSPORT SELECTION + FALLBACK LOGIC ─────────────────────────────────────
+
+def _slack_transport_available() -> tuple[bool, str]:
+    """Return (available, reason). Checks SLACK_BOT_TOKEN + slack-config.json presence."""
+    # Token via Infisical if available, else env var
+    try:
+        sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "lib"))
+        from infisical_fetch import get_secret, SecretFetchError
+        try:
+            _ = get_secret("SLACK_BOT_TOKEN", project="harness-core")
+        except SecretFetchError:
+            if not os.environ.get("SLACK_BOT_TOKEN"):
+                return False, "SLACK_BOT_TOKEN not in Infisical harness-core/dev or env"
+    except ImportError:
+        if not os.environ.get("SLACK_BOT_TOKEN"):
+            return False, "infisical_fetch not importable and SLACK_BOT_TOKEN not in env"
+
+    if not Path("/root/.infisical/slack-config.json").exists():
+        return False, "slack-config.json missing — run bin/titan-slack-setup.sh"
+    return True, "ready"
+
+
+def _api_transport_available() -> tuple[bool, str]:
+    """Return (available, reason). Checks API key + monthly budget."""
+    api_key = os.environ.get("PERPLEXITY_API_KEY", "").strip()
+    if not api_key:
+        try:
+            sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "lib"))
+            from infisical_fetch import get_secret, SecretFetchError
+            try:
+                _ = get_secret("PERPLEXITY_API_KEY", project="harness-core")
+            except SecretFetchError:
+                return False, "PERPLEXITY_API_KEY not in Infisical or env"
+        except ImportError:
+            return False, "infisical_fetch not importable and PERPLEXITY_API_KEY not in env"
+
+    # Monthly budget check — fail-closed if exceeded
+    this_month = datetime.now(timezone.utc).strftime("%Y-%m")
+    month_spend = 0.0
+    if PERPLEXITY_API_SPEND_LOG.exists():
+        try:
+            for line in PERPLEXITY_API_SPEND_LOG.read_text().splitlines():
+                try:
+                    entry = json.loads(line)
+                    if entry.get("month") == this_month:
+                        month_spend += float(entry.get("cost_usd", 0))
+                except Exception:
+                    continue
+        except Exception:
+            pass
+    if month_spend >= PERPLEXITY_API_MONTHLY_BUDGET_USD:
+        return False, (
+            f"Perplexity API monthly budget exhausted: ${month_spend:.2f} >= "
+            f"${PERPLEXITY_API_MONTHLY_BUDGET_USD:.2f} — fail-closed"
+        )
+    return True, f"ready (month spend: ${month_spend:.2f} / ${PERPLEXITY_API_MONTHLY_BUDGET_USD:.2f})"
+
+
+def _record_api_spend(cost_usd: float) -> None:
+    """Append a spend entry to the monthly log. Best-effort; non-fatal on failure."""
+    try:
+        PERPLEXITY_API_SPEND_LOG.parent.mkdir(parents=True, exist_ok=True)
+        entry = {
+            "ts": datetime.now(timezone.utc).isoformat(),
+            "month": datetime.now(timezone.utc).strftime("%Y-%m"),
+            "cost_usd": cost_usd,
+        }
+        with PERPLEXITY_API_SPEND_LOG.open("a") as f:
+            f.write(json.dumps(entry) + "\n")
+    except Exception:
+        pass
+
+
+def call_slack_computer(bundle: dict) -> dict:
+    """Delegate grading to Perplexity Computer in #titan-aristotle via Slack."""
+    sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "lib"))
+    try:
+        from slack_reviewer import SlackReviewer, SlackReviewerError
+    except ImportError as e:
+        raise RuntimeError(f"slack_reviewer module missing: {e}")
+    try:
+        from infisical_fetch import get_secret
+        token = get_secret("SLACK_BOT_TOKEN", project="harness-core")
+    except Exception:
+        token = os.environ.get("SLACK_BOT_TOKEN", "")
+        if not token:
+            raise RuntimeError("SLACK_BOT_TOKEN unavailable from Infisical and env")
+
+    reviewer = SlackReviewer.from_config(token)
+    step_id = os.environ.get("REVIEW_GATE_STEP_ID", "unknown")
+    return reviewer.review(
+        bundle=bundle,
+        step_id=step_id,
+        system_prompt=SYSTEM_PROMPT,
+        user_template=USER_PROMPT_TEMPLATE,
+    )
+
+
+def select_and_call_transport(bundle: dict, preferred: str = "auto") -> tuple[dict, str]:
+    """Try transports in fallback order. Returns (raw_result, transport_used).
+
+    preferred='auto' → try each in TRANSPORT_FALLBACK_ORDER until one succeeds.
+    preferred='slack-computer' or 'perplexity-api' → force that transport only.
+    """
+    errors = []
+    candidates = TRANSPORT_FALLBACK_ORDER if preferred == "auto" else [preferred]
+
+    for transport in candidates:
+        if transport == "slack-computer":
+            ok, reason = _slack_transport_available()
+            if not ok:
+                errors.append(f"slack-computer: {reason}")
+                continue
+            try:
+                result = call_slack_computer(bundle)
+                return result, "slack-computer"
+            except Exception as e:
+                errors.append(f"slack-computer call failed: {type(e).__name__}: {str(e)[:200]}")
+                continue
+
+        if transport == "perplexity-api":
+            ok, reason = _api_transport_available()
+            if not ok:
+                errors.append(f"perplexity-api: {reason}")
+                continue
+            try:
+                result = call_perplexity(bundle)
+                _record_api_spend(PERPLEXITY_API_COST_PER_CALL_USD)
+                return result, "perplexity-api"
+            except Exception as e:
+                errors.append(f"perplexity-api call failed: {type(e).__name__}: {str(e)[:200]}")
+                continue
+
+    # All transports exhausted
+    raise RuntimeError("All reviewer transports unavailable: " + " | ".join(errors))
+
+
 def log_to_mcp(step_id: str, bundle_path: str, result: dict) -> None:
     """Best-effort MCP log_decision. Failure is non-fatal but printed to stderr."""
     try:
@@ -235,10 +389,16 @@ def main() -> None:
     parser.add_argument("--bundle",  required=True, help="Path to evidence bundle directory")
     parser.add_argument("--step-id", required=True, dest="step_id",
                         help="Step ID, e.g. MP1-S3.1")
+    parser.add_argument("--reviewer", default="auto",
+                        choices=["auto", "slack-computer", "perplexity-api"],
+                        help="Force a specific transport. Default 'auto' tries Slack first, API fallback.")
     args = parser.parse_args()
 
     bundle_path = Path(args.bundle)
     step_id     = args.step_id
+
+    # Expose step_id to downstream transport callers (slack_reviewer reads this)
+    os.environ["REVIEW_GATE_STEP_ID"] = step_id
 
     if not bundle_path.is_dir():
         err = {
@@ -253,15 +413,26 @@ def main() -> None:
     bundle = load_bundle(bundle_path)
 
     try:
-        raw_result = call_perplexity(bundle)
-    except urllib.error.HTTPError as exc:
-        body = exc.read().decode("utf-8", errors="replace")
-        print(f"[review_gate] HTTP {exc.code} from Perplexity: {body}", file=sys.stderr)
+        raw_result, transport_used = select_and_call_transport(bundle, preferred=args.reviewer)
+        print(f"[review_gate] transport={transport_used}", file=sys.stderr)
+    except RuntimeError as exc:
+        print(f"[review_gate] ERROR: {exc}", file=sys.stderr)
         err = {
             "grade": "F", "approved": False,
             "risk_tags": ["INCOMPLETE"],
-            "rationale": f"Perplexity API returned HTTP {exc.code}. Cannot grade step.",
-            "remediation": "Check PERPLEXITY_API_KEY validity and network. Escalate to Solon.",
+            "rationale": f"All reviewer transports unavailable: {str(exc)[:300]}",
+            "remediation": "Run bin/titan-slack-setup.sh OR top up PERPLEXITY_API_KEY at perplexity.ai/settings/api. Escalate to Solon.",
+        }
+        print(json.dumps(err, indent=2))
+        sys.exit(2)
+    except urllib.error.HTTPError as exc:
+        body = exc.read().decode("utf-8", errors="replace")
+        print(f"[review_gate] HTTP {exc.code} from upstream: {body}", file=sys.stderr)
+        err = {
+            "grade": "F", "approved": False,
+            "risk_tags": ["INCOMPLETE"],
+            "rationale": f"Upstream reviewer HTTP {exc.code}. Cannot grade step.",
+            "remediation": "Check reviewer transport health. Escalate to Solon.",
         }
         print(json.dumps(err, indent=2))
         sys.exit(2)

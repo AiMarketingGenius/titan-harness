@@ -369,6 +369,24 @@ autopilot:
   p91_docker_worker_pool_soak_enabled: false    # 60h canary PARKED per 2026-04-11 directive
   n8n_queue_mode_cutover_enabled: false         # PARKED per 2026-04-11 directive
 
+  # --- Reviewer Loop transport config (CORE_CONTRACT §0.8, DR §9, 2026-04-12) ---
+  # Fully-automated Reviewer Loop per Solon directive: no manual copy-paste.
+  # Titan first tries Slack-Computer (uses Perplexity Pro credits), falls back
+  # to Perplexity API with hard monthly budget, fails closed if both unavailable.
+  reviewer:
+    enabled: true
+    fallback_order:
+      - "slack-computer"    # preferred — #titan-aristotle, uses Pro credits
+      - "perplexity-api"    # fallback — api.perplexity.ai, monthly budget gated
+    api_monthly_budget_usd: 20.0    # hard cap, fail-closed if exceeded
+    api_spend_log: "/var/log/titan/perplexity-api-spend.jsonl"
+    slack_channel: "#titan-aristotle"
+    slack_config_path: "/root/.infisical/slack-config.json"
+    slack_poll_interval_seconds: 3
+    slack_poll_timeout_seconds: 120
+    # Auto-discover reviewer bot at setup time (Perplexity Computer > Ask > other)
+    slack_reviewer_auto_discover: true
+
   # --- Aristotle (Perplexity-in-Slack) first-class agent integration ---
   # Per Solon directive 2026-04-11 Part 2: treat Aristotle as a first-class
   # co-agent. Titan auto-posts material updates to INVENTORY/RADAR/DRs and

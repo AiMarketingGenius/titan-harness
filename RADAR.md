@@ -1,7 +1,7 @@
 # RADAR — Titan's Never-Lose-Anything Open Queue
 
 **Owner:** Titan (COO). **Canonical state for what's open, blocked, parked, or in-flight.**
-**Last refreshed:** 2026-04-11 16:03 UTC
+**Last refreshed:** 2026-04-11 20:22 UTC
 **Refresh cadence:** every session boot; full regenerate daily via `scripts/radar_refresh.py`.
 
 **Hard rule:** every important idea, DR, megaprompt, or half-finished project must (a) exist as a row in `tasks`/`mp_runs` or a `PLAN_*.md`/`MP_*.md` file, AND (b) have a line here under one of the sections below. No exceptions.
@@ -137,6 +137,37 @@ From `~/titan-session/NEXT_TASK.md`:
 - **Tenant-API architecture for custom builds** — standing principle per doctrine §2. Client instances must be tenants calling AMG's API, never standalone copies. Needs: reference architecture doc + client-deliverable template audit to confirm no prompt/persona/orchestration leakage.
 - **Solon OS custom tier 3a vs 3b pricing bands** — Atlas-as-template (3a) vs fully-custom OS in client identity (3b). Price floors not yet set. Must be high enough to not create competition per Solon directive 2026-04-11.
 - **`lib/pricing_engine.py`** — runtime enforcement of floor rules (cost-plus, competitor-displacement, value-share — max of the three). Required for the demo proposal flow Solon wants. Needs DR.
+
+---
+
+## Reviewer Loop transport layer — Slack-Computer primary + API fallback (2026-04-12)
+
+**Doctrine:** `DR_TITAN_AUTONOMY_BLUEPRINT.md §9` + `CORE_CONTRACT.md §0.8` + `CLAUDE.md §16`
+**Code:** `lib/slack_reviewer.py` (silent Slack transport, urllib-only, redacts secrets before post), `bin/titan-slack-setup.sh` (one-time onboarding, `read -rs` hidden token paste, auto-discovers Perplexity Computer bot user ID), `bin/review_gate.py` (auto-detect fallback chain, monthly API budget fail-closed)
+**Config:** `policy.yaml autopilot.reviewer:` block (fallback order, monthly budget $20, poll interval 3s, timeout 120s, channel `#titan-aristotle`)
+
+### Infisical keys reserved for this system (harness-core/dev)
+| Key | Type | Purpose | Set by |
+|---|---|---|---|
+| `SLACK_BOT_TOKEN` | secret | Titan Slack bot OAuth token (xoxb-...) | `bin/titan-slack-setup.sh` (silent import via jq+curl) |
+| `PERPLEXITY_API_KEY` | secret | Fallback API path when Slack unavailable | imported 2026-04-12 from `/opt/litellm-gateway/.env` |
+| `LITELLM_MASTER_KEY` | secret | Shared with llm_client.py + war_room.py | imported 2026-04-12 |
+| `SUPABASE_SERVICE_ROLE_KEY` | secret | Harness Supabase writes | imported 2026-04-12 |
+| `SUPABASE_URL` | non-secret URL | Supabase endpoint | imported 2026-04-12 |
+| `LITELLM_BASE_URL` | non-secret URL | LiteLLM gateway endpoint | imported 2026-04-12 |
+
+### Non-secret config (on-disk, NOT in Infisical)
+| File | Contents | Permissions |
+|---|---|---|
+| `/root/.infisical/slack-config.json` | `{channel_id, reviewer_bot_id, titan_bot_id, workspace}` | 600 root |
+| `/root/.infisical/project-ids.json` | Infisical project UUID map | 600 root |
+| `/root/.infisical/service-token-harness-core` | Infisical service token (read-only scope) | 600 root |
+| `/root/.infisical/service-token-harvesters` | Infisical service token (read-only scope) | 600 root |
+
+### Fallback order (auto-selected at `review_gate.py` runtime)
+1. **slack-computer** — preferred. Titan bot @mentions Perplexity Computer in `#titan-aristotle`, polls for reply, parses JSON grade. Uses Solon's Pro credits (no API billing).
+2. **perplexity-api** — dormant fallback. Activates only when Slack path unavailable AND `PERPLEXITY_API_KEY` in Infisical AND monthly spend < $20 USD (`policy.yaml autopilot.reviewer.api_monthly_budget_usd`). Spend log at `/var/log/titan/perplexity-api-spend.jsonl`.
+3. **(none)** → exit 2, fail-closed, escalate to Solon.
 
 ---
 
