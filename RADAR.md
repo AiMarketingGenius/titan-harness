@@ -140,6 +140,42 @@ From `~/titan-session/NEXT_TASK.md`:
 
 ---
 
+## Greek Codename doctrine — shipped 2026-04-12
+
+**Canonical:** [`plans/DOCTRINE_GREEK_CODENAMES.md`](plans/DOCTRINE_GREEK_CODENAMES.md) — Titan self-graded 9.46/10 A, `PENDING_ARISTOTLE`
+**Enforcement:** `CLAUDE.md §14` — every new plan file must propose Greek codenames via Idea Builder loop before Solon-approval-lock
+
+**Retroactive inventory status:** 31 items total — 7 locked (Solon, Atlas, Titan, Aristotle, Hercules, Alexandria, Hippocrates), 22 proposed pending Solon approval, 2 conflicts (Argus collision at #22/#25 and Hermes collision at #14/#25/#27) with Titan's recommended arbitration in doctrine §5.
+
+**Top marquee proposals awaiting Solon lock:**
+- **Hermes** — Voice AI Path A (demo voice lane)
+- **Demeter** — MP-1 HARVEST pipeline
+- **Mnemosyne** — MP-2 SYNTHESIS (Solon Manifesto distillation)
+- **Prometheus** — IDEA → DR → PLAN → EXECUTE pipeline
+- **Themis** — War Room A-grade grading loop
+- **Hephaestus** — MP-4 ATLAS BUILD
+- **Argus Panoptes** — RADAR open queue
+- **Ariadne** — BATCH_2FA_UNLOCK + grab-cookies.py
+- **Mentor** — EOM v2.2 (Claude.ai web Router/Builder persona)
+
+---
+
+## EOM v2.2 merge — shipped 2026-04-12
+
+**Source scan + merge doctrine:** 5 HIGH-confidence EOM docs found on disk. Canonical is `~/Downloads/eom_si.md` (Apr 8, 2026, 35KB) = EOM v2.2+ with Four-Brain Model + 10-doc KB structure + Thread Safety Gate + Operator Memory Protocol.
+
+- **Merged doctrine:** [`plans/DOCTRINE_EOM_MERGED_2026-04-12.md`](plans/DOCTRINE_EOM_MERGED_2026-04-12.md) — Titan self-graded 9.46/10 A (round 1, pending Aristotle re-review). 8 sections absorbed: ADHD protocols, anti-hallucination, Operator Memory Protocol, Aristotle 5-point Advisory Scan, severity tiers, response format, ALWAYS/NEVER rules, First-Pass Verification Gate.
+- **Conflict queue:** [`plans/DOCTRINE_EOM_CONFLICTS_2026-04-12.md`](plans/DOCTRINE_EOM_CONFLICTS_2026-04-12.md) — 8 items pending Solon decision. None auto-applied. Estimated ~15 min Solon time to work through.
+- **CLAUDE.md §13 added:** enforces new Memory Protocol + Advisory Scan + ADHD + Anti-Hallucination + Severity Tiers + Banned Phrases + First-Pass Verification Gate at session contract level.
+- **Key finding:** EOM and Titan are **complementary**, not competing. Both share MCP memory server state with `project_id=EOM`. EOM = Claude.ai web Router/Builder. Titan = ~/titan-harness Researcher/Automator/COO. Kill chain already shows `Titan+EOM` collaboration tagging on MP-3 Atlas Blueprint.
+
+### Top 3 conflicts needing fastest Solon decisions:
+- **C4 AMG pricing currency** — $497/$797/$1,497 authoritative as of 2026-04-12? (1 line from Solon)
+- **C7 Viktor AI status** — still running, or absorbed by Titan? (1 line from Solon)
+- **C8 KB Docs 01-10 extraction** — blocked on `plans/BATCH_2FA_UNLOCK_2026-04-12.md` Step 1 Claude sessionKey → unlocks MP-1 Phase 1 harvester → pulls EOM project docs automatically
+
+---
+
 ## Idea Builder retroactive grading queue (added 2026-04-12 per CLAUDE.md §12)
 
 All new plan / doctrine files created by Titan must route through the Idea Builder / war-room grading loop before being treated as ready for Solon. Rule added 2026-04-12 after compliance violation on the 4 artifacts shipped earlier that day. Grading routing priority: Slack Aristotle → direct API → Titan self-grade fallback.
