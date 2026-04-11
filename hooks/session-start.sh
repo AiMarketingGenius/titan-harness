@@ -55,11 +55,32 @@ titan_supabase_post "titan_audit_log" "{\"session_id\":\"$SID\",\"action\":\"ses
 
 titan_local_audit "SESSION_START instance=$TITAN_INSTANCE"
 
-# If on Linux VPS with boot-audit.sh present, also run it
+# --- SOLON OS COLD BOOT audit (CLAUDE.md §7) ---
+# Always run bin/titan-boot-audit.sh on every new session so Titan has the
+# status block in context before emitting the 1-line greeting. No wake word.
+BOOT_AUDIT="$SCRIPT_DIR/../bin/titan-boot-audit.sh"
+if [ -x "$BOOT_AUDIT" ]; then
+  echo ""
+  echo "===== SOLON OS BOOT AUDIT ====="
+  bash "$BOOT_AUDIT" 2>&1 | head -60
+  BOOT_EXIT=${PIPESTATUS[0]}
+  echo "BOOT_AUDIT_EXIT: $BOOT_EXIT"
+fi
+
+# Legacy VPS boot-audit (kept for backward compat on older VPS layouts)
 if [ "$TITAN_OS" = "linux" ] && [ -x /opt/titan-session/boot-audit.sh ]; then
   echo ""
-  echo "===== BOOT AUDIT (VPS) ====="
+  echo "===== BOOT AUDIT (VPS legacy) ====="
   /opt/titan-session/boot-audit.sh 2>&1 | head -40
 fi
+
+# Directive to Titan — must be the FIRST action on session start
+echo ""
+echo "===== TITAN COLD-BOOT DIRECTIVE ====="
+echo "Per CLAUDE.md §7 + SESSION_PROMPT: on first turn of this session you MUST"
+echo "parse the BOOT AUDIT block above and emit exactly ONE line in the format:"
+echo "  Boot complete. Now: <current focus>. Next: <queued task>. Blocked on: <empty or specific>."
+echo "No preamble. No wake word required. If BOOT_AUDIT_EXIT != 0, replace with:"
+echo "  Boot FAILED: <reason>. Fix: <concrete next action>."
 
 exit 0
