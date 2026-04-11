@@ -242,3 +242,45 @@ A power-off is Solon's explicit "I'm done for now, make sure everything is saved
 - Slack-Perplexity > direct API
 - Existing substrate > new SaaS
 - RADAR update > ephemeral TODO
+
+---
+
+## 12. IDEA BUILDER compliance — every new plan routes through grading (added 2026-04-12)
+
+**Hard rule, non-bypassable.** Any new plan/doctrine file Titan creates under `plans/` (including `PLAN_*.md`, `BATCH_*.md`, `COMPUTER_TASKS_*.md`, `DOCTRINE_*.md`) is considered **UN-GRADED by default** and must NOT be treated as "ready for Solon" until it has been routed through the Idea Builder / war-room grading loop and cleared A-grade (9.4+/10 per `policy.yaml war_room.min_acceptable_grade: A`).
+
+This enforces CORE_CONTRACT §7 at the plan-file level. CORE_CONTRACT §7 requires every new major project to route through the IDEA → DR → PLAN → EXECUTE pipeline. §12 closes the loophole where Titan hand-writes a plan file outside the `ideas` / `session_next_task` / `tasks` table flow: even hand-written plans must be graded before Solon sees them labeled as ready.
+
+### Grading routing priority (inherits CORE_CONTRACT §0)
+
+1. **Slack Aristotle** (`lib/aristotle_slack.py`) — default when `policy.yaml autopilot.aristotle_enabled: true`. Titan calls `ask_aristotle(question, context_files=[...])` and waits for the threaded reply.
+2. **Direct Perplexity API via LiteLLM gateway** (`lib/war_room.py`) — fallback when Slack path is unavailable (app not installed, channel not configured, bot token missing). Runs `WarRoom.grade()` against `sonar-pro`.
+3. **Titan self-grade against the 10-dimension war-room rubric** — fallback ONLY when both 1 and 2 are unavailable. Titan scores its own output honestly against all 10 dimensions (correctness, completeness, honest scope, rollback availability, fit with harness patterns, actionability, risk coverage, evidence quality, internal consistency, ship-ready for production), iterates if below A, and labels the result clearly as `self-graded, pending Aristotle re-review when Slack path comes online`.
+
+### Mandatory grading block
+
+Every plan file must include a `## Grading block` section at the bottom listing:
+- **Method used:** `slack-aristotle` / `api-war-room` / `self-graded`
+- **Why this method:** one line explaining the routing priority that applied
+- **Pending:** what the re-grade trigger is (e.g., "re-grade when `aristotle_enabled: true`")
+- **Each of the 10 dimension scores** in a table
+- **Overall grade** with an explicit A/B/F classification
+- **Revision rounds** if any (show round-by-round delta if the first round was below A)
+- **Decision:** promote to active / iterate / reject
+
+### Enforcement mechanism (behavioral)
+
+Before Titan summarizes any new plan to Solon in chat as "ready" or "shipped" or otherwise implies Solon can act on it, Titan MUST confirm the grading block exists and shows A-grade. If not, Titan must:
+1. Run the grading loop (routing priority above) immediately
+2. Iterate if below A (max 5 rounds per `policy.yaml war_room.max_refinement_rounds: 5`)
+3. Only then report to Solon with the grade block attached
+
+**Titan must NEVER tell Solon "plan X is ready for you" without the grading block being present and A-grade cleared.** Violation of this is a P0 session-level failure.
+
+### Retroactive application
+
+Plans created before this rule was added (CORE_CONTRACT §7 era, pre-2026-04-12) that were NOT routed through grading are flagged on RADAR under "Idea Builder retroactive grading queue." Any that are still active (not archived) must be graded before their next execution phase starts.
+
+### Why this rule was added
+
+2026-04-12 Solon OS directive: Titan shipped 4 plan artifacts (Voice AI DR, 2FA checklist, Computer tasks bundle, product tiers doctrine) locally without routing through Idea Builder / Aristotle grading, then told Solon "they're shipped and ready." This violated CORE_CONTRACT §7 in spirit — the pipeline is supposed to grade plans before they're "ready." §12 closes that gap at the behavioral level so the violation can't recur.

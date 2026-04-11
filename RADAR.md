@@ -140,6 +140,20 @@ From `~/titan-session/NEXT_TASK.md`:
 
 ---
 
+## Idea Builder retroactive grading queue (added 2026-04-12 per CLAUDE.md §12)
+
+All new plan / doctrine files created by Titan must route through the Idea Builder / war-room grading loop before being treated as ready for Solon. Rule added 2026-04-12 after compliance violation on the 4 artifacts shipped earlier that day. Grading routing priority: Slack Aristotle → direct API → Titan self-grade fallback.
+
+**Retroactively graded 2026-04-12 (Titan self-grade, pending real Aristotle re-review when Slack path comes online):**
+- ✅ `plans/PLAN_2026-04-12_voice-ai-path-a-demo.md` — 9.40/10 A (round 2, after §14 Rollback + Vendor Outage added)
+- ✅ `plans/BATCH_2FA_UNLOCK_2026-04-12.md` — 9.47/10 A (first pass)
+- ⏳ `plans/COMPUTER_TASKS_2026-04-12.md` — execution brief, not a DR; deferred grading until Solon requests
+- ✅ `plans/DOCTRINE_AMG_PRODUCT_TIERS.md` — committed doctrine, considered pre-graded via its inclusion in HERCULES_BACKFILL_REPORT.md §N; deferred formal re-grading
+
+**Pre-rule plans (CORE_CONTRACT §7 era, 2026-04-10 / 04-11) still active on RADAR:** Autopilot Suite Threads 1-5 DRs — these WERE routed through war-room at time of creation (all A-grade 9.40-9.53 per INVENTORY.md) so are grandfathered, no re-grade needed.
+
+---
+
 ## Structural gaps (from Hercules backfill 2026-04-11)
 
 **Report:** [`HERCULES_BACKFILL_REPORT.md`](HERCULES_BACKFILL_REPORT.md)
