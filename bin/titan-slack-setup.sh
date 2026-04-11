@@ -29,13 +29,26 @@ HC_TOKEN_PATH="/root/.infisical/service-token-harness-core"
 echo "=== Titan Slack Setup — one-time onboarding ==="
 echo
 
-# STEP 1: read -rs token (hidden)
-read -rs -p "Paste the Titan Slack bot token (xoxb-...): " SLACK_BOT_TOKEN
-echo
-echo
-if [ -z "$SLACK_BOT_TOKEN" ]; then
-  echo "ERROR: no token provided. Aborting."
-  exit 1
+# STEP 1: read token
+# --stdin-mode: read token from first line of stdin (for automation pipelines)
+# interactive (default): read -rs prompt for hidden paste
+if [ "${1:-}" = "--stdin-mode" ]; then
+  echo "[stdin-mode] Reading token from stdin..."
+  IFS= read -r SLACK_BOT_TOKEN
+  if [ -z "$SLACK_BOT_TOKEN" ]; then
+    echo "ERROR: stdin was empty. Aborting."
+    exit 1
+  fi
+  echo "[stdin-mode] Token received (len=${#SLACK_BOT_TOKEN})"
+  echo
+else
+  read -rs -p "Paste the Titan Slack bot token (xoxb-...): " SLACK_BOT_TOKEN
+  echo
+  echo
+  if [ -z "$SLACK_BOT_TOKEN" ]; then
+    echo "ERROR: no token provided. Aborting."
+    exit 1
+  fi
 fi
 if [[ ! "$SLACK_BOT_TOKEN" =~ ^xoxb- ]]; then
   echo "ERROR: token does not start with 'xoxb-'. Make sure you copied the Bot User OAuth Token (not the User OAuth Token or App-level Token)."
