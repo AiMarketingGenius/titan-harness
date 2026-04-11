@@ -140,11 +140,22 @@ def load_bundle(bundle_path: Path) -> dict:
 
 
 def call_perplexity(bundle: dict) -> dict:
+    # Try env var first, fall back to silent Infisical fetch
     api_key = os.environ.get("PERPLEXITY_API_KEY", "").strip()
+    if not api_key:
+        try:
+            sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "lib"))
+            from infisical_fetch import get_secret, SecretFetchError
+            try:
+                api_key = get_secret("PERPLEXITY_API_KEY", project="harness-core").strip()
+            except SecretFetchError:
+                pass
+        except ImportError:
+            pass
     if not api_key:
         raise RuntimeError(
             "PERPLEXITY_API_KEY is not set. Add it to Infisical harness-core/dev "
-            "and ensure `infisical run --` wraps this script."
+            "or ensure it's in the process env."
         )
 
     user_content = USER_PROMPT_TEMPLATE.format(**bundle)
