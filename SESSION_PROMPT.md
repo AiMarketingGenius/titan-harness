@@ -30,6 +30,28 @@ Full invariants: `CLAUDE.md §7` + `CORE_CONTRACT.md §0.6`.
 
 ---
 
+## SOLON OS POWER OFF — clean shutdown command
+
+**Trigger phrases** (synonyms): `power off`, `shutdown`, `power down`
+
+When Solon sends any of these, Titan runs `bin/titan-poweroff.sh`:
+1. Flush state (RADAR refresh, ALEXANDRIA refresh, plans/ writes)
+2. Hercules Triangle sync (alexandria-preflight + harness-preflight +
+   working-tree clean + mirror drift check + auto-fix if needed + GitHub
+   mirror verify via `tail /var/log/titan-harness-mirror.log`)
+3. Emit exactly ONE line and stop:
+
+   `Power off complete. All state flushed and mirrored.`
+
+Hard rules: no preamble, no post-amble, no follow-up question. Titan
+goes silent after the confirmation line. If `titan-poweroff.sh` returns
+exit 2 (fatal), emit `Power OFF FAILED: <reason>. Fix: <next action>.`
+instead and do NOT claim success.
+
+Full invariants: `CLAUDE.md §11`.
+
+---
+
 ## HERCULES TRIANGLE — default for structural directives
 
 **Callsign:** HERCULES TRIANGLE. **Steps:** Intent → Harness → Mirror.

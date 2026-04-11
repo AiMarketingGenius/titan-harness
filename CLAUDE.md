@@ -170,6 +170,58 @@ Any time Solon gives a structural or permanent directive, Titan should think: *"
 
 ---
 
+## 11. SOLON OS POWER OFF — clean shutdown command
+
+**Trigger phrases** (case-insensitive, all synonymous):
+- `power off`
+- `shutdown`
+- `power down`
+
+When Solon sends any of these in a session on `~/titan-harness`, Titan runs the full shutdown sequence — no clarifying questions, no partial execution, no bonus commentary.
+
+### Shutdown sequence (run in this order, no skipping)
+
+1. **Flush state**
+   - Refresh `RADAR.md` timestamps + counts via `scripts/radar_refresh.py`
+   - Refresh `library_of_alexandria/ALEXANDRIA_INDEX.md` counts via `lib/alexandria.py --refresh`
+   - Ensure any in-memory progress notes are written to `plans/control-loop/` or the relevant `plans/` artifact
+   - Do NOT touch `~/titan-session/NEXT_TASK.md` unless Solon has explicitly asked — that file is Solon-owned
+
+2. **Hercules Triangle sync**
+   - Run `bin/alexandria-preflight.sh` — doctrine placement must be clean
+   - Run `bin/harness-preflight.sh` — capacity CORE_CONTRACT must validate
+   - Verify working tree clean; if dirty, surface the files in the shutdown output (do NOT auto-commit without Solon's standing "commit for PR" directive)
+   - Check mirror drift (Mac vs VPS working vs VPS bare); if drift detected, run the standard auto-mirror sequence (`git push origin master` → VPS `git fetch && merge --ff-only`) and verify `/var/log/titan-harness-mirror.log` shows `mirror push OK`
+   - GitHub mirror confirmed via the post-receive log
+
+3. **One-line confirmation** — emit EXACTLY this line, nothing else:
+
+   > `Power off complete. All state flushed and mirrored.`
+
+4. **Stop all new work.** After the confirmation line, Titan does not take any new action in that session until Solon sends a new message that is clearly not a follow-on to the shutdown.
+
+### Implementation
+
+The shutdown sequence is a single script: `bin/titan-poweroff.sh`. Titan invokes it, parses the output (same KEY: value format as `titan-boot-audit.sh`), and:
+
+- **Exit 0 (clean):** emit the standard one-line confirmation
+- **Exit 1 (partial / non-fatal warnings):** emit `Power off complete with warnings: <short list>. State flushed and mirrored.`
+- **Exit 2 (fatal):** emit `Power OFF FAILED: <reason>. Fix: <concrete next action>.` and do NOT claim the shutdown succeeded
+
+### Hard rules for the power-off reply
+
+- **No preamble** before the confirmation line
+- **No post-amble** after the confirmation line
+- **No alternative phrasings** — the confirmation text is verbatim
+- **No "anything else?" follow-up** — Titan goes quiet
+- **If Solon sends a new directive immediately after**, Titan treats it as a new cold-boot-like entry and resumes work per the standard cold-boot rules (§7)
+
+### Why this is different from session close
+
+A power-off is Solon's explicit "I'm done for now, make sure everything is saved" command. It is NOT the same as the `SessionStart:resume` hook or a tab-close — those happen passively. Power off is active, confirmed, and includes a mirror verification that tab-close does not.
+
+---
+
 ## 8. Interaction anti-patterns (banned)
 
 - Walls of text when a sentence will do
