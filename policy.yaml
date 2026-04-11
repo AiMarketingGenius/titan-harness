@@ -382,16 +382,16 @@ autopilot:
       - "slack-computer"    # DORMANT — /oauth SPA blocked; see RADAR
       - "perplexity-api"    # ACTIVE PRIMARY — api.perplexity.ai, budget gated
     #
-    # BUDGET GUARDRAIL (2026-04-11 Solon directive, non-negotiable):
+    # BUDGET GUARDRAIL (2026-04-11 Solon directive v2, non-negotiable):
     #   Pool total  = $50 (one-time top-up, must last a long time).
-    #   Target     <= $10 / month Titan API spend.
-    #   Soft cap   <= 30 review_gate calls / day.
+    #   Target     <= $5 / month Titan API spend.
+    #   Hard cap   <= 5  review_gate calls / day.
     #   Behavior    : fail-closed + escalate if projected to exceed either cap.
     #   Do NOT silently burn through the $50 pool.
     #
-    api_monthly_budget_usd: 10.0          # HARD CAP: fail-closed at this
+    api_monthly_budget_usd: 5.0           # HARD CAP: fail-closed at this
     api_monthly_pool_usd: 50.0            # Total pool (documentation / awareness)
-    api_daily_call_cap: 30                # Soft cap: escalate if projected to exceed
+    api_daily_call_cap: 5                 # Hard cap: escalate before exceeding
     api_cost_per_call_usd: 0.05           # Estimate per sonar-pro 5K-token review bundle
     api_spend_log: "/var/log/titan/perplexity-api-spend.jsonl"
     api_min_bundle_mode: true             # Trim: no large logs/diffs unless required

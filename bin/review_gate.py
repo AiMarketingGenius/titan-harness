@@ -40,14 +40,14 @@ MCP_LOG_ENDPOINT   = os.environ.get("MCP_ENDPOINT", "http://memory.aimarketingge
 #   3. (none available) → exit 2, escalate to Solon.
 TRANSPORT_FALLBACK_ORDER = ["slack-computer", "perplexity-api"]
 
-# ── BUDGET GUARDRAIL (2026-04-11 Solon directive, non-negotiable) ─────────────
+# ── BUDGET GUARDRAIL (2026-04-11 Solon directive v2, non-negotiable) ──────────
 # Pool total = $50 (one-time top-up, must last a long time).
-# Target    <= $10 / month spend.
-# Soft cap  <= 30 review_gate calls / day.
+# Target    <= $5 / month spend.
+# Hard cap  <= 5 review_gate calls / day.
 # Fail-closed + escalate to Solon if projected to exceed either cap.
-PERPLEXITY_API_MONTHLY_BUDGET_USD = float(os.environ.get("TITAN_PPLX_API_MONTHLY_BUDGET_USD", "10.0"))
+PERPLEXITY_API_MONTHLY_BUDGET_USD = float(os.environ.get("TITAN_PPLX_API_MONTHLY_BUDGET_USD", "5.0"))
 PERPLEXITY_API_MONTHLY_POOL_USD   = float(os.environ.get("TITAN_PPLX_API_MONTHLY_POOL_USD",   "50.0"))
-PERPLEXITY_API_DAILY_CALL_CAP     = int(  os.environ.get("TITAN_PPLX_API_DAILY_CALL_CAP",     "30"))
+PERPLEXITY_API_DAILY_CALL_CAP     = int(  os.environ.get("TITAN_PPLX_API_DAILY_CALL_CAP",     "5"))
 PERPLEXITY_API_SPEND_LOG = Path("/var/log/titan/perplexity-api-spend.jsonl")
 PERPLEXITY_API_COST_PER_CALL_USD = 0.05  # Estimate: sonar-pro ~$5/1M in, ~$15/1M out
                                          # per review bundle averages ~5K tokens → ~$0.05
