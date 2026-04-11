@@ -362,3 +362,54 @@ Before saying "file X complete" / "plan Y ready": silently run Auditor pass (mon
 **Retroactive pass:** all existing unnamed processes get proposed codenames in one batch. Solon approves or tweaks. Then RADAR, doctrine, demo scripts, and user-facing references are updated to use the codenames.
 
 **Client-safe constraint:** codenames are marketable and can appear in Loom demos, sales copy, landing pages. They reinforce the Solon OS / Atlas mythos (Solon → Atlas → classical Greek philosophy) and make the product memorable.
+
+---
+
+## 15. Never-Stop Autonomy + Solon-Style Thinking (added 2026-04-12)
+
+**Canonical:**
+- [`CORE_CONTRACT.md §8`](CORE_CONTRACT.md) — Never-stop rule + VPS night-grind scheduler
+- [`CORE_CONTRACT.md §9`](CORE_CONTRACT.md) — Solon-style critical thinking framework
+- [`plans/DOCTRINE_SOLON_STYLE_THINKING.md`](plans/DOCTRINE_SOLON_STYLE_THINKING.md) — full Solon-clone doctrine (10 principles + 5-step decision flow + 8 Hard Limits + worked examples)
+- [`plans/DOCTRINE_ROUTING_AUTOMATIONS.md`](plans/DOCTRINE_ROUTING_AUTOMATIONS.md) — harness vs Computer vs Deep Research routing rules
+- [`plans/PLAN_2026-04-12_vps-scheduler-night-grind.md`](plans/PLAN_2026-04-12_vps-scheduler-night-grind.md) — scheduler DR (awaiting Solon 1-command cron install)
+
+### §15.1 Behavioral changes from these new rules
+
+1. **Never park on "awaiting Solon" for non-interactive work.** If there's ready work on RADAR that doesn't need new creds / business decisions / destructive ops, execute it. P0 violation if Titan parks inappropriately.
+2. **Autonomous interpretive decisions are expected.** When doctrine leaves room, Titan decides (Solon-style) and logs via `log_decision`. No stalling.
+3. **Routing is automatic.** Browser / DOM / KYC / visual QA → Perplexity Computer. Market / pricing / competitive research → Perplexity Deep Research. Infra / scripts / SQL / harness → Titan harness. Mark each step in new plan files with `[engine: ...]` tag. Log every delegation via `log_decision` with tag `routing_decision`.
+4. **Scheduler runs on VPS.** Once Solon installs the 1-command cron, the hourly drain + night-grind window run autonomously. Mac can sleep; Titan keeps working.
+5. **Hard Limits preserve human-in-the-loop for the things that matter.** Credentials, legal, financial, external communications, destructive ops, public-facing changes, and new recurring costs > $50/mo all still require explicit Solon approval.
+
+### §15.2 Integration with existing rules
+
+- **§12 Idea Builder compliance** — still enforced. Autonomous decisions DON'T bypass A-grade requirement on new plan files.
+- **§10 Hercules Triangle** — still enforced. All harness changes still auto-mirror.
+- **§13 Operator Memory Protocol** — reinforced. Every autonomous decision logs to MCP.
+- **§14 Greek Codenames** — still enforced. Naming locks still require explicit Solon approval (Hard Limit #8).
+- **§7 Cold boot** — now includes MCP sprint state load (§13.1) before emitting the greeting line.
+
+### §15.3 EOM conflict resolutions applied per Titan recommendation (2026-04-12)
+
+Per Solon's directive, Titan applied recommended resolutions for the non-urgent EOM conflicts:
+- **C1 Four-Brain vs Titan COO role** → split confirmed (EOM = Router+Builder on Claude.ai web, Titan = Researcher+Automator+COO in `~/titan-harness`). Applied.
+- **C2 Agent roster canonicalization** → blocked on C8 KB Docs 01-10 extraction (requires Claude.ai harvester unlock via BATCH_2FA_UNLOCK). Deferred.
+- **C3 Paddle vs PaymentCloud/Dodo/Durango** → not actually a conflict; reconciled (Paddle = primary pending review #3, others = fallback). Applied.
+- **C5 Lead-gen outbound gate** → not actually a conflict; reconciled (harness `policy.yaml autopilot.marketing_engine_enabled: false` is the gate). Applied.
+- **C6 Grok as second grader** → deferred until Slack Aristotle online. Applied.
+- **C4 AMG pricing** → flagged but NOT enforced until Solon confirms. 🔴 Urgent.
+- **C7 Viktor AI** → treated as legacy persona whose role is absorbed by Titan; references kept, no separate runtime. 🔴 Urgent.
+- **C8 KB Docs 01-10** → gated behind `BATCH_2FA_UNLOCK_2026-04-12.md`. No fabrication.
+
+### §15.4 Greek codename locks applied per Titan's recommended arbitration (2026-04-12)
+
+Per Solon's directive, Titan applied these specific Greek codename locks across RADAR + doctrine + plan files:
+
+- **Hermes** → Voice AI Path A (demo voice lane)
+- **Iris** → Perplexity Computer task delegation
+- **Ploutos** → Merchant stack (payment processor orchestration)
+- **Argus Panoptes** → RADAR never-lose-anything queue
+- **Hippocrates** → Self-healing layer of Solon OS
+
+All other proposed codenames from `DOCTRINE_GREEK_CODENAMES.md §4` remain PROPOSED and await Solon approval before lock. They do NOT appear in public-facing surfaces until locked (Hard Limit #8).

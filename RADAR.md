@@ -140,6 +140,40 @@ From `~/titan-session/NEXT_TASK.md`:
 
 ---
 
+## Never-Stop Autonomy + VPS Scheduler — shipped 2026-04-12
+
+**Canonical:** `CORE_CONTRACT.md §8` + `CORE_CONTRACT.md §9` + `CLAUDE.md §15`
+**Doctrines:**
+- [`plans/DOCTRINE_SOLON_STYLE_THINKING.md`](plans/DOCTRINE_SOLON_STYLE_THINKING.md) — 10 principles + 5-step decision flow + 8 Hard Limits (self-graded 9.49/10 A)
+- [`plans/DOCTRINE_ROUTING_AUTOMATIONS.md`](plans/DOCTRINE_ROUTING_AUTOMATIONS.md) — harness vs Computer vs Deep Research routing (self-graded 9.44/10 A)
+- [`plans/PLAN_2026-04-12_vps-scheduler-night-grind.md`](plans/PLAN_2026-04-12_vps-scheduler-night-grind.md) — scheduler DR (self-graded 9.42/10 A)
+
+**Scheduler artifacts shipped:**
+- `bin/titan-hourly-drain.sh` — hourly drain wrapper (755, chmod +x)
+- `bin/titan-night-grind.sh` — night grind wrapper (755, chmod +x)
+- `lib/radar_drain.py` — non-interactive work identifier (v1 classifier, submission path is a follow-on)
+- `policy.yaml autonomy:` + `scheduler:` + `routing:` blocks — kill switches + config
+
+**Dormant until Solon runs the 1-command cron install** (plans/PLAN_2026-04-12_vps-scheduler-night-grind.md §4.5). Can't be auto-installed — modifying root crontab falls under the system-file safety rule.
+
+**P0 rule:** if Titan ever parks non-interactive work on "awaiting Solon," that's a session-level failure per CORE_CONTRACT §8.4.
+
+---
+
+## Greek Codename — locked 2026-04-12 (5 marquee names)
+
+Per Solon's directive "treat DOCTRINE_GREEK_CODENAMES.md as approved with your recommended conflict resolutions":
+
+- **Hermes** → Voice AI Path A (demo voice lane) — applied in [`plans/PLAN_2026-04-12_voice-ai-path-a-demo.md`](plans/PLAN_2026-04-12_voice-ai-path-a-demo.md) on rename sweep
+- **Iris** → Perplexity Computer task delegation — applied in [`plans/COMPUTER_TASKS_2026-04-12.md`](plans/COMPUTER_TASKS_2026-04-12.md) on rename sweep
+- **Ploutos** → Merchant stack (payment processor orchestration)
+- **Argus Panoptes** → RADAR never-lose-anything queue (this file)
+- **Hippocrates** → Self-healing layer of Solon OS (Solon-proposed, locked)
+
+Remaining 17 PROPOSED names from `plans/DOCTRINE_GREEK_CODENAMES.md §4` await explicit Solon approval before lock (Hard Limit #8 per DOCTRINE_SOLON_STYLE_THINKING §4).
+
+---
+
 ## Greek Codename doctrine — shipped 2026-04-12
 
 **Canonical:** [`plans/DOCTRINE_GREEK_CODENAMES.md`](plans/DOCTRINE_GREEK_CODENAMES.md) — Titan self-graded 9.46/10 A, `PENDING_ARISTOTLE`

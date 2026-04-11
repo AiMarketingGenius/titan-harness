@@ -392,3 +392,88 @@ autopilot:
     - "control_loop_daily"
     - "major_commit_on_master"
   aristotle_ask_timeout_s: 300
+
+# --- Never-Stop Autonomy (CORE_CONTRACT §8, added 2026-04-12) ----------------
+# Titan never parks non-interactive work on "awaiting Solon." See
+# plans/DOCTRINE_SOLON_STYLE_THINKING.md for the full framework and
+# plans/PLAN_2026-04-12_vps-scheduler-night-grind.md for the scheduler DR.
+autonomy:
+  enabled: true
+  never_stop_rule: true
+  solon_style_thinking: true
+  max_autonomous_cost_usd_per_month: 50     # hard limit #6 — above this, surface to Solon
+  hard_limits:
+    - "new_credentials_or_2fa"
+    - "legal_or_financial_commitments"
+    - "irreversible_business_decisions"
+    - "external_communications_as_solon"
+    - "destructive_data_operations"
+    - "new_recurring_costs_over_threshold"
+    - "public_facing_changes"
+    - "greek_codename_locks_affecting_branding"
+
+# --- VPS Scheduler / Night Grind Window (CORE_CONTRACT §8.3, added 2026-04-12) ----
+# Drains non-interactive RADAR work hourly + in a dedicated night-grind
+# window (01:00-05:00 Boston local time) so Titan never stops working when
+# Solon's Mac is idle or asleep. Dormant until Solon installs the 1-command
+# cron (see plans/PLAN_2026-04-12_vps-scheduler-night-grind.md §4.5).
+scheduler:
+  scheduler_enabled: false                  # flip true AFTER Solon installs cron
+  hourly_drain_cron: "5 * * * *"            # every hour at :05 (off-peak)
+  night_grind_start_cron: "7 1 * * *"       # 01:07 Boston local daily
+  night_grind_end_local_time: "05:00"       # hard cutoff
+  night_grind_max_duration_minutes: 240     # safety cap
+  log_file_hourly: "/var/log/titan-scheduler.log"
+  log_file_night_grind: "/var/log/titan-night-grind.log"
+  # Work type whitelist — only these get auto-drained
+  hourly_work_types:
+    - "radar_refresh"
+    - "alexandria_preflight"
+    - "mirror_check"
+    - "log_rotation"
+    - "health_check"
+    - "mcp_heartbeat"
+    - "doctrine_regrade"
+    - "queue_heartbeat"
+    - "sprint_state_audit"
+  night_grind_additional_types:
+    - "harvest"
+    - "mp1_phase"
+    - "mp2_phase"
+    - "synthesis"
+    - "war_room_regrade"
+    - "long_research"
+    - "backfill_recompute"
+  # Night grind relaxes SOFT capacity limits; hard limits unchanged
+  night_grind_soft_relaxation:
+    max_heavy_tasks: 12                     # up from 8
+    max_workers_general: 14                 # up from 10
+    max_concurrent_llm_batches: 10          # up from 8
+
+# --- Routing Automations (DOCTRINE_ROUTING_AUTOMATIONS.md, added 2026-04-12) ----
+# Routes new work to the right execution engine automatically.
+routing:
+  enabled: true
+  default_engine: "harness"
+  engines:
+    harness: "Titan harness (~/titan-harness + /opt/titan-harness)"
+    computer: "Perplexity Computer (52K credits available)"
+    deep_research: "Perplexity Deep Research"
+  # Work type → engine (fast-reference table; full doctrine in DOCTRINE_ROUTING_AUTOMATIONS.md)
+  routing_table:
+    browser_dom_visual_qa: "computer"
+    kyc_form_walkthroughs: "computer"
+    site_compliance_audit: "computer"
+    atlas_skin_polish: "computer"
+    loom_asset_capture: "computer"
+    competitor_pricing: "deep_research"
+    vendor_comparison: "deep_research"
+    market_sizing: "deep_research"
+    python_bash_sql_git: "harness"
+    war_room_grading: "harness"
+    cron_systemd: "harness"
+    mcp_memory_ops: "harness"
+    supabase_migrations: "harness"
+    harvester_runs: "harness"
+  mandatory_logging: true                   # every delegation → log_decision
+  mandatory_marking: true                   # every new plan file tags each step
