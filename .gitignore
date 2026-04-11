@@ -1,0 +1,17 @@
+# titan-harness .gitignore — captured during Phase A mirror reconciliation 2026-04-11
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.bak.*
+*.bak
+plans/
+.gate_bypass
+*.log
+.env
+.env.local
+.env.*.local
+*.pem
+*.key
+*secret*
+*credentials*

@@ -35,6 +35,14 @@ _load_env_file "$HOME/.config/titan/env"
 SUPABASE_SERVICE_ROLE_KEY="${SUPABASE_SERVICE_ROLE_KEY:-${SUPABASE_SERVICE_KEY:-}}"
 export SUPABASE_URL SUPABASE_SERVICE_ROLE_KEY TITAN_INSTANCE TITAN_SESSION_DIR TITAN_OS
 
+# Phase G.2: Load policy.yaml → POLICY_* env vars. Fail-safe (silent on error).
+_TITAN_LIB_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+if [ -f "$_TITAN_LIB_DIR/policy-loader.sh" ]; then
+  # shellcheck source=./policy-loader.sh
+  source "$_TITAN_LIB_DIR/policy-loader.sh"
+fi
+unset _TITAN_LIB_DIR
+
 # Utility: write to local audit log
 titan_local_audit() {
   local msg="$1"
