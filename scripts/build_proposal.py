@@ -19,15 +19,22 @@ Architecture:
      client-specific overrides.
   2. Load `payment_links_paypal.json` (or equivalent for other processors)
      and build a plan_id → subscribe_url lookup.
-  3. For every price plan the spec references, assert a matching subscribe
-     URL exists. If ANY plan is missing its URL, FAIL the build and exit
-     non-zero — no DOCX is written.
-  4. Render the DOCX via python-docx or a Jinja template applied to
+  3. GATE 1: For every price plan the spec references, assert a matching
+     subscribe URL exists in the catalog. If ANY plan is missing its URL,
+     FAIL the build and exit non-zero — no DOCX is written.
+  4. GATE 3: For every resolved subscribe URL, query Supabase
+     public.payment_link_tests and assert a row with status='pass' and
+     tested_at within the last 24 hours exists. This forces every URL
+     shipped to a client to have been end-to-end browser-tested by
+     scripts/test_payment_url.py against sql/006_payment_link_tests.sql.
+     Born from JDJ Lavar 2026-04-10 — wrong brand name on the rendered
+     checkout page that API-level checks could not catch.
+  5. Render the DOCX via python-docx or a Jinja template applied to
      document.xml of a base template file.
-  5. Run a post-build scan: extract plain text from the rendered DOCX
-     and verify every referenced plan URL is actually present. Belt-
-     and-suspenders gate 2.
-  6. Emit a summary JSON to stdout for mp-runner consumption.
+  6. GATE 2: Run a post-build scan: extract plain text from the rendered
+     DOCX and verify every referenced plan URL is actually present.
+     Belt-and-suspenders verification.
+  7. Emit a summary JSON to stdout for mp-runner consumption.
 
 Usage:
   build_proposal.py --spec spec.yaml --template base.docx --out out.docx
@@ -36,9 +43,11 @@ Usage:
 Exit codes:
   0  — proposal built + verified successfully
   1  — generic failure (I/O, template error)
-  2  — build-time gate failure: referenced plan missing subscribe URL
-  3  — post-build verification failure: plan URL not found in rendered DOCX
+  2  — build-time gate 1 failure: referenced plan missing subscribe URL
+  3  — post-build gate 2 failure: plan URL not found in rendered DOCX
   4  — bad arguments
+  5  — gate 3 failure: subscribe URL lacks a payment_link_tests pass row
+       within 24 hours (run scripts/test_payment_url.py first)
 
 This script is the canonical proposal builder. It replaces manual DOCX
 editing for any future client engagement.
@@ -53,14 +62,18 @@ import os
 import re
 import shutil
 import sys
+import urllib.parse
+import urllib.request
 import zipfile
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Optional
 
 
 DEFAULT_CATALOG = "/home/titan/amg/payment_links_paypal.json"
+SUPABASE_URL_DEFAULT = "https://egoazyasyrhslluossli.supabase.co"
+GATE3_WINDOW_HOURS = 24
 DEFAULT_TEMPLATE = str(
     Path(__file__).resolve().parent.parent / "templates" / "proposals" / "jdj_proposal_v4_linksfix.docx"
 )
@@ -208,6 +221,137 @@ def resolve_subscribe_urls(spec: ProposalSpec, catalog: dict[str, dict]) -> list
 
 
 # -----------------------------------------------------------------------------
+# Gate 3: every resolved subscribe URL must have a payment_link_tests
+# row with status='pass' and tested_at within the last 24 hours.
+# -----------------------------------------------------------------------------
+
+def _resolve_supabase_key() -> Optional[str]:
+    """Find a Supabase service role key from env or known dotenv files."""
+    key = (os.environ.get("SUPABASE_SERVICE_ROLE_KEY")
+           or os.environ.get("SUPABASE_SERVICE_KEY"))
+    if key:
+        return key
+    for envf in ("/opt/titan-processor/.env",
+                 "/opt/amg-titan/.env",
+                 "/opt/amg-mcp-server/.env.local",
+                 str(Path.home() / ".amg_supabase_env")):
+        if not os.path.isfile(envf):
+            continue
+        try:
+            for line in open(envf, errors="replace"):
+                line = line.strip()
+                for prefix in ("SUPABASE_SERVICE_ROLE_KEY=",
+                               "SUPABASE_SERVICE_KEY="):
+                    if line.startswith(prefix):
+                        return line.split("=", 1)[1].strip().strip("'\"")
+        except Exception:
+            continue
+    return None
+
+
+def _query_latest_pass(sup_url: str, sup_key: str, url: str,
+                       since_iso: str) -> Optional[dict]:
+    """Return the most-recent passing payment_link_tests row for `url`
+    with tested_at >= since_iso, or None if no such row exists."""
+    params = {
+        "url": f"eq.{url}",
+        "status": "eq.pass",
+        "tested_at": f"gte.{since_iso}",
+        "order": "tested_at.desc",
+        "limit": "1",
+        "select": "id,url,status,tested_at,brand_match,observed_brand_name",
+    }
+    query = urllib.parse.urlencode(params, quote_via=urllib.parse.quote)
+    full = f"{sup_url}/rest/v1/payment_link_tests?{query}"
+    req = urllib.request.Request(
+        full,
+        headers={
+            "apikey": sup_key,
+            "Authorization": f"Bearer {sup_key}",
+            "Accept": "application/json",
+        },
+        method="GET",
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=15) as r:
+            data = json.loads(r.read())
+    except Exception as e:
+        sys.stderr.write(
+            f"build_proposal: gate 3 supabase query error for "
+            f"{url[:80]}: {type(e).__name__}: {e}\n"
+        )
+        return None
+    if isinstance(data, list) and data:
+        return data[0]
+    return None
+
+
+def verify_gate3_payment_link_tests(spec: ProposalSpec,
+                                    window_hours: int = GATE3_WINDOW_HOURS
+                                    ) -> list[str]:
+    """For every plan with a resolved subscribe_url, require a passing
+    payment_link_tests row tested within the last `window_hours` hours.
+    Returns a list of human-readable failures (empty list = gate passes)."""
+    failures: list[str] = []
+
+    # Collect URLs to check (only those actually resolved by gate 1)
+    to_check: list[tuple[str, str]] = []  # (plan_label, url)
+    for plan in spec.plans:
+        if not plan.subscribe_url:
+            # Gate 1 already missed this; gate 3 has nothing to verify
+            continue
+        label = f"{plan.name} [{plan.plan_id}]"
+        to_check.append((label, plan.subscribe_url))
+
+    if not to_check:
+        sys.stderr.write(
+            "build_proposal: gate 3 has no URLs to verify "
+            "(empty spec or gate 1 failed)\n"
+        )
+        return failures
+
+    sup_url = os.environ.get("SUPABASE_URL") or SUPABASE_URL_DEFAULT
+    sup_key = _resolve_supabase_key()
+    if not sup_key:
+        failures.append(
+            "Supabase service role key not found in env or known dotenv files. "
+            "Gate 3 requires SUPABASE_SERVICE_ROLE_KEY to query "
+            "public.payment_link_tests. Set the env var or place it in "
+            "/opt/titan-processor/.env or ~/.amg_supabase_env."
+        )
+        return failures
+
+    since_dt = datetime.now(timezone.utc) - timedelta(hours=window_hours)
+    since_iso = since_dt.strftime("%Y-%m-%dT%H:%M:%SZ")
+
+    for label, url in to_check:
+        row = _query_latest_pass(sup_url, sup_key, url, since_iso)
+        if not row:
+            failures.append(
+                f"{label}: no 'pass' row in payment_link_tests within the "
+                f"last {window_hours}h for URL {url[:100]}. Run: "
+                f"scripts/test_payment_url.py --url '{url}' "
+                f"--expected-brand 'AI Marketing Genius' "
+                f"--plan-id {_plan_id_from_label(label)}"
+            )
+            continue
+        # Row exists — sanity check brand_match if present
+        if row.get("brand_match") is False:
+            failures.append(
+                f"{label}: latest payment_link_tests row passed status "
+                f"but brand_match=false (observed '{row.get('observed_brand_name')}') "
+                f"— re-run test_payment_url.py against a ba_token URL."
+            )
+    return failures
+
+
+def _plan_id_from_label(label: str) -> str:
+    # "Plan Name [P-XYZ]" → "P-XYZ"
+    m = re.search(r"\[([^\]]+)\]", label)
+    return m.group(1) if m else ""
+
+
+# -----------------------------------------------------------------------------
 # DOCX renderer (token substitution against a base template)
 # -----------------------------------------------------------------------------
 
@@ -337,6 +481,15 @@ def main() -> int:
                         help="(DANGEROUS) Skip the build-time payment-link gate. "
                              "Use only for dry-run testing. Never ship a contract "
                              "built with this flag.")
+    parser.add_argument("--skip-gate3", action="store_true",
+                        help="(DANGEROUS) Skip Gate 3 — the payment_link_tests "
+                             "24h-pass requirement. Use only when running from "
+                             "an environment without Supabase access (local "
+                             "dry-run). Never ship a contract built with this flag.")
+    parser.add_argument("--gate3-window-hours", type=int, default=GATE3_WINDOW_HOURS,
+                        help="Gate 3 freshness window in hours (default: %(default)s). "
+                             "A URL must have a passing payment_link_tests row "
+                             "tested within this window.")
     args = parser.parse_args()
 
     spec_path = Path(args.spec).resolve()
@@ -381,6 +534,44 @@ def main() -> int:
             sys.stderr.write(f"  - {m}\n")
 
     sys.stderr.write(f"build_proposal: gate 1 passed ({len(spec.plans)} plans resolved)\n")
+
+    # Gate 3: every resolved URL must have a payment_link_tests pass row
+    # within the last N hours. This is the Lavar 2026-04-10 fix — an API
+    # status check isn't enough; the URL must have been end-to-end
+    # browser-tested against the wrong-brand class of failure.
+    if not args.allow_missing_urls and not args.skip_gate3:
+        gate3_failures = verify_gate3_payment_link_tests(
+            spec, window_hours=args.gate3_window_hours
+        )
+        if gate3_failures:
+            sys.stderr.write("\n" + "=" * 64 + "\n")
+            sys.stderr.write(
+                "BUILD-TIME GATE 3 FAILED: payment link tests missing/stale\n"
+            )
+            sys.stderr.write("=" * 64 + "\n")
+            for f in gate3_failures:
+                sys.stderr.write(f"  - {f}\n")
+            sys.stderr.write(
+                f"\nRefusing to build a contract whose payment URLs have not "
+                f"been end-to-end browser-tested within the last "
+                f"{args.gate3_window_hours}h.\n"
+            )
+            sys.stderr.write(
+                "Fix: run scripts/test_payment_url.py for each failing URL "
+                "(see commands in the failure list above), then re-run "
+                "build_proposal.py.\n"
+            )
+            return 5
+        sys.stderr.write(
+            f"build_proposal: gate 3 passed "
+            f"(all {len(spec.plans)} plan URLs have a passing "
+            f"payment_link_tests row within {args.gate3_window_hours}h)\n"
+        )
+    elif args.skip_gate3:
+        sys.stderr.write(
+            "WARNING: --skip-gate3 set, gate 3 (payment_link_tests 24h-pass "
+            "requirement) SKIPPED. Never ship a contract built with this flag.\n"
+        )
 
     # Render
     try:
