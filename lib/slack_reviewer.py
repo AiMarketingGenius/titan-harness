@@ -206,14 +206,34 @@ class SlackReviewer:
             )
 
     def _post_review_request(self, message_body: str) -> str:
-        """Post to #titan-aristotle. Returns the thread timestamp (ts) of the parent message."""
-        resp = _slack_call("chat.postMessage", self.token, payload={
+        """Post to #titan-aristotle. Returns the thread timestamp (ts) of the parent message.
+
+        Slack anti-bot-loop note: bot-posted messages do NOT trigger app_mention events
+        for other bots (Perplexity Computer won't see our @mention). Workaround: try
+        as_user=true (posts as the installing user Solon, who IS a real user and whose
+        @mention Computer will respond to). Falls back to normal bot post if scope missing.
+        """
+        payload_as_user = {
             "channel": self.channel_id,
             "text": message_body,
             "unfurl_links": False,
             "unfurl_media": False,
-        })
-        return resp["ts"]
+            "as_user": True,
+        }
+        try:
+            resp = _slack_call("chat.postMessage", self.token, payload=payload_as_user)
+            return resp["ts"]
+        except SlackReviewerError as e:
+            # If as_user fails (missing scope), fall back to normal bot post
+            if "missing_scope" in str(e) or "not_allowed" in str(e) or "invalid_arguments" in str(e):
+                resp = _slack_call("chat.postMessage", self.token, payload={
+                    "channel": self.channel_id,
+                    "text": message_body,
+                    "unfurl_links": False,
+                    "unfurl_media": False,
+                })
+                return resp["ts"]
+            raise
 
     def _poll_for_reply(self, thread_ts: str, timeout: int = POLL_TIMEOUT_SECONDS) -> str:
         """Poll conversations.replies for the first non-Titan reply. Returns the reply text."""
