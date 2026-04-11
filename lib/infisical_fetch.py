@@ -191,6 +191,55 @@ def log_shadow_delta(
 
 
 # ---------------------------------------------------------------------------
+# Public shared helper — Phase 1 Step 3 caller conversions use this
+# ---------------------------------------------------------------------------
+def fetch_with_shadow(key: str, default: str = "", project: str = "harness-core") -> str:
+    """Shadow-mode Infisical fetch — shared helper for Phase 1 Step 3 caller conversions.
+
+    Reads TITAN_INFISICAL_MODE env var to decide behavior:
+      "shadow" (default)  — try Infisical, return env value (source of truth), log delta
+      "infisical-only"    — try Infisical, return Infisical value (post-soak flip)
+      "env-only"          — skip Infisical entirely (emergency rollback)
+
+    Used by lib/llm_client.py (Step 3.1) and lib/war_room.py (Step 3.2) and any
+    subsequent caller conversions in Phase 1 Step 3. Centralized here so each
+    caller doesn't duplicate the shadow-mode logic.
+
+    Silent contract: never writes the value to stdout/stderr/log. On failure,
+    returns the env fallback and logs `infisical_ok=false` + error name only.
+
+    Note: lib/llm_client.py currently keeps a local _fetch_with_shadow with
+    identical behavior; it will migrate to this public helper after the
+    Step 3.1 shadow→infisical-only flip completes.
+    """
+    mode = os.environ.get("TITAN_INFISICAL_MODE", "shadow")
+    env_val = os.environ.get(key, default)
+    if mode == "env-only":
+        return env_val
+    try:
+        inf_val = get_secret(key, project=project)
+    except Exception as _e:
+        try:
+            log_shadow_delta(
+                key=key, infisical_ok=False, env_ok=bool(env_val),
+                error=f"{type(_e).__name__}: {str(_e)[:200]}",
+            )
+        except Exception:
+            pass
+        return env_val
+    try:
+        log_shadow_delta(
+            key=key, infisical_ok=True, env_ok=bool(env_val),
+            match=(inf_val == env_val),
+        )
+    except Exception:
+        pass
+    if mode == "infisical-only":
+        return inf_val
+    return env_val  # shadow mode default
+
+
+# ---------------------------------------------------------------------------
 # CLI entry for smoke-testing (prints NAME + value_length only, never the value)
 # ---------------------------------------------------------------------------
 if __name__ == "__main__":

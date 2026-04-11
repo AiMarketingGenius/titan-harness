@@ -60,9 +60,24 @@ ANTHROPIC_URL = 'https://api.anthropic.com/v1/messages'
 # When GATEWAY_ENABLED=1 and LITELLM_BASE_URL is set, all Perplexity and
 # Anthropic calls are rerouted through the gateway's OpenAI-compatible endpoint.
 # The gateway handles Anthropic messages-format translation internally.
+#
+# --- Phase 1 Step 3.2 — Infisical shadow-mode secret fetch (2026-04-12) ---
+# LITELLM_BASE_URL + LITELLM_MASTER_KEY read through the shared shadow helper
+# from lib/infisical_fetch.py. Behavior during shadow mode is identical to
+# pre-Phase-1 production (env value returned, Infisical consulted only to log
+# delta). Flip to infisical-only via TITAN_INFISICAL_MODE env var after
+# Solon-approved soak review. GATEWAY_ENABLED is a config flag (boolean),
+# not a secret — stays as os.environ.get.
+try:
+    sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+    from infisical_fetch import fetch_with_shadow
+except ImportError:
+    def fetch_with_shadow(key, default='', project='harness-core'):
+        return os.environ.get(key, default)
+
 GATEWAY_ENABLED = os.environ.get('GATEWAY_ENABLED', '0') == '1'
-LITELLM_BASE_URL = os.environ.get('LITELLM_BASE_URL', '').rstrip('/')
-LITELLM_MASTER_KEY = os.environ.get('LITELLM_MASTER_KEY', '')
+LITELLM_BASE_URL = fetch_with_shadow('LITELLM_BASE_URL', '').rstrip('/')
+LITELLM_MASTER_KEY = fetch_with_shadow('LITELLM_MASTER_KEY', '')
 GATEWAY_URL = (LITELLM_BASE_URL + '/v1/chat/completions') if LITELLM_BASE_URL else ''
 ANTHROPIC_VERSION = '2023-06-01'
 # AMG 9.4/10 quality floor requires Sonnet-grade revision to reach grade A.
