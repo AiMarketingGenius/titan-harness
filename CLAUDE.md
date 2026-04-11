@@ -89,17 +89,58 @@ Posted to the Perplexity Slack war-room channel with tag `SOLON_OS_CONTROL_LOOP 
 
 ---
 
-## 7. Session boot sequence (every new Claude Code session on titan-harness)
+## 7. SOLON OS COLD BOOT — auto-run on every session, no wake word
+
+**Hard rule:** every new Claude Code session on `~/titan-harness` is a **cold boot of Solon OS**. Titan runs the full audit/resume sequence WITHOUT waiting for a starter prompt, applies all standing rules, and emits exactly ONE very short greeting line. Solon should not need to say anything — he opens the session and Titan is already booted.
+
+### Auto-run boot audit (parallelized where possible)
 
 1. Read `CLAUDE.md` (this file)
 2. Read `CORE_CONTRACT.md`
-3. Read `RADAR.md` (refresh from sources if stale >1 hour)
-4. Read `NEXT_TASK.md` (session-local, ephemeral)
-5. Skim `INVENTORY.md` section 12 (gap map) to know current autopilot state
-6. Run `get_bootstrap_context` MCP tool
-7. Detect mirror drift: compare `git log -1 --format=%H` on Mac vs VPS working tree vs VPS bare vs GitHub. If drift exists, auto-sync per §10 and reply: `Auto-Mirror: syncing Mac → VPS → bare → GitHub now.`
-8. If brevity/RADAR/Hercules-Triangle rules are missing from the active system prompt, patch them and reply: `Brevity + RADAR re-applied; you don't need to paste anything.`
-9. Then answer Solon's first prompt.
+3. Read `RADAR.md` — if stale >1 hour, run `scripts/radar_refresh.py`
+4. Read `~/titan-session/NEXT_TASK.md` (session-local, ephemeral)
+5. Skim `INVENTORY.md` §12 (gap map) to know current autopilot state
+6. Run `bin/titan-boot-audit.sh` — one-shot script that:
+   - Checks mirror drift (Mac ↔ VPS working ↔ VPS bare ↔ GitHub)
+   - Runs `bin/alexandria-preflight.sh` (Library doctrine-placement check)
+   - Runs `bin/harness-preflight.sh` (capacity CORE_CONTRACT validation)
+   - Runs `bin/check-capacity.sh` (live CPU/RAM check)
+   - Refreshes `RADAR.md` timestamps + counts
+   - Prints a compact status block Titan parses for the greeting
+7. Run `get_bootstrap_context` MCP tool if available
+8. If mirror drift detected → auto-sync per §10 and surface `Auto-Mirror: syncing Mac → VPS → bare → GitHub now.` as a prefix line before the greeting
+9. If standing rules (brevity / RADAR / Hercules Triangle / Library) are missing from the active system prompt → patch them silently (no announcement)
+
+### Apply all standing rules on every boot
+
+All non-bypassable standing rules are active from the first token Titan emits:
+- **Brevity contract** (§2)
+- **RADAR hard rules** (§3) + execution priority (§4)
+- **Auto-Harness + Auto-Mirror** (§10 / `CORE_CONTRACT.md §0.6`)
+- **Library of Alexandria** rule (`CORE_CONTRACT.md §0.5`)
+- **Conflict-check** (`CORE_CONTRACT.md §0.7`)
+- **Aristotle-in-Slack** routing default (§1)
+
+### Auto-greet line — the ONLY output Titan emits on boot
+
+**Exact format** (one line, nothing before, nothing after):
+
+> `Boot complete. Now: <current focus>. Next: <queued task>. Blocked on: <empty or specific>.`
+
+Examples:
+- `Boot complete. Now: awaiting Solon directive. Next: Thread 1 Sales Inbox (gated on sql/007 apply). Blocked on: sql/006 + sql/007 Supabase apply.`
+- `Boot complete. Now: MP-1 Phase 1 Claude harvest running. Next: MP-1 Phase 2 Perplexity. Blocked on: nothing.`
+
+### Hard rules for the greeting
+
+- **Exactly one line.** No preamble, no "Hello Solon", no quoting NEXT_TASK back.
+- **No duplicate greetings** within a single session — only on cold boot (first turn).
+- **Drift warning is a separate prefix line** (per §10), emitted only if drift was actually detected + fixed.
+- **If the boot audit fails** (e.g. `harness-preflight.sh` exit 10/11/12), replace the greeting with `Boot FAILED: <reason>. Fix: <concrete next action>.` and stop.
+
+### Mid-session resumes
+
+If the `SessionStart:resume` hook fires while Titan is already active in the same session, Titan treats it as idempotent: no new greeting, no re-audit, continue from the current task state. Only a genuinely new session triggers the full cold boot.
 
 ---
 

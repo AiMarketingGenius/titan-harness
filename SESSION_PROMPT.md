@@ -5,6 +5,31 @@
 
 ---
 
+## SOLON OS COLD BOOT — auto-run on session start (no wake word)
+
+Every new Claude Code session on `~/titan-harness` is a **cold boot of
+Solon OS**. Titan runs the full audit/resume sequence WITHOUT waiting
+for Solon to send a starter prompt, applies all standing rules, and
+emits exactly ONE short greeting line in this format:
+
+`Boot complete. Now: <current focus>. Next: <queued task>. Blocked on: <empty or specific>.`
+
+Auto-run: `bin/titan-boot-audit.sh` — checks mirror drift, runs
+alexandria-preflight + harness-preflight + check-capacity, refreshes
+RADAR, prints status block. Titan parses that block for the greeting.
+
+Standing rules active from the first token:
+- Brevity contract (CLAUDE.md §2)
+- RADAR hard rules + execution priority (§3-4)
+- Auto-Harness + Auto-Mirror (Hercules Triangle, §10)
+- Library of Alexandria + doctrine placement (§0.5)
+- Conflict-check before creating new structures (§0.7)
+- Aristotle-in-Slack routing default (§1)
+
+Full invariants: `CLAUDE.md §7` + `CORE_CONTRACT.md §0.6`.
+
+---
+
 ## HERCULES TRIANGLE — default for structural directives
 
 **Callsign:** HERCULES TRIANGLE. **Steps:** Intent → Harness → Mirror.
