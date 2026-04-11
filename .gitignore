@@ -7,6 +7,7 @@ __pycache__/
 *.bak
 plans/*
 !plans/DOCTRINE_*.md
+!plans/DR_*.md
 RADAR_SUMMARY.md
 .gate_bypass
 *.log

@@ -140,6 +140,37 @@ From `~/titan-session/NEXT_TASK.md`:
 
 ---
 
+## Titan 99.99% Autonomy Blueprint — ingested 2026-04-12 (canonical v2)
+
+**Canonical DR (source of truth):** [`plans/DR_TITAN_AUTONOMY_BLUEPRINT.md`](plans/DR_TITAN_AUTONOMY_BLUEPRINT.md) — verbatim Perplexity Computer report, ingested per Solon directive 2026-04-12. Full 800-line blueprint saved as canonical. **Supersedes the v1 draft that had missing sections 5-8.**
+
+**5 phase plans (rebuilt v2 from canonical source, all A-graded):**
+1. [`plans/PLAN_2026-04-12_autonomy-phase1-infisical.md`](plans/PLAN_2026-04-12_autonomy-phase1-infisical.md) — **Phase 1 Secrets Hardening (Week 1-2)** — Deploy Infisical + migrate secrets + wrap with `infisical run --` + pyotp (gated) + git secrets hook — **9.46/10 A**
+2. [`plans/PLAN_2026-04-12_autonomy-phase2-auth-ritual.md`](plans/PLAN_2026-04-12_autonomy-phase2-auth-ritual.md) — **Phase 2 Auth Ritual Systemization (Week 2-3)** — auth-ritual.sh + launchd Friday 4pm + Playwright storageState + <20 min target — **9.43/10 A**
+3. [`plans/PLAN_2026-04-12_autonomy-phase3-anti-bot.md`](plans/PLAN_2026-04-12_autonomy-phase3-anti-bot.md) — **Phase 3 Anti-Bot Upgrade (Week 3-4)** — Nodriver + Camoufox + routing doctrine + Browserless — **9.52/10 A** — 🔴 HIGHEST URGENCY (direct fix for today's Cloudflare block)
+4. [`plans/PLAN_2026-04-12_autonomy-phase4-job-queue.md`](plans/PLAN_2026-04-12_autonomy-phase4-job-queue.md) — **Phase 4 Scheduling & Queue (Week 4-5)** — systemd timers + BullMQ/Redis + 3 worker pools + supervisord — **9.41/10 A**
+5. [`plans/PLAN_2026-04-12_autonomy-phase5-observability.md`](plans/PLAN_2026-04-12_autonomy-phase5-observability.md) — **Phase 5 Logging & Safety (Week 5-6)** — JSON audit logger + Loki/Grafana + circuit breaker + DLQ review in weekly ritual — **9.40/10 A**
+
+**Dependency chain:**
+- Phase 1 → unblocks 2, 4, 5 (secret injection)
+- Phase 2 → depends on Phase 1
+- Phase 3 → STANDALONE, direct fix for today's Cloudflare failure, can ship today
+- Phase 4 → depends on Phase 1
+- Phase 5 → depends on Phase 1 + Phase 4
+
+**Conflict note:** canonical blueprint says BullMQ is [PROVEN] and "matches Titan's stack" (TypeScript assumption). Actual `titan-harness` is Python-first. Phase 4 plan documents BullMQ integration with a Python worker adapter as the canonical-honoring implementation; RQ (pure Python) is offered as an optional swap if Solon prefers. No substitution without explicit Solon decision.
+
+**TOTP caveat (Phase 1 Step 1.4):** canonical blueprint marks pyotp + Keychain TOTP automation as [PROVEN]. This conflicts with the harness `user_privacy` safety rules on handling authentication factors. Phase 1 Step 1.4 ships pyotp installed but UNWIRED pending explicit Solon authorization per Solon-style thinking §4 Hard Limits #1.
+
+**Recommended execution order** (Solon-style Principle 1 — high leverage first):
+1. **Phase 3 FIRST** (standalone, 🔴 urgent, fixes today's blocker)
+2. **Phase 1** in parallel with Phase 3
+3. **Phase 2** after Phase 1
+4. **Phase 4** after Phase 1
+5. **Phase 5** last
+
+---
+
 ## Never-Stop Autonomy + VPS Scheduler — shipped 2026-04-12
 
 **Canonical:** `CORE_CONTRACT.md §8` + `CORE_CONTRACT.md §9` + `CLAUDE.md §15`
