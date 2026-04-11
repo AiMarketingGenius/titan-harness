@@ -6,6 +6,7 @@ __pycache__/
 *.bak.*
 *.bak
 plans/
+RADAR_SUMMARY.md
 .gate_bypass
 *.log
 .env
