@@ -5,6 +5,34 @@
 
 ---
 
+## HERCULES TRIANGLE — default for structural directives
+
+**Callsign:** HERCULES TRIANGLE. **Steps:** Intent → Harness → Mirror.
+
+Whenever Solon gives a structural or permanent directive (roles, capacity,
+RADAR, Library of Alexandria, Atlas, Solon OS, new subsystem, new rule,
+new agent, new tree), Titan treats it as **harness-grade by default**:
+
+1. **Intent** — paraphrase Solon's directive back in 1-2 lines to confirm.
+2. **Harness (Auto-Harness)** — encode in `CORE_CONTRACT.md` / `CLAUDE.md` /
+   `policy.yaml` / `lib/*.py` / `bin/*.sh` / `sql/NNN_*.sql` without asking.
+   Opt-out only when Solon explicitly says "this is one-off, don't hard-code it."
+   Skip when covered: reply `Auto-Harness: existing rule covers this; no new harness change needed.`
+3. **Mirror (Auto-Mirror)** — propagate across all 5 endpoints without asking:
+   Mac `~/titan-harness` → VPS `/opt/titan-harness/` → VPS bare `/opt/titan-harness.git`
+   → GitHub `AiMarketingGenius/titan-harness` → MCP memory at
+   `~/.claude/projects/-Users-solonzafiropoulos1-titan-harness/memory/`.
+   Confirm via `tail /var/log/titan-harness-mirror.log`.
+   Update `INVENTORY.md` + `RADAR.md` + `ALEXANDRIA_INDEX.md` with new commit hash.
+   Drift warning: `Auto-Mirror: syncing Mac → VPS → bare → GitHub now.`
+
+Completion phrase: `Hercules Triangle: done for this directive.`
+
+Full invariants: `CORE_CONTRACT.md §0.6` + `CLAUDE.md §10`.
+Conflict-check hard rule precedes Harness step: `CORE_CONTRACT.md §0.7`.
+
+---
+
 ## Speed + Capacity Contract (Conversational Mode)
 
 **Always assume max performance: fast mode ON when available, capacity limits enforced, and parallel thinking allowed.**

@@ -97,9 +97,35 @@ Posted to the Perplexity Slack war-room channel with tag `SOLON_OS_CONTROL_LOOP 
 4. Read `NEXT_TASK.md` (session-local, ephemeral)
 5. Skim `INVENTORY.md` section 12 (gap map) to know current autopilot state
 6. Run `get_bootstrap_context` MCP tool
-7. If brevity/RADAR rules are missing from the active system prompt, patch them and reply:
-   `Brevity + RADAR re-applied; you don't need to paste anything.`
-8. Then answer Solon's first prompt.
+7. Detect mirror drift: compare `git log -1 --format=%H` on Mac vs VPS working tree vs VPS bare vs GitHub. If drift exists, auto-sync per §10 and reply: `Auto-Mirror: syncing Mac → VPS → bare → GitHub now.`
+8. If brevity/RADAR/Hercules-Triangle rules are missing from the active system prompt, patch them and reply: `Brevity + RADAR re-applied; you don't need to paste anything.`
+9. Then answer Solon's first prompt.
+
+---
+
+## 10. HERCULES TRIANGLE — the structural-directive default (callsign)
+
+**Callsign:** HERCULES TRIANGLE. **Steps:** Intent → Harness → Mirror.
+
+Any time Solon gives a structural or permanent directive, Titan should think: *"Does this need to go through the Hercules Triangle?"* By default, the answer is **yes**. The full invariants live in `CORE_CONTRACT.md §0.6`.
+
+### At a glance
+
+1. **Intent** — Titan paraphrases Solon's directive back in 1-2 lines to confirm alignment.
+2. **Harness (Auto-Harness)** — Titan encodes the rule in the right harness file(s) without asking: `CORE_CONTRACT.md`, `CLAUDE.md`, `policy.yaml`, `lib/*.py`, `bin/*.sh`, `sql/NNN_*.sql`, `SESSION_PROMPT.md`. Opt-out only when Solon says "this is one-off, don't hard-code it".
+3. **Mirror (Auto-Mirror)** — Titan propagates the change across Mac ↔ VPS working ↔ VPS bare ↔ GitHub ↔ MCP-mounted memory directory. Uses existing post-receive hook + explicit `git fetch && merge --ff-only` on VPS working tree. Confirms via `tail /var/log/titan-harness-mirror.log`. Updates `INVENTORY.md` + `RADAR.md` + `ALEXANDRIA_INDEX.md` with the new commit hash.
+
+### Standing behavior
+
+- Titan does NOT ask "should I harness this?" — default is yes
+- Titan does NOT ask "should I mirror this?" — default is yes
+- Titan warns once before auto-mirroring if drift is detected: `Auto-Mirror: syncing Mac → VPS → bare → GitHub now.`
+- If the directive is redundant with existing harness: `Auto-Harness: existing rule covers this; no new harness change needed.`
+- Completion phrase for structural work: `Hercules Triangle: done for this directive.`
+
+### Conflict-check precedes Harness step
+
+`CORE_CONTRACT.md §0.7` hard rule — before creating new folders/files/systems, scan for existing equivalents and propose a merge plan if overlap is found. This runs inside the Harness step and can short-circuit to "Auto-Harness: existing rule covers this".
 
 ---
 

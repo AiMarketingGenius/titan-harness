@@ -49,21 +49,77 @@ Anything outside triggers `alexandria-preflight` warning at commit/build time.
 
 ---
 
-## 0.6 Hercules Triangle — default for all structural directives
+## 0.6 HERCULES TRIANGLE — Auto-Harness + Auto-Mirror for structural directives
 
-Every structural directive from Solon (new subsystem, new rule, new agent, new tree) goes through the **Hercules Triangle**:
+**Callsign:** HERCULES TRIANGLE. **Steps:** Intent → Harness → Mirror.
 
-1. **Intent** — capture what Solon actually wants in a short written directive (usually posted as a "Mega Prompt" or similar). Titan paraphrases it back in its own words to confirm.
-2. **Harness** — encode the intent in the harness machinery: `CORE_CONTRACT.md` amendment, `policy.yaml` block, a new `lib/*.py` helper, a new `bin/*.sh` preflight, new SQL schema, stub modules. The harness enforces the rule going forward automatically; Titan doesn't need to remember it.
-3. **Mirror** — propagate the change through all mirrors: Mac working tree → VPS working tree (`/opt/titan-harness`) → VPS bare repo (`/opt/titan-harness.git`) → GitHub (`AiMarketingGenius/titan-harness`). Verified via `tail /var/log/titan-harness-mirror.log` after every commit.
+Every structural or permanent directive from Solon (roles, capacity, RADAR, Library of Alexandria, Atlas, Solon OS, new subsystem, new rule, new agent, new tree, canonical behavior) is treated as **harness-grade by default**. Titan runs the Hercules Triangle sequentially without asking:
 
-**Default behavior:** whenever Solon sends a structural directive, Titan runs Intent → Harness → Mirror sequentially without prompting. The reply is one-screen brevity proof per `CLAUDE.md §2`.
+### Step 1 — Intent
+Capture what Solon actually wants. Titan paraphrases it back in one or two lines of its own words to confirm alignment before executing. If Solon posts a "Mega Prompt" or similar structural directive, that IS the intent artifact — Titan does not require additional clarification unless a genuine ambiguity blocks the work.
+
+### Step 2 — Harness (AUTO-HARNESS rule, non-bypassable)
+
+**Hard rule:** structural directives MUST be encoded in the harness, not just in chat memory. Titan picks the right file(s) based on the directive type:
+
+| Directive type | Harness target |
+|---|---|
+| Roles / invariants / non-bypassable rules | `CORE_CONTRACT.md` amendment |
+| Session behavior / brevity / boot sequence | `CLAUDE.md` amendment |
+| Runtime config / kill switches / cadences | `policy.yaml` block |
+| Operational behavior helper | `lib/*.py` module |
+| Preflight / policy gate | `bin/*.sh` script |
+| Persistent data contract | `sql/NNN_*.sql` migration |
+| Fresh-session boot prompt | `SESSION_PROMPT.md` amendment |
+
+**Opt-out:** if Solon explicitly says **"this is one-off, don't hard-code it"** (or equivalent), Titan skips the Harness step and treats the directive as session-scoped only.
+
+**Skip response:** if Titan determines an existing harness rule already covers the directive (or harnessing it would conflict with §0.7 conflict-check), Titan replies with exactly one line:
+
+> `Auto-Harness: existing rule covers this; no new harness change needed.`
+
+and does not create duplicate files.
+
+### Step 3 — Mirror (AUTO-MIRROR rule, non-bypassable)
+
+**Hard rule:** any committed change to the harness MUST be mirrored across all four endpoints without Solon asking:
+
+1. **Mac working tree** — `~/titan-harness` (source of truth for authoring)
+2. **VPS working tree** — `/opt/titan-harness/` (where cron + systemd + Playwright + LiteLLM gateway run)
+3. **VPS bare repo** — `/opt/titan-harness.git` (the origin that post-receive mirrors to GitHub)
+4. **GitHub mirror** — `AiMarketingGenius/titan-harness` (human review + PR surface)
+5. **MCP-mounted state** — `~/.claude/projects/-Users-solonzafiropoulos1-titan-harness/memory/` (operator memory + bootstrap context MCP reads this directory; Titan writes feedback + doctrine files here when they're session-level, not repo-level)
+
+The 4-way git mirror is already wired via the post-receive hook on the bare repo (`/opt/titan-harness.git/hooks/post-receive` → `git push --mirror github` → logged to `/var/log/titan-harness-mirror.log`). The MCP memory directory is updated via direct writes when the directive is session-level.
+
+**Auto-mirror flow on every commit:**
+1. `git add <files> && git commit -m "..."` on Mac
+2. `git push origin master` → VPS bare receives push
+3. VPS bare post-receive hook fires → GitHub mirror push
+4. `ssh vps 'cd /opt/titan-harness && git fetch origin && git merge --ff-only origin/master'` → VPS working tree updated
+5. `tail /var/log/titan-harness-mirror.log` → confirm `mirror push OK`
+6. Update `INVENTORY.md` section 11 + `RADAR.md` + `ALEXANDRIA_INDEX.md` with the new commit hash so all indexes reflect the current mirrored state
+
+**Drift warning:** if Titan detects un-mirrored local changes at session boot (or at any point during work), Titan warns with exactly one line before proceeding:
+
+> `Auto-Mirror: syncing Mac → VPS → bare → GitHub now.`
+
+and executes the sync before continuing with new work.
+
+### Confirmation phrase
+When Titan completes the Hercules Triangle for a structural directive, the confirmation reply uses the phrase:
+
+> `Hercules Triangle: done for this directive.`
+
+### Default behavior
+Whenever Solon sends a structural directive, Titan runs Intent → Harness → Mirror sequentially without prompting. The reply is one-screen brevity proof per `CLAUDE.md §2`.
 
 **Applied to:**
 - Autopilot Suite (commit `bea1740`)
 - Roles + Brevity + RADAR (commit `5d7b884`)
 - Aristotle first-class agent (commit `4e59440`)
-- Library of Alexandria (this amendment)
+- Library of Alexandria (commit `b0977ec`)
+- Hercules Triangle codification itself (this amendment)
 
 ---
 
