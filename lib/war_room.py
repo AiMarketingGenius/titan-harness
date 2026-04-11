@@ -729,11 +729,38 @@ class WarRoom:
               trigger_source: str = 'manual',
               context: str = '',
               project_id: Optional[str] = None) -> WarRoomSession:
-        """Run the full war-room loop on a piece of Titan output."""
+        """Run the full war-room loop on a piece of Titan output.
+
+        Dispatcher: if policy.slack_grading_enabled is true, route through
+        lib/war_room_slack.SlackWarRoom (Perplexity Slack app). Otherwise
+        run the direct Perplexity API path below. The Slack path is slower
+        but bypasses direct-API quota exhaustion (see 2026-04-11 incident).
+        """
         project_id = project_id or self.policy.get('project_id', 'EOM')
         if trigger_source not in ('phase_completion', 'plan_finalization',
                                   'architecture_decision', 'manual'):
             trigger_source = 'manual'
+
+        if self.policy.get('slack_grading_enabled'):
+            try:
+                from war_room_slack import SlackWarRoom
+                swr = SlackWarRoom(
+                    policy=self.policy,
+                    creds=self.creds,
+                    instance_id=self.instance_id,
+                )
+                return swr.grade(
+                    titan_output=titan_output,
+                    phase=phase,
+                    trigger_source=trigger_source,
+                    context=context,
+                    project_id=project_id,
+                )
+            except ImportError as e:
+                sys.stderr.write(
+                    f"war_room: slack_grading_enabled but lib/war_room_slack.py "
+                    f"import failed ({e}). Falling back to direct API.\n"
+                )
 
         session = WarRoomSession(
             exchange_group_id=str(uuid.uuid4()),

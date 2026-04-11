@@ -122,6 +122,28 @@ war_room:
   cost_ceiling_cents_per_exchange: 50   # $0.50/review — Sonnet reviser is pricier than Haiku
   reviser_model: "claude-sonnet-4-6"    # upgraded from Haiku — need Sonnet-grade revisions to reach A
 
+  # --- Slack-based Perplexity grading (2026-04-11 blocker mitigation) ---
+  # When the direct Perplexity API runs out of quota (observed 2026-04-11),
+  # war-room grading can route through the Perplexity Slack app instead.
+  # Flow: Titan posts the grading prompt to slack_grading_channel, @mentions
+  # the Perplexity bot, polls conversations.replies until the bot replies
+  # in-thread, parses the reply back into a GradeResult. Slower than the
+  # direct API (~30-90s per round including poll) but bypasses the API
+  # quota entirely and creates a human-auditable grading channel.
+  #
+  # DISABLED by default — enable only after:
+  #   (1) Perplexity Slack app is installed to the AMG workspace
+  #   (2) SLACK_BOT_TOKEN (xoxb-...) is set in /root/.titan-env
+  #   (3) slack_grading_channel_id is populated (a C-prefixed channel ID)
+  #   (4) slack_grading_bot_user_id is populated (U-prefixed Perplexity bot user)
+  slack_grading_enabled: false
+  slack_grading_channel_name: "#titan-perplexity-warroom"
+  slack_grading_channel_id: ""          # Cxxxxxxxxxx — populate after channel created
+  slack_grading_bot_user_id: ""         # Uxxxxxxxxxx — populate after Perplexity app installed
+  slack_grading_poll_interval_s: 3      # poll conversations.replies every N seconds
+  slack_grading_timeout_s: 180          # max wait for Perplexity's reply per round
+  slack_grading_privacy_mode: "strict"  # strict = refuse to post credentials/PII/client data
+
 # --- MP (megaprompt) runs — Phase G.4 ---
 # Wraps MP-1 harvest and MP-2 synthesis under the harness so every phase
 # execution is tracked in public.mp_runs, war-roomed when it produces a
