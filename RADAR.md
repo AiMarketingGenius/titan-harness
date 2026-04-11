@@ -1,7 +1,7 @@
 # RADAR — Titan's Never-Lose-Anything Open Queue
 
 **Owner:** Titan (COO). **Canonical state for what's open, blocked, parked, or in-flight.**
-**Last refreshed:** 2026-04-11 20:22 UTC
+**Last refreshed:** 2026-04-11 23:20 UTC (Hermes Phase A 6/6 substrate code-complete)
 **Refresh cadence:** every session boot; full regenerate daily via `scripts/radar_refresh.py`.
 
 **Hard rule:** every important idea, DR, megaprompt, or half-finished project must (a) exist as a row in `tasks`/`mp_runs` or a `PLAN_*.md`/`MP_*.md` file, AND (b) have a line here under one of the sections below. No exceptions.
@@ -74,9 +74,21 @@
 - **Lovable site audit via Chrome MCP** — queued follow-on (SPA blocked WebFetch)
 - **AMG site compliance remediation** — pending audit findings
 
-### Voice AI v2
-- **🟢 Voice AI Path A (demo lane) — UNPARKED 2026-04-12** per Solon + Aristotle parallel-track directive. DR shipped: `plans/PLAN_2026-04-12_voice-ai-path-a-demo.md`. Stack: Deepgram STT + Titan via LiteLLM + ElevenLabs TTS (custom Titan voice clone). Full duplex, ~1 week to demo-ready. Blockers: 5 Solon actions (~30 min: Deepgram key, ElevenLabs key + Creator tier, voice clone reference audio, Caddy subdomain, DNS). Pending Aristotle A-grade.
+### Voice AI v2 — Hermes Phase A (CPU substrate) — 6/6 steps CODE-COMPLETE 2026-04-12
+- **🟢 Binding doctrine:** [`plans/DOCTRINE_VOICE_AI_STACK_v1.0.md`](plans/DOCTRINE_VOICE_AI_STACK_v1.0.md) — verbatim Perplexity Computer ingest, supersedes v0.9 assumptions in prior Path A DR.
+- **🟢 Active plan:** [`plans/DR_VOICE_AI_PHASE_A_HERMES_2026-04-12.md`](plans/DR_VOICE_AI_PHASE_A_HERMES_2026-04-12.md) — CPU-first pivot because VPS has no GPU (AMD EPYC 7763, 62 GB RAM). Zero new recurring spend, zero new creds, rollback is one command.
+- **🟢 Phase A substrate status (6/6 doctrine-v1.0 steps):**
+  - Step 1 Kokoro v1.0 CPU FastAPI — LIVE on VPS 127.0.0.1:8880 via systemd unit `titan-kokoro.service`, digest-pinned `sha256:c8812546...`, TTFB 31 ms, 2.38 s for ~4 s of audio on CPU (verified by `/tmp/hermes_smoke.wav`).
+  - Step 4 Silero VAD v4 — `lib/silero_vad.py`, 237.9 ms wall on the smoke fixture, 2 speech segments detected.
+  - Step 5 faster-whisper medium.en int8 — `lib/whisper_cpu.py`, warm 1.63× RTF (plan target ~2×), exact transcript match.
+  - Step 7 Sentence buffer — `lib/sentence_buffer.py` + `tests/test_sentence_buffer.py`, 6/6 pytest green.
+  - Step 8 RNNoise server-side — `lib/rnnoise_wrapper.py` + rnnoise_demo binary at `/usr/local/bin/`, 24.7 dB noise reduction, 0.3 dB signal preservation.
+  - Step 9 Health check — `bin/titan-kokoro-healthcheck.sh` + `titan-kokoro-health.timer` (60 s cadence), `/var/log/titan/kokoro-health.jsonl` logging, 3-strike alert wired to `lib/war_room.notify`.
+- **Reviewer Loop gating:** Calls 1/4, 2/4, 3/4 all graded **A** with zero risk tags by perplexity-api transport (total reviewer spend to date: $0.25 / $5.00 month cap). Call 4/4 (Step 8 grade) is scheduled via `systemd-run hermes-call4` to fire at **2026-04-12T00:08:23Z** after UTC daily-cap rollover; bundle pre-assembled at `/tmp/HERMES_STEP8_20260412_000000` on VPS. Result logs to `/var/log/titan/hermes-call4.log`.
+- **Doctrine steps deferred (explicit, per plan §3 decision table):** Step 2 LiveKit-on-Telnyx (Phase B phone calls), Step 3 Deepgram Flux (Hard Limit money), Step 6 Chatterbox-Turbo (GPU gate), Step 10 ElevenLabs Starter fallback (Hard Limit money).
+- **Next deliverable:** Atlas API shim (`lib/atlas_api.py`) that wires Silero → whisper → Claude → Kokoro into a WebSocket pipeline at `api.aimarketinggenius.io`. Not started — was explicitly out of scope per Hermes plan §11. This is the next plan to draft + route through the Idea Builder grading loop.
 - **Voice AI Path B RunPod worker** — still **deprioritized** as enterprise upgrade path for SKU 3b trophy clients. Remains post MP-4 + CORDCUT 4+5.
+- **Voice AI Path A demo plan (old)** — `plans/PLAN_2026-04-12_voice-ai-path-a-demo.md` SUPERSEDED by the Hermes plan; retained for history only.
 
 ### Atlas demo lane (parallel-track with Voice AI Path A)
 - **Atlas skin polish on `os.aimarketinggenius.io`** — P1 demo-critical. Currently "too templated." Delegated to Perplexity Computer via `plans/COMPUTER_TASKS_2026-04-12.md` Task 1 (10-15k credits). Output → Titan applies permanently in repo.
