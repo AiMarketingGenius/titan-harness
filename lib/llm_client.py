@@ -33,10 +33,62 @@ except Exception:
     def check_capacity(timeout: float = 5.0) -> int:
         return 0
 
-SUPABASE_URL = os.environ.get("SUPABASE_URL", "").rstrip("/")
-SUPABASE_KEY = os.environ.get("SUPABASE_SERVICE_ROLE_KEY", "")
-LITELLM_BASE_URL = os.environ.get("LITELLM_BASE_URL", "http://127.0.0.1:4000").rstrip("/")
-LITELLM_MASTER_KEY = os.environ.get("LITELLM_MASTER_KEY", "")
+# ---------------------------------------------------------------------------
+# Phase 1 Step 3.1 — Infisical shadow-mode secret fetch (2026-04-12)
+# ---------------------------------------------------------------------------
+# TITAN_INFISICAL_MODE controls behavior (default: "shadow"):
+#   "shadow"         — fetch from both Infisical + env, return env value (safe),
+#                      log delta to /var/log/titan/infisical-shadow.jsonl
+#   "infisical-only" — return Infisical value (flip after 24h clean soak,
+#                      requires Solon approval per Phase 1 Step 3 plan)
+#   "env-only"       — skip Infisical entirely (emergency fallback / rollback)
+#
+# During shadow mode, runtime behavior is IDENTICAL to pre-Phase-1 production.
+# Only side effect: 1 JSONL log line per env read with {infisical_ok, match}.
+_INFISICAL_SHADOW_MODE = os.environ.get("TITAN_INFISICAL_MODE", "shadow")
+
+
+def _fetch_with_shadow(key: str, default: str = "", project: str = "harness-core") -> str:
+    """Shadow-mode Infisical fetch. Returns env value during soak (source of truth)."""
+    env_val = os.environ.get(key, default)
+    if _INFISICAL_SHADOW_MODE == "env-only":
+        return env_val
+    try:
+        from infisical_fetch import get_secret, log_shadow_delta, SecretFetchError
+    except ImportError:
+        # infisical_fetch not installed yet or on a host without VPS secrets path —
+        # behave exactly like pre-migration production.
+        return env_val
+    try:
+        inf_val = get_secret(key, project=project)
+    except Exception as _e:
+        # Catch-all including SecretFetchError + any transport exception.
+        # Log delta (infisical_ok=False), return env value, never crash the caller.
+        try:
+            log_shadow_delta(
+                key=key, infisical_ok=False, env_ok=bool(env_val),
+                error=f"{type(_e).__name__}: {str(_e)[:200]}",
+            )
+        except Exception:
+            pass
+        return env_val
+    # Infisical served a value. Compare to env + log.
+    try:
+        log_shadow_delta(
+            key=key, infisical_ok=True, env_ok=bool(env_val),
+            match=(inf_val == env_val),
+        )
+    except Exception:
+        pass
+    if _INFISICAL_SHADOW_MODE == "infisical-only":
+        return inf_val
+    return env_val  # shadow mode — env stays the source of truth
+
+
+SUPABASE_URL = _fetch_with_shadow("SUPABASE_URL", "").rstrip("/")
+SUPABASE_KEY = _fetch_with_shadow("SUPABASE_SERVICE_ROLE_KEY", "")
+LITELLM_BASE_URL = _fetch_with_shadow("LITELLM_BASE_URL", "http://127.0.0.1:4000").rstrip("/")
+LITELLM_MASTER_KEY = _fetch_with_shadow("LITELLM_MASTER_KEY", "")
 
 # httpx timeouts: read=30s lets us detect silent disconnects (LiteLLM streams
 # should push SSE keepalive or content within that window on healthy path).
