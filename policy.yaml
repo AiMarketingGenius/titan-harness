@@ -281,3 +281,65 @@ idea_to_execution:
     - mp1
     - mp2
     - atlas
+
+# --- Autopilot Suite — 5 automation threads (2026-04-11 overnight DR run) ---
+# Each sub-block is an independent kill switch. All default DISABLED; Solon
+# flips to enabled after the corresponding Solon action items are cleared.
+# See INVENTORY.md section 12 for the gap map and plans/PLAN_2026-04-11_*.md
+# for per-thread DRs. Stubs ship in lib/sales_inbox.py, lib/proposal_spec_generator.py,
+# lib/marketing_engine.py, lib/back_office.py, lib/client_reporting.py.
+autopilot:
+  # Thread 1 — Sales Inbox + CRM Agent
+  sales_inbox_enabled: false
+  sales_inbox_draft_enabled: false       # partial disable: keep classify + brief, disable drafts
+  sales_inbox_pubsub_topic: "projects/amg-titan/topics/titan-sales-inbox"
+  sales_inbox_gmail_label_prefix: "titan/"
+  sales_inbox_label_drafted: "titan/drafted"
+  sales_inbox_cadence_cron: "0 8 * * *"  # daily 08:00 local
+  sales_inbox_precall_poll_cron: "*/15 * * * *"
+  sales_inbox_precall_lead_minutes: 30   # T-minus minutes before meeting
+  sales_inbox_max_nudges_per_lead: 4
+  sales_inbox_breakup_nudge_index: 5
+  sales_inbox_voice_seeds_dir: "/opt/amg-titan/voice-seeds"
+  sales_inbox_data_retention_days: 90    # raw bodies dropped after N days
+
+  # Thread 2 — Proposal Spec Generator (small gap; reuses build_proposal.py)
+  proposal_from_notes_enabled: false
+  proposal_from_notes_war_room: true     # A-grade floor on generated spec
+  proposal_from_notes_max_revisions: 2
+  proposal_from_notes_exit_code_incomplete: 6
+  proposal_from_notes_fireflies_corpus: "/opt/amg-titan/solon-corpus/fireflies/transcripts"
+
+  # Thread 3 — Recurring Marketing Engine
+  marketing_engine_enabled: false
+  marketing_engine_cadence_cron: "0 6 * * 1"   # Monday 06:00 local pull
+  marketing_engine_approval_timeout_s: 14400   # 4 hours before auto-hold
+  marketing_engine_max_regen: 2
+  marketing_engine_targets:
+    linkedin_org_urn: ""                 # Solon action — populate after OAuth
+    x_handle: ""
+    email_sender: ""                     # e.g. solon@aimarketinggenius.io
+    email_list_name: ""                  # e.g. 'amg-weekly' in provider's list
+  marketing_engine_video_backend: "opus_clip"  # 'opus_clip' | 'heygen' | 'none'
+  marketing_engine_publish_schedule:
+    email_cron: "0 9 * * 1"              # Monday 09:00
+    linkedin_cron: "0 10 * * 2"          # Tuesday 10:00
+    x_cron: "5 10 * * 2"                 # Tuesday 10:05
+    video_cron: "0 10 * * 3"             # Wednesday 10:00
+
+  # Thread 4 — Back-Office Autopilot
+  back_office_enabled: false
+  back_office_cadence_cron: "0 19 * * 0" # Sunday 19:00 local weekly report
+  back_office_paypal_drop_dir: "/opt/amg-titan/paypal-exports"
+  back_office_tolerance_amount_pct: 5    # >5% variance triggers flag
+  back_office_tolerance_days: 5          # ±5 days on due date window
+  back_office_churn_threshold_consecutive_missed: 2
+  back_office_stale_import_warning_days: 7
+
+  # Thread 5 — Client Reporting Autopilot
+  client_reporting_enabled: false
+  client_reporting_default_cadence_cron: "0 9 1 * *"  # 1st of month 09:00
+  client_reporting_auto_ship_unlock_after: 4          # consecutive approved reports
+  client_reporting_auto_ship_veto_window_hours: 24
+  client_reporting_service_account_path: "/opt/titan-harness-secrets/gcp-service-account.json"
+  client_reporting_email_sender: ""      # Solon action — populate
