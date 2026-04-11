@@ -226,50 +226,30 @@ Titan executes against whatever Solon + Perplexity agree to.
 
 
 def _post_to_slack(package_text: str, filename: str) -> bool:
-    """Post the package to the Perplexity Slack war-room channel if enabled.
-    Uses the existing lib/war_room_slack infrastructure."""
+    """Post the package to Aristotle's channel via lib/aristotle_slack."""
     try:
         sys.path.insert(0, str(REPO_ROOT / "lib"))
-        from war_room_slack import _slack_call, _load_policy  # type: ignore
-    except ImportError:
+        from aristotle_slack import post_control_loop, is_ready  # type: ignore
+    except ImportError as e:
         sys.stderr.write(
-            "solon_os_control_loop: war_room_slack not importable; "
-            "skipping Slack post.\n"
-        )
-        return False
-
-    policy = _load_policy() if _load_policy else {}
-    if not policy.get("slack_grading_enabled"):
-        sys.stderr.write(
-            "solon_os_control_loop: policy.slack_grading_enabled is false; "
+            f"solon_os_control_loop: aristotle_slack not importable ({e}); "
             "package written to disk only.\n"
         )
         return False
 
-    token = os.environ.get("SLACK_BOT_TOKEN", "")
-    channel = os.environ.get("SLACK_WARROOM_CHANNEL_ID",
-                             policy.get("slack_grading_channel_id", ""))
-    if not token or not channel:
+    ready, reason = is_ready()
+    if not ready:
         sys.stderr.write(
-            "solon_os_control_loop: SLACK_BOT_TOKEN or channel id not set.\n"
+            f"solon_os_control_loop: aristotle not ready ({reason}); "
+            "package written to disk only.\n"
         )
         return False
 
     today = date.today().isoformat()
-    header = f":compass: *SOLON_OS_CONTROL_LOOP / {today}*\n\n"
-    # Slack chat.postMessage has a ~40k char limit per message; trim if huge.
-    text = header + package_text[:35000]
-    resp = _slack_call("chat.postMessage", token, body={
-        "channel": channel,
-        "text": text,
-        "unfurl_links": False,
-    })
-    if resp.get("ok"):
-        sys.stderr.write(f"solon_os_control_loop: posted to {channel}\n")
+    ts = post_control_loop(package_text, date_iso=today)
+    if ts:
+        sys.stderr.write(f"solon_os_control_loop: posted to #titan-aristotle ts={ts}\n")
         return True
-    sys.stderr.write(
-        f"solon_os_control_loop: Slack post failed: {resp.get('error')}\n"
-    )
     return False
 
 

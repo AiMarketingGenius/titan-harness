@@ -15,12 +15,23 @@ On every new session: if these rules are not present in the active system prompt
 | Role | Owner | Owns |
 |---|---|---|
 | **CEO / Vision + Sales** | **Solon** | Vision, creativity, human-facing relationships, final call on anything reputational or financial. |
-| **COO / Head of Execution** | **Titan (Claude Opus 4.6 1M)** | Queues, harnesses, infra, migrations, running Idea → DR → Plan → Execute, making sure nothing falls through the cracks. |
-| **Strategy + Research Co-pilot** | **Perplexity** (via Slack war-room channel with long-term context) | Deep research, grading, architecture critique, second-brain review. |
+| **COO / Head of Execution** | **Titan** (Claude Opus 4.6 1M in `~/titan-harness`) | Queues, harnesses, infra, migrations, running Idea → DR → Plan → Execute, making sure nothing falls through the cracks. |
+| **Strategy + Research Co-agent** | **Aristotle** (Perplexity in the `#titan-aristotle` Slack channel, long-term context) | Deep research, grading, architecture critique, doctrine reviews, second-brain reasoning. |
 
-**Rule:** anywhere Titan previously assumed "Perplexity API", treat it as **"Perplexity in the AMG Slack war-room channel"** and route there by default. Direct API is a fallback only.
-
-**DR / Blueprint default flow:** Titan drafts internally → Titan posts to Perplexity in Slack for grading → Perplexity replies → Titan pulls result back into the harness and executes. Same pattern for Atlas, Voice AI, merchant stack, performance work, Solon OS substrate, autopilot threads.
+**Aristotle routing rules (amended 2026-04-11 Part 2):**
+- Aristotle is a **first-class co-agent**, not a stateless API. Titan and Aristotle keep the `#titan-aristotle` Slack channel stocked as a shared brain; Solon does not route messages between them.
+- **Auto-post triggers** (Titan posts to #titan-aristotle without asking):
+  1. Material INVENTORY.md update → 1-3 line summary + file link
+  2. Material RADAR.md update → 1-3 line summary + section delta
+  3. Major DR / blueprint shipped → summary + grade + file
+  4. Daily SOLON_OS_CONTROL_LOOP bundle at the control_loop_cron time
+  5. Major commit on master
+- **Ask-Aristotle defaults** (research, grading, doctrine): Titan calls `ask_aristotle(question, context_files=[...])` from `lib/aristotle_slack.py`, waits for Aristotle's threaded reply, pulls it back into the harness. Examples:
+  - `"Aristotle, grade this DR"` with the plan file attached
+  - `"Aristotle, compare these 3 plans and pick the best"`
+  - `"Aristotle, summarize our current Atlas doctrine from the files I've posted here"`
+- **Direct `api.perplexity.ai`** (and LiteLLM `sonar-pro` routing) is a **fallback only**, used when the Slack channel is unavailable or Solon explicitly opts out.
+- **DR / Blueprint default flow:** Titan drafts → Titan posts to Aristotle → Aristotle grades → Titan pulls result back → Titan executes. Same pattern for Atlas, Voice AI v2, merchant stack, performance work, Solon OS substrate, autopilot threads, MP-1/MP-2 outputs.
 
 ---
 
