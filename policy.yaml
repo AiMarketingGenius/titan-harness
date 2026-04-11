@@ -343,3 +343,28 @@ autopilot:
   client_reporting_auto_ship_veto_window_hours: 24
   client_reporting_service_account_path: "/opt/titan-harness-secrets/gcp-service-account.json"
   client_reporting_email_sender: ""      # Solon action — populate
+
+  # --- RADAR + Solon OS Control Loop (shipped 2026-04-11 per Solon mega directive) ---
+  # Default execution pull order — what Titan grabs when no explicit override.
+  execution_priority:
+    - "sales_inbox_autopilot"      # Thread 1
+    - "mp1_mp2_harvest_synthesis"  # MP-1 harvest → MP-2 synthesis
+    - "atlas_p1_client_experience" # Atlas Pillar 1
+
+  # RADAR auto-refresh — runs every session boot + daily cron
+  radar_enabled: true
+  radar_refresh_cron: "*/30 * * * *"    # every 30 min refresh of timestamps
+  radar_parked_days_threshold: 7        # items stale >N days surface to Solon
+  radar_path: "RADAR.md"
+  radar_summary_path: "RADAR_SUMMARY.md"
+
+  # Solon OS daily control loop — morning package Perplexity ingests
+  control_loop_enabled: false           # auto-flipped true once Slack war-room is wired
+  control_loop_cron: "0 7 * * *"        # 07:00 server time daily
+  control_loop_output_dir: "plans/control-loop"
+  control_loop_slack_channel: "#titan-perplexity-warroom"
+  control_loop_tag_format: "SOLON_OS_CONTROL_LOOP / {date}"
+
+  # Parked-on-purpose (do NOT auto-start, do NOT forget)
+  p91_docker_worker_pool_soak_enabled: false    # 60h canary PARKED per 2026-04-11 directive
+  n8n_queue_mode_cutover_enabled: false         # PARKED per 2026-04-11 directive

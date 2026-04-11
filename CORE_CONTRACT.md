@@ -1,8 +1,22 @@
 # TITAN HARNESS — CORE CONTRACT
 
 **Status:** ACTIVE and NON-BYPASSABLE
-**Effective:** 2026-04-10 (Phase G.5)
+**Effective:** 2026-04-10 (Phase G.5), amended 2026-04-11 (§0 Roles + Perplexity-in-Slack routing)
 **Applies to:** AMG production harness, Solon OS core, Atlas Machine pipelines, and every "Titan as COO" client deployment built on this harness.
+
+---
+
+## 0. Canonical Roles (amended 2026-04-11)
+
+| Role | Owner | Owns |
+|---|---|---|
+| **CEO / Vision + Sales** | **Solon** | Vision, creativity, human-facing relationships, final call on anything reputational or financial. |
+| **COO / Head of Execution** | **Titan** (Claude Opus 4.6 1M in `~/titan-harness`) | Queues, harnesses, infra, migrations, Idea → DR → Plan → Execute, ensuring nothing falls through the cracks. |
+| **Strategy + Research Co-pilot** | **Perplexity** via the dedicated AMG Slack war-room channel (long-term context) | Deep research, grading, architecture critique, second-brain review. |
+
+**Routing rule:** for DRs, blueprints, grading, and research — Titan's default is to post to Perplexity in Slack (NOT stateless API). Direct `api.perplexity.ai` / LiteLLM `sonar-pro` is a fallback only when the Slack channel is unavailable or Solon explicitly opts out. The Slack-routed path is implemented in `lib/war_room_slack.py` (shipped commit `f97a7c1`, disabled by default via `policy.yaml war_room.slack_grading_enabled`).
+
+The 3 roles + brevity contract are documented in `CLAUDE.md` (session-level operating contract).
 
 ---
 
