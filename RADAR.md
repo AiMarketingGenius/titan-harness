@@ -1,7 +1,7 @@
 # RADAR — Titan's Never-Lose-Anything Open Queue
 
 **Owner:** Titan (COO). **Canonical state for what's open, blocked, parked, or in-flight.**
-**Last refreshed:** 2026-04-11 14:58 UTC
+**Last refreshed:** 2026-04-11 16:03 UTC
 **Refresh cadence:** every session boot; full regenerate daily via `scripts/radar_refresh.py`.
 
 **Hard rule:** every important idea, DR, megaprompt, or half-finished project must (a) exist as a row in `tasks`/`mp_runs` or a `PLAN_*.md`/`MP_*.md` file, AND (b) have a line here under one of the sections below. No exceptions.
@@ -75,7 +75,21 @@
 - **AMG site compliance remediation** — pending audit findings
 
 ### Voice AI v2
-- **Voice AI Path B RunPod worker** — **deprioritized** per 2026-04-11 directive. Comes after MP-4 + CORDCUT 4+5.
+- **🟢 Voice AI Path A (demo lane) — UNPARKED 2026-04-12** per Solon + Aristotle parallel-track directive. DR shipped: `plans/PLAN_2026-04-12_voice-ai-path-a-demo.md`. Stack: Deepgram STT + Titan via LiteLLM + ElevenLabs TTS (custom Titan voice clone). Full duplex, ~1 week to demo-ready. Blockers: 5 Solon actions (~30 min: Deepgram key, ElevenLabs key + Creator tier, voice clone reference audio, Caddy subdomain, DNS). Pending Aristotle A-grade.
+- **Voice AI Path B RunPod worker** — still **deprioritized** as enterprise upgrade path for SKU 3b trophy clients. Remains post MP-4 + CORDCUT 4+5.
+
+### Atlas demo lane (parallel-track with Voice AI Path A)
+- **Atlas skin polish on `os.aimarketinggenius.io`** — P1 demo-critical. Currently "too templated." Delegated to Perplexity Computer via `plans/COMPUTER_TASKS_2026-04-12.md` Task 1 (10-15k credits). Output → Titan applies permanently in repo.
+- **Atlas API shim (VPS)** — new FastAPI at `api.aimarketinggenius.io` (`lib/atlas_api.py`, `sql/NNN_atlas_sessions.sql`, `atlas-api.service`). Handles WS for voice + text, enforces IP-protection rule (client never talks direct to Claude/Deepgram/ElevenLabs). Phase 1 of Voice AI Path A DR.
+- **Cross-device session continuity** — `atlas_session_id` handshake reuses HERCULES_BACKFILL_REPORT §TODO.3 spec. Text + voice share the same session state. Demo money-shot: start convo on iPhone, continue on Mac desktop.
+- **3 hero flows for Loom** — (1) campaign build, (2) outbound sequence, (3) weekly reporting. Each gets 2-3 min voice-driven segment in the Loom. Full Loom ~12-15 min.
+
+### Perplexity Computer lane (52k credit budget)
+- **Task bundle doc:** `plans/COMPUTER_TASKS_2026-04-12.md` — 4 scoped jobs totaling ~40k of 52k credits, leaves 12k for iteration
+- **Task 1** Atlas skin polish (10-15k) — P1, immediate
+- **Task 2** AMG site compliance audit via Chrome-MCP (5-8k) — P1, immediate, unblocks RADAR O7
+- **Task 3** Loom demo asset capture (8-12k) — P1, gated on Tasks 1+2
+- **Task 4** Merchant stack KYC screenshot + form prep (5-8k) — P2, independent
 
 ### Shop UNIS extras (CT-0410-01)
 - Internal linking sweep + product page optimization + AI Overview expansion. Pre-approved. Not started.
@@ -88,7 +102,7 @@ From `~/titan-session/NEXT_TASK.md`:
 
 1. **Apply `sql/006_payment_link_tests.sql`** in Supabase SQL Editor (gates Gate 3)
 2. **Gate 3 end-to-end verification** via `scripts/test_payment_url.py` (depends on #1)
-3. **Batched 2FA/credential session** (~15-20 min): Claude.ai sessionKey + Perplexity cookie + Loom creds + Gmail OAuth
+3. **Batched 2FA/credential session** (~15 min): Claude.ai sessionKey + Perplexity cookie + Loom creds + Gmail OAuth. **Checklist shipped:** `plans/BATCH_2FA_UNLOCK_2026-04-12.md` — 4 steps, safety rules, verification script, auto-fires MP-1 → MP-2 Solon Manifesto synthesis overnight
 4. **🔴 Perplexity API quota top-up** at perplexity.ai/settings/api (2 min)
 5. **Slack bot token + Perplexity Slack app install** — NOW a firm directive (was optional). Required for new COO ↔ Perplexity routing per CLAUDE.md §1.
 6. **Apply `sql/007_autopilot_suite.sql`** in Supabase SQL Editor (gates all autopilot threads)
