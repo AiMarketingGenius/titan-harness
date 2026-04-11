@@ -8,6 +8,7 @@ __pycache__/
 plans/*
 !plans/DOCTRINE_*.md
 !plans/DR_*.md
+plans/review_bundles/
 RADAR_SUMMARY.md
 .gate_bypass
 *.log

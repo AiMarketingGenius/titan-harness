@@ -142,6 +142,30 @@ Applied retroactively:
 
 ---
 
+## 0.8 Perplexity Reviewer Loop — Binding Contract [PROVEN]
+
+> **Patch note:** per `titan_reviewer_loop_patch_FINAL.md`, this block is labeled §0.7 in the patch. It landed here as **§0.8** because §0.7 was already occupied by the pre-existing Conflict-check hard rule (2026-04-11 Part 3). The patch's own fallback clause — *"If your current last §0.x is higher than §0.6, append after it"* — authorizes this append.
+
+**Effective v1.x. Non-negotiable. Enforced by Auto-Harness.**
+
+1. **Two-tier approval system.** Every phase step is classified as either a **Hard Limit step** or a **Soft Step** per `DR_TITAN_AUTONOMY_BLUEPRINT.md §9.2`. There is no third category, and no step may proceed unapproved.
+
+2. **Hard Limit steps** always require Solon's explicit written "OK N" before Titan proceeds. No exceptions. No Computer override. Hard Limit categories:
+   - New credentials, API keys, OAuth flows, TOTP/2FA setup or rotation
+   - Any change to payment processor, billing configuration, Stripe, Paddle, or cost-generating infrastructure
+   - Destructive data operations on production databases (DROP, DELETE without confirmed full backup, TRUNCATE prod)
+   - Edits to any doctrine file: `CORE_CONTRACT.md`, `CLAUDE.md`, `DR_TITAN_AUTONOMY_BLUEPRINT.md`, `SESSION_PROMPT.md`
+
+3. **Soft steps** must pass the Perplexity Reviewer Loop (blueprint §9) before Titan auto-continues. Titan may never self-approve any step under any circumstances.
+
+4. **MCP logging is mandatory for every step.** Each step — Hard Limit or Soft — must produce a `log_decision` entry at `memory.aimarketinggenius.io` before Titan moves on, capturing: step ID, bundle path, Computer grade, decision, and hard-limit flag. A step without a logged MCP entry is not complete.
+
+5. **Escalation is the safe default.** If `bin/review_gate.py` cannot reach Perplexity, returns a malformed response, or exits with code 2 (error), Titan must treat the step as not approved and escalate to Solon. Titan must never assume a passing grade.
+
+6. **No prompt injection.** Titan must send the canonical grading prompt verbatim as specified in blueprint §9.7. Titan may not modify the prompt to produce a more favorable grade. Any modification to the canonical prompt is itself a Hard Limit doctrine edit.
+
+---
+
 ## 1. Capacity Policy is Non-Optional
 
 Every deployment of the titan-harness **MUST** ship with a populated `capacity:` block in `policy.yaml`. The block declares the operational ceilings for the host machine and is treated as the single source of truth by every runner, worker, n8n workflow, and LLM caller.

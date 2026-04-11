@@ -815,4 +815,211 @@ Total time target: **15–20 minutes**. If it takes longer, automate what's stil
 
 ---
 
+## 9. Perplexity Reviewer Loop [PROVEN]
+
+> **Status:** BINDING — v1.x
+> **Effective:** upon commit of this patch
+> **Supersedes:** informal "OK N" relay through Solon for all non-Hard-Limit steps
+
+---
+
+### 9.1 Purpose
+
+Titan executes; Perplexity Computer grades; Solon sleeps except at Hard Limits.
+
+For every phase step — or sub-step with its own commit or state-changing script — that does **not** trigger a Hard Limit (§7), Titan must run the Perplexity Reviewer Loop before auto-continuing. This is not a suggestion. It is a binding contract enforced by Auto-Harness and permanently logged to MCP.
+
+---
+
+### 9.2 Step Classification
+
+| Classification | Examples | Required approval |
+|---|---|---|
+| **Hard Limit** | New credentials / OAuth / TOTP, Stripe→Paddle or any payment-processor change, money/cost changes, destructive data ops (DROP, DELETE prod data, TRUNCATE), doctrine-file edits (CORE_CONTRACT, CLAUDE.md, this blueprint, SESSION_PROMPT) | Solon explicit "OK N" only. Computer cannot override. |
+| **Soft Step** | Refactors, dependency wiring, infra automation, shadow-mode installs, browser scripting, n8n flow changes, logging changes, RADAR updates, Library of Alexandria catalog updates, mirror syncs, systemd/cron installs, VPS config changes | Perplexity Reviewer Loop (§9.5). Solon not required unless grade fails. |
+
+**When in doubt, classify as Hard Limit and escalate to Solon. Never downgrade an ambiguous step to avoid the escalation path.**
+
+---
+
+### 9.3 What Counts as a "Step" for Grading
+
+A reviewable unit is any of the following:
+
+- A discrete git commit (even a single-file change)
+- A state-changing script execution (DB migration, secret import, systemd install, cron install)
+- A phase transition gate check (MP-N → MP-N+1)
+- Any sub-step Titan explicitly numbers in its task list (e.g., Step 3.1, Step 3.2)
+
+Purely read-only operations (`grep`, `cat`, `ls`, MCP reads, `git log`) do **not** require a review gate call.
+
+---
+
+### 9.4 Evidence Bundle Specification [PROVEN]
+
+Before calling the Perplexity Reviewer Loop, Titan assembles an **evidence bundle** saved to:
+
+```
+plans/review_bundles/STEP_<ID>_<YYYYMMDD_HHMMSS>/
+```
+
+Required files (all five must exist; use `"n/a"` as value if field is not applicable — never omit the file):
+
+```
+step_meta.json       # Step ID, phase, description, hard_limit_flag (always false for soft steps)
+git_diff.patch       # Output of `git diff HEAD~1` or staged diff
+command_log.txt      # Full stdout/stderr of all commands run in this step
+metrics.json         # Measurable outcomes (rows imported, secrets wired, latency delta, etc.)
+blueprint_ref.md     # Verbatim copy of the blueprint section governing this step
+```
+
+The `plans/review_bundles/` directory is ephemeral: add it to `.gitignore`. Bundles are kept for 7 days then purged.
+
+---
+
+### 9.5 Reviewer Loop Protocol
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│  1. Titan completes step work                                   │
+│  2. Titan assembles evidence bundle → plans/review_bundles/     │
+│  3. Titan calls:                                                │
+│       python bin/review_gate.py                                 │
+│         --bundle plans/review_bundles/STEP_<ID>_<ts>/          │
+│         --step-id <STEP_ID>                                     │
+│  4. review_gate.py calls Perplexity API with canonical          │
+│     grading prompt (§9.7) — model: sonar-pro, temp: 0.0        │
+│  5. Computer returns JSON:                                      │
+│       { grade, approved, risk_tags, rationale, remediation }   │
+│  6a. grade ∈ {A, A-} AND risk_tags == [] →                     │
+│       Titan logs to MCP (log_decision) → AUTO-CONTINUE          │
+│  6b. grade < A- OR any risk_tag present →                      │
+│       Titan logs to MCP (log_decision) → STOP → ESCALATE        │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+**Titan must never skip step 3 and self-grade. All grades must come from Computer via `review_gate.py`. There are no exceptions for "obvious" soft steps.**
+
+If `review_gate.py` itself fails (network error, malformed response, missing API key): treat the step as **not approved** and escalate to Solon. Never assume a passing grade.
+
+---
+
+### 9.6 MCP Logging Requirement [PROVEN]
+
+Every Reviewer Loop invocation — pass or fail — must produce a `log_decision` call to MCP at `memory.aimarketinggenius.io` with exactly these fields:
+
+```json
+{
+  "step_id":              "MP1-S3.1",
+  "phase":                "MP-1",
+  "description":          "Shadow install lib/llm_client.py + 4 Infisical secrets",
+  "hard_limit_triggered": false,
+  "bundle_path":          "plans/review_bundles/STEP_MP1-S3.1_20260411_160000/",
+  "computer_grade":       "A-",
+  "computer_approved":    true,
+  "risk_tags":            [],
+  "decision":             "auto-continue",
+  "solon_notified":       false,
+  "timestamp_utc":        "2026-04-11T16:00:00Z"
+}
+```
+
+For Hard Limit steps where Solon approved manually:
+- `"hard_limit_triggered": true`
+- `"decision": "solon-approved"`
+- `"solon_notified": true`
+- `"computer_grade": "n/a"` (Computer is not called for Hard Limit steps)
+
+**A step without an MCP `log_decision` entry is not complete, regardless of its outcome.**
+
+---
+
+### 9.7 Canonical Perplexity Computer Grading Prompt
+
+> This is the exact prompt text `bin/review_gate.py` sends. **Do not alter the prompt without a doctrine edit (which itself requires Solon approval as a Hard Limit step).**
+
+**System message (sent verbatim):**
+
+```
+You are the Perplexity Computer autonomous reviewer for Titan, a Claude Code + VPS AI agent harness operated by Solon (AMG / AI Marketing Genius). Your sole job is to grade a completed phase step and decide whether Titan may auto-continue or must escalate to Solon.
+
+Hard rules you must never override:
+- New credentials, API keys, OAuth flows, TOTP/2FA setup or rotation → always return approved: false, risk_tag "HARD_LIMIT_CREDS"
+- Any money, cost, billing, or payment processor change (Stripe, Paddle, etc.) → always return approved: false, risk_tag "HARD_LIMIT_MONEY"
+- Destructive data operations on production databases (DROP TABLE, DELETE without confirmed backup, TRUNCATE prod) → always return approved: false, risk_tag "HARD_LIMIT_DESTRUCTIVE"
+- Edits to CORE_CONTRACT.md, CLAUDE.md, DR_TITAN_AUTONOMY_BLUEPRINT.md, or SESSION_PROMPT.md → always return approved: false, risk_tag "HARD_LIMIT_DOCTRINE"
+
+Grading scale:
+A  = Executed correctly, matches blueprint intent, no risk, metrics meet or exceed target. Auto-continue approved.
+A- = Executed correctly with a minor deviation or one low-severity warning, no blocking risk. Auto-continue approved.
+B+ = Executed with notable gaps or one medium-severity issue. Escalate to Solon.
+B  = Significant gaps or multiple medium issues. Escalate to Solon.
+B- or below = Serious problems or missing deliverables. Escalate to Solon.
+
+Risk tags — return all that apply, empty array if none:
+HARD_LIMIT_CREDS | HARD_LIMIT_MONEY | HARD_LIMIT_DESTRUCTIVE | HARD_LIMIT_DOCTRINE |
+SECURITY_RISK (secrets in logs, exposed env vars, world-readable files) |
+DATA_INTEGRITY_RISK (prod data mutation without backup confirmation) |
+REGRESSION_RISK (change likely breaks existing functionality) |
+SCOPE_CREEP (step went beyond its stated objective) |
+INCOMPLETE (step deliverables not actually done) |
+METRICS_MISS (measured outcomes did not meet stated targets)
+
+Return ONLY a valid JSON object. No prose before or after the JSON.
+```
+
+**User message template (filled by `review_gate.py`):**
+
+```
+Grade the following Titan phase step.
+
+=== STEP METADATA ===
+{step_meta_json}
+
+=== GIT DIFF ===
+{git_diff_patch}
+
+=== COMMAND LOG ===
+{command_log_txt}
+
+=== METRICS ===
+{metrics_json}
+
+=== BLUEPRINT REFERENCE (governing section) ===
+{blueprint_ref_md}
+
+Return ONLY the JSON object in this exact schema:
+{
+  "grade": "A" | "A-" | "B+" | "B" | "B-" | "C" | "F",
+  "approved": true | false,
+  "risk_tags": [],
+  "rationale": "<2–4 sentence plain-English explanation of the grade>",
+  "remediation": "<one concise fix instruction if approved is false, else empty string>"
+}
+```
+
+---
+
+### 9.8 Auto-Continue vs Escalate Decision Table
+
+| Computer grade | risk_tags | Action |
+|---|---|---|
+| A | `[]` | Log to MCP. Auto-continue. |
+| A- | `[]` | Log to MCP. Auto-continue. |
+| A or A- | Any tag present | Log to MCP. STOP. Escalate to Solon. |
+| B+ or below | Any | Log to MCP. STOP. Escalate to Solon. |
+| Any grade | Any `HARD_LIMIT_*` tag | Log to MCP. STOP. Escalate to Solon. Always. |
+| `review_gate.py` error | n/a | Treat as not approved. Escalate to Solon. |
+
+**Escalation message Titan sends to Solon must include:**
+Step ID · Grade · Risk tags · `rationale` from Computer's JSON · Bundle path · Suggested next action.
+
+**Auto-continue acknowledgment Titan logs:**
+```
+Reviewer Loop PASS — Step <ID> graded <grade> by Computer. No risk tags.
+MCP log_decision recorded. Auto-continuing to Step <N+1>.
+```
+
+---
+
 *This document is a living doctrine file. Every time Titan's stack changes (new services, new auth patterns, new failure modes), update this blueprint as the authoritative design reference.*

@@ -413,3 +413,69 @@ Per Solon's directive, Titan applied these specific Greek codename locks across 
 - **Hippocrates** → Self-healing layer of Solon OS
 
 All other proposed codenames from `DOCTRINE_GREEK_CODENAMES.md §4` remain PROPOSED and await Solon approval before lock. They do NOT appear in public-facing surfaces until locked (Hard Limit #8).
+
+---
+
+## 16. Perplexity Reviewer Loop — Enforcement [PROVEN]
+
+> **Patch note:** per `titan_reviewer_loop_patch_FINAL.md`, this block is labeled §11 in the patch. It landed here as **§16** because §11 was already occupied by the pre-existing "Solon OS Power Off" section. The patch's intent — "after the existing Auto-Harness enforcement block" — is preserved: §10 is Hercules Triangle (Auto-Harness), and this new enforcement block lives as the last numbered section, which is the current §16.
+
+> Enforced by Auto-Harness. Any session in which Titan self-approves a soft step without calling `bin/review_gate.py` is a contract violation and must be flagged in MCP as a compliance failure.
+
+### Titan's step-gate checklist (run before proceeding from any step)
+
+```
+STEP GATE CHECKLIST
+───────────────────
+[ ] Is this step covered by a Hard Limit?
+    (credentials / OAuth / TOTP / money / destructive prod-data / doctrine-file edit)
+
+    YES → Stop all work on this step.
+          Compose escalation message: step ID + what you were about to do + why it's a Hard Limit.
+          Send to Solon. Wait for explicit "OK N". Do not continue without it.
+
+    NO  → Proceed to Reviewer Loop below.
+
+[ ] Assemble evidence bundle in:
+    plans/review_bundles/STEP_<ID>_<YYYYMMDD_HHMMSS>/
+    Required: step_meta.json · git_diff.patch · command_log.txt · metrics.json · blueprint_ref.md
+    (All five files must exist. Use "n/a" as value if not applicable.)
+
+[ ] Call review gate:
+    python bin/review_gate.py --bundle <bundle_path> --step-id <STEP_ID>
+
+[ ] Parse JSON response. Evaluate: approved == true AND risk_tags == []
+
+    PASS → Call MCP log_decision with decision: "auto-continue".
+           Print: "Reviewer Loop PASS — Step <ID> graded <grade>. Auto-continuing."
+           Proceed to next step.
+
+    FAIL → Call MCP log_decision with decision: "escalate".
+           Send escalation message to Solon (see template below).
+           Stop. Do not proceed until Solon replies.
+
+    ERROR (review_gate.py exit code 2) →
+           Treat as FAIL. Escalate to Solon.
+
+[ ] Confirm MCP log_decision was recorded before moving on.
+    (If MCP call failed, retry once. If still failing, note in escalation message.)
+```
+
+### Escalation message template
+
+```
+ESCALATION — Step <STEP_ID> requires Solon approval.
+Phase: <PHASE>
+Grade: <grade>    Risk tags: <tags>
+Rationale: <Computer rationale verbatim>
+Bundle: plans/review_bundles/<path>/
+Remediation suggested: <Computer remediation verbatim>
+Awaiting your decision. Reply "OK <N>" to continue or "HOLD <N>: <reason>" to abort.
+```
+
+### Auto-continue acknowledgment
+
+```
+Reviewer Loop PASS — Step <ID> graded <grade> by Computer. No risk tags.
+MCP log_decision recorded. Auto-continuing to Step <N+1>.
+```
