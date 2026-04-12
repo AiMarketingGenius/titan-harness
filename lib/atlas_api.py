@@ -103,7 +103,8 @@ def pricing_violations(text: str) -> list[str]:
     list means the response is clean under the AMG pricing guardrail."""
     bad: list[str] = []
     for match in DOLLAR_RE.findall(text):
-        canon = match.replace(" ", "")
+        # Strip trailing commas/punctuation captured by [\d,]* in prose context
+        canon = match.replace(" ", "").rstrip(",")
         if canon not in PRICING_WHITELIST:
             bad.append(match.strip())
     for match in NUMBER_RE.findall(text):

@@ -136,10 +136,10 @@ war_room:
   #   (2) SLACK_BOT_TOKEN (xoxb-...) is set in /root/.titan-env
   #   (3) slack_grading_channel_id is populated (a C-prefixed channel ID)
   #   (4) slack_grading_bot_user_id is populated (U-prefixed Perplexity bot user)
-  slack_grading_enabled: false
+  slack_grading_enabled: true
   slack_grading_channel_name: "#titan-perplexity-warroom"
-  slack_grading_channel_id: ""          # Cxxxxxxxxxx — populate after channel created
-  slack_grading_bot_user_id: ""         # Uxxxxxxxxxx — populate after Perplexity app installed
+  slack_grading_channel_id: "C0AT5G1A48G"
+  slack_grading_bot_user_id: "U0ARDQQ4P4Y"  # amg_woz_notifications bot (posts grades)
   slack_grading_poll_interval_s: 3      # poll conversations.replies every N seconds
   slack_grading_timeout_s: 180          # max wait for Perplexity's reply per round
   slack_grading_privacy_mode: "strict"  # strict = refuse to post credentials/PII/client data
@@ -414,10 +414,10 @@ autopilot:
   # workspace, (b) created the channel, (c) invited the Perplexity bot,
   # (d) created a bot token with scopes chat:write + channels:history +
   # groups:history, (e) populated channel_id and bot_user_id below.
-  aristotle_enabled: false
+  aristotle_enabled: true
   aristotle_channel_name: "#titan-aristotle"
-  aristotle_channel_id: ""            # Cxxxxxxxxxx — populate after channel created
-  aristotle_bot_user_id: ""           # Uxxxxxxxxxx — populate after Perplexity app installed
+  aristotle_channel_id: "C0AS40VECAX"
+  aristotle_bot_user_id: "U0ARDQQ4P4Y"  # amg_woz_notifications bot (Perplexity Slack app 404 — using direct API + channel as audit trail)
   aristotle_privacy_mode: "strict"    # same scan as war_room_slack
   aristotle_auto_post_on:
     - "inventory_material_update"
@@ -452,7 +452,7 @@ autonomy:
 # Solon's Mac is idle or asleep. Dormant until Solon installs the 1-command
 # cron (see plans/PLAN_2026-04-12_vps-scheduler-night-grind.md §4.5).
 scheduler:
-  scheduler_enabled: false                  # flip true AFTER Solon installs cron
+  scheduler_enabled: true                   # cron installed 2026-04-12: hourly drain + 2am night-grind
   hourly_drain_cron: "5 * * * *"            # every hour at :05 (off-peak)
   night_grind_start_cron: "7 1 * * *"       # 01:07 Boston local daily
   night_grind_end_local_time: "05:00"       # hard cutoff

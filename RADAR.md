@@ -1,7 +1,7 @@
 # RADAR — Titan's Never-Lose-Anything Open Queue
 
 **Owner:** Titan (COO). **Canonical state for what's open, blocked, parked, or in-flight.**
-**Last refreshed:** 2026-04-12 03:05 UTC
+**Last refreshed:** 2026-04-12 04:05 UTC
 **Refresh cadence:** every session boot; full regenerate daily via `scripts/radar_refresh.py`.
 
 **Hard rule:** every important idea, DR, megaprompt, or half-finished project must (a) exist as a row in `tasks`/`mp_runs` or a `PLAN_*.md`/`MP_*.md` file, AND (b) have a line here under one of the sections below. No exceptions.
@@ -38,12 +38,12 @@
 
 ## Open Infra / Harness Items
 
-- **sql/006_payment_link_tests.sql** — shipped, pending Solon apply in Supabase SQL Editor. Gates Gate 3 end-to-end.
-- **sql/007_autopilot_suite.sql** — shipped (12 tables), pending Solon apply. Gates every autopilot thread.
-- **Slack war-room path for Perplexity** — code shipped (`lib/war_room_slack.py`, commit `f97a7c1`), disabled by default. Needs: Perplexity Slack app install, `#titan-perplexity-warroom` channel, bot token, channel ID + bot user ID in policy.yaml.
+- **sql/006_payment_link_tests.sql** — ✅ APPLIED 2026-04-12. `payment_link_tests` table live in Supabase.
+- **sql/007_autopilot_suite.sql** — ✅ APPLIED 2026-04-12. All 12 tables live in Supabase (leads, sales_threads, lead_events, proposal_spec_runs, marketing_content_queue, marketing_packages, expected_payments, received_payments, reconciliation_events, clients, client_metric_profiles, client_reports).
+- **Slack war-room path for Perplexity** — code shipped (`lib/war_room_slack.py`, commit `f97a7c1`), disabled by default. Setup in progress.
 - **🔵 P9.1 Docker worker pool 60h soak** — **PARKED ON PURPOSE** per Solon 2026-04-11 directive. State: code shipped Phase 9.1 (commit earlier session), canary not started. Upgrade candidate when Solon approves.
-- **🔵 n8n queue-mode cutover** — **PARKED ON PURPOSE** per Solon 2026-04-11 directive. State: current n8n is main-mode; queue-mode requires Redis + worker pool. Upgrade candidate when Solon approves.
-- **Perplexity quota exhausted** — direct API path dead (401). Workaround: WebSearch + Claude synthesis or Slack-routed path. Blocker: Solon action #4 (top up at perplexity.ai/settings/api).
+- **✅ n8n queue-mode** — ACTIVE since 2026-04-12. Running `EXECUTIONS_MODE=queue` with `QUEUE_WORKER_CONCURRENCY=20`, Redis-backed Bull queue (`n8n-redis-live`).
+- **✅ Perplexity API** — WORKING as of 2026-04-12. `sonar-pro` responding via LiteLLM gateway. `perplexity_review` MCP tool confirmed functional.
 - **Gmail harvester for MP-1 Phase 5** — not yet written (`harvest_gmail.py` missing). Needs OAuth consent flow.
 - **AMG website compliance audit** — partial; Lovable SPA blocked WebFetch. Chrome MCP headless render follow-on queued.
 - **Solon-OS session-close hook sync to Supabase** — stale PHASE_G_RESUME row from 2026-04-10 still served by `SessionStart:resume`. Local `NEXT_TASK.md` is truth. Low-priority re-sync.
