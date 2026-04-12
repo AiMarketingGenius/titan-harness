@@ -479,3 +479,104 @@ Awaiting your decision. Reply "OK <N>" to continue or "HOLD <N>: <reason>" to ab
 Reviewer Loop PASS — Step <ID> graded <grade> by Computer. No risk tags.
 MCP log_decision recorded. Auto-continuing to Step <N+1>.
 ```
+
+---
+
+## 17. Ironclad Auto-Harness + Auto-Mirror (Non-Negotiable) (added 2026-04-12)
+
+> **Patch note:** the architecture document (`titan-ironclad-architecture.md`, Perplexity Computer, 2026-04-11) labels this "§11" for placement "after Auto-Harness enforcement". It lands here as **§17** because §11 is the pre-existing "Solon OS Power Off" section.
+
+### The Hercules Triangle (Always Active, Now Hook-Enforced)
+
+Every structural directive follows this pattern — no exceptions. As of §17 this is no longer doctrine-only; it is **enforced by git hooks**:
+
+1. **INTENT**: Solon issues a directive (doctrine, plan, schema, script, research).
+2. **HARNESS**: Titan classifies the directive per §17.1, conflict-checks it via `bin/harness-conflict-check.sh`, and writes it to the appropriate directory under `~/titan-harness/`.
+3. **MIRROR**: Titan commits. The `post-commit` hook auto-pushes Mac → VPS → GitHub → MCP. No manual `git push` needed.
+
+### §17.1 Directive Classification
+
+| Class | Examples | Harness Action |
+|---|---|---|
+| `STRUCTURAL` | CLAUDE.md / CORE_CONTRACT.md update, new doctrine | Write, freeze, conflict-check, commit, mirror |
+| `PLAN` | Sprint plan, MP spec, war-room doc | Write to `plans/`, commit, mirror |
+| `SCHEMA` | SQL migration | Write to `sql/NNN_*.sql`, commit, mirror |
+| `SCRIPT` | bin/ or lib/ addition | Write, chmod +x, commit, mirror |
+| `EPHEMERAL` | Casual question, one-off query | Answer inline, do NOT write to harness |
+| `RESEARCH` | Perplexity pull, deep dive | `bin/titan-research.sh` → `plans/research/`, commit, mirror |
+
+Classification metadata is logged to `.harness-state/last-directive.json`.
+
+### §17.2 Auto-Harness Rules (Hook-Enforced)
+
+- Pre-commit hook (`git secrets` + ironclad integrity guard) blocks commits that:
+  - Touch files outside the sanctioned harness tree
+  - Occur while `ESCALATE.md` exists (hard-stop)
+  - Occur while open `CONFLICT` incidents exist in `.harness-state/open-incidents.json`
+- `bin/harness-conflict-check.sh` runs before every STRUCTURAL or PLAN write
+- `bin/harness-freeze.sh` auto-tags `freeze/<date>-<sha>` before every STRUCTURAL change
+
+### §17.3 Auto-Mirror Rules (Hook-Enforced)
+
+- Post-commit hook pushes to `origin` (VPS bare) on every commit
+- VPS post-receive hook: checks out working tree → pushes to GitHub → exports MCP context → stamps `/var/log/titan-last-mirror.ts`
+- If VPS unreachable: fallback push directly to `github` remote + VPS_UNREACHABLE incident logged
+- If both fail: MIRROR_TOTAL_FAILURE incident → `ESCALATE.md` written
+- `MIRROR_STATUS.md` regenerated after every mirror event (human-readable dashboard)
+
+### §17.4 Drift Detection
+
+- `bin/harness-drift-check.sh` runs at session start + every 15 min via cron
+- Compares Mac SHA vs VPS SHA vs GitHub SHA via API
+- Checks VPS mirror log freshness
+- Any mismatch → DRIFT_DETECTED incident → `bin/harness-mirror-repair.sh` auto-runs
+
+### §17.5 Escalation (Hard Stops)
+
+Titan must halt harness writes and write `ESCALATE.md` if:
+- A CONFLICT incident is open
+- Mirror total failure (both origin and github unreachable)
+- CPU hard limit (90%) or RAM hard limit (56G) breached
+- DLQ rate > 20% in any batch run
+- A rollback has been executed in the current session
+
+Solon acknowledges via `bin/harness-ack-escalation.sh`.
+
+### §17.6 Research-to-Doctrine Pipeline
+
+- `bin/titan-research.sh "<topic>"` wraps: sonar-pro pull → `plans/research/` → doctrine extraction via Haiku → conflict-check → commit + mirror
+- Doctrine files carry `<!-- last-research: YYYY-MM-DD -->` markers
+- `lib/doctrine_freshness.py` flags files stale after 14 days — queues research refresh in night-grind window
+
+### §17.7 Fast Mode Default (Hook-Sourced)
+
+- Fast mode ON every session via `lib/fast-mode.sh`
+- Opt-outs: `plan`, `architecture`, `war_room_revise`, `deep_debug`
+- CLI `--normal-mode` overrides
+- Every opt-out logged to `.harness-state/fast_mode_events.json`
+
+### §17.8 New Scripts Inventory (Ironclad Implementation)
+
+```
+bin/
+  harness-conflict-check.sh    — pre-write conflict detection
+  harness-drift-check.sh       — mirror drift detection across all legs
+  harness-mirror-repair.sh     — drift auto-repair
+  harness-freeze.sh            — auto-freeze before structural writes
+  harness-rollback.sh          — rollback to tag/SHA + propagate
+  harness-incident.sh          — incident logging
+  harness-ack-escalation.sh    — escalation acknowledgement by Solon
+  trigger-mirror.sh            — manual mirror trigger (no commit needed)
+  update-mirror-status.sh      — MIRROR_STATUS.md generator
+  titan-research.sh            — research-to-doctrine pipeline
+lib/
+  fast-mode.sh                 — fast mode enable/disable/opt-out
+  research_query.py            — Perplexity sonar-pro query wrapper
+  doctrine_extractor.py        — extract doctrine deltas from research
+  doctrine_freshness.py        — doctrine file age checker
+  parallel_dispatch.py         — fan-out sub-agent dispatcher (policy.yaml ceiling)
+  env_guard.py                 — ENV check: never write from MCP
+  batch_guard.py               — pre-batch cost/DLQ guard
+config/
+  ENV_DIFFS_MCP.md             — per-environment variable map
+```

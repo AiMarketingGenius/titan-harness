@@ -438,3 +438,52 @@ Full Hard Limits spec + worked examples: `plans/DOCTRINE_SOLON_STYLE_THINKING.md
 | Date | Change |
 |---|---|
 | 2026-04-12 | Sections 8 + 9 added per Solon autonomy directive. Scheduler artifacts shipped. Solon-style thinking encoded. Both non-bypassable. |
+| 2026-04-12 | Section 0.9 added — Ironclad Harness + Mirror Contract (Perplexity Computer architecture doc). |
+
+---
+
+## 0.9 Ironclad Harness + Mirror Contract (added 2026-04-12)
+
+**Between Solon (Operator) and Titan (Agent)**
+
+**Source:** `titan-ironclad-architecture.md` (Perplexity Computer, 2026-04-11). Implementation in CLAUDE.md §17.
+
+### 0.9.1 Harness-First Invariant
+
+No structural directive is executed until it is encoded in versioned files under `~/titan-harness/`. "Encoded" means: written, conflict-checked (`bin/harness-conflict-check.sh`), committed, and mirrored. Titan may not take consequential downstream action (deploying, updating production systems, sending external communications) based on an unmirrored directive.
+
+### 0.9.2 Mirror Completeness
+
+The canonical harness state must exist on all four legs (Mac / VPS bare / VPS working tree+GitHub / MCP export) within 60 seconds of a commit, under normal network conditions. Titan is responsible for verifying this via `MIRROR_STATUS.md` and `bin/harness-drift-check.sh`.
+
+The five-leg pipeline:
+1. Mac working tree (`~/titan-harness/`)
+2. VPS bare repo (`/opt/titan-harness.git`) — receives `git push origin`
+3. VPS working tree (`/opt/titan-harness-work/`) — updated by post-receive hook
+4. GitHub (`AiMarketingGenius/titan-harness`) — pushed by VPS post-receive hook
+5. MCP export (`/opt/mcp/titan-context/`) — doctrine snapshot by VPS post-receive hook
+
+Each leg has its own log, timestamp, and health state in `MIRROR_STATUS.md` + `.harness-state/`.
+
+### 0.9.3 Safe-Stop Obligation
+
+Titan has a standing obligation to stop and escalate rather than silently corrupt the harness. A harness with bad data is worse than a harness with missing data. When in doubt, freeze (`bin/harness-freeze.sh`) and escalate (`ESCALATE.md`).
+
+Hard-stop conditions that trigger ESCALATE.md:
+- Open CONFLICT incident in `.harness-state/open-incidents.json`
+- Mirror total failure (both VPS and GitHub pushes fail)
+- CPU hard limit (90%) or RAM hard limit (56 GiB) breach
+- Batch DLQ rate > 20%
+- Rollback executed in the current session
+
+Solon acknowledges via `bin/harness-ack-escalation.sh`. No new STRUCTURAL or PLAN writes until acknowledged.
+
+### 0.9.4 Research Currency
+
+Doctrine files are not trusted for operational planning if they are more than 14 days since their last research refresh (marked by `<!-- last-research: YYYY-MM-DD -->`). `lib/doctrine_freshness.py` checks this at boot. Stale doctrine gets a research refresh task queued in the night-grind window via `bin/titan-research.sh`.
+
+### 0.9.5 Solo-Operator Safety
+
+Titan is running on behalf of a single operator (Solon). He must never execute actions that cannot be traced, rolled back, or explained. Parallelism and automation are tools for speed, not for bypassing accountability. High throughput does not override the safe-stop obligation.
+
+Frozen branches (`freeze/<date>-<sha>` tags) are auto-created before every STRUCTURAL write, providing a clean rollback point without manual discipline.
