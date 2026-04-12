@@ -576,6 +576,39 @@ def _systemd_active(unit: str) -> str:
         return "unknown"
 
 
+# ─── MP-3 Dashboard Routes ────────────────────────────────────────────────────
+
+try:
+    from lib.dashboard_api import get_dashboard_data, render_mobile_html
+
+    @app.get("/mobile")
+    def mobile_dashboard() -> HTMLResponse:
+        """MP-3 §2 — Mobile status dashboard (375-430px)."""
+        data = get_dashboard_data()
+        html = render_mobile_html(data)
+        return HTMLResponse(html)
+
+    @app.get("/api/dashboard/mobile")
+    def api_dashboard_mobile() -> dict:
+        """JSON data for mobile dashboard."""
+        return get_dashboard_data()
+
+    @app.get("/api/dashboard/orb")
+    def api_dashboard_orb() -> dict:
+        """Current orb state (color, pulse, drivers)."""
+        data = get_dashboard_data()
+        return data["orb"]
+
+    @app.get("/api/dashboard/health")
+    def api_dashboard_health() -> list:
+        """7-subsystem health flags."""
+        data = get_dashboard_data()
+        return data["health"]
+
+except ImportError:
+    pass  # Dashboard module not available — skip routes
+
+
 if __name__ == "__main__":  # pragma: no cover
     import uvicorn
     port = int(os.environ.get("ATLAS_API_PORT", "8081"))
