@@ -1,0 +1,10 @@
+[Unit]
+Description=Titan Health Check Timer — %i
+
+[Timer]
+OnBootSec=30s
+OnUnitActiveSec=60s
+Unit=titan-health-check@%i.service
+
+[Install]
+WantedBy=timers.target

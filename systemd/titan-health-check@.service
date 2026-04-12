@@ -1,0 +1,10 @@
+[Unit]
+Description=Titan Health Check — %i
+After=network.target
+
+[Service]
+Type=oneshot
+EnvironmentFile=/root/.titan-env
+WorkingDirectory=/opt/titan-harness
+ExecStart=/usr/bin/env python3 scripts/health_check.py %i
+Nice=15
