@@ -114,9 +114,16 @@ def list_onboardings() -> list[ClientOnboarding]:
 HARD_LIMIT_STEPS = {"billing_confirmed", "contract_signed", "kickoff_approved"}
 
 
+def _audit_log(client_id: str, action: str, detail: str = "") -> None:
+    """Log onboarding action for audit trail. Prints to stderr for systemd journal capture."""
+    ts = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    print(f"[onboarding_audit] {ts} | {client_id} | {action} | {detail}", file=sys.stderr)
+
+
 def advance_step(client_id: str, step_name: str) -> tuple[bool, str]:
     """Mark a checklist step as complete and advance the stage if appropriate.
 
+    Hard Limit steps (billing, contract, kickoff) are logged with elevated audit.
     Returns (success, message).
     """
     ob = _onboardings.get(client_id)
@@ -129,6 +136,12 @@ def advance_step(client_id: str, step_name: str) -> tuple[bool, str]:
 
     if item.status == ChecklistStatus.COMPLETE:
         return True, f"{step_name} already complete"
+
+    # Audit log — elevated for Hard Limit steps
+    if step_name in HARD_LIMIT_STEPS:
+        _audit_log(client_id, f"HARD_LIMIT_ADVANCE: {step_name}", "requires explicit Solon approval")
+    else:
+        _audit_log(client_id, f"step_advance: {step_name}")
 
     now = datetime.now(timezone.utc)
     item.status = ChecklistStatus.COMPLETE
