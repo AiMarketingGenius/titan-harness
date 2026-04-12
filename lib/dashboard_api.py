@@ -183,6 +183,7 @@ def get_dashboard_data() -> dict:
         "completed_today": completed_today,
         "clients": client_tiles,
         "vps_health": vps_health,
+        "data_source": "live" if (_sb_url and _sb_key) else "static_fallback",
         "timestamp": now.isoformat(),
     }
 
