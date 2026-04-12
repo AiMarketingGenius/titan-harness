@@ -338,25 +338,196 @@ async def ws_text(ws: WebSocket, sid: str) -> None:
 
 @app.websocket("/ws/voice/{sid}")
 async def ws_voice(ws: WebSocket, sid: str) -> None:
-    """Sprint scaffold: accepts text frames ('say this' from the orb),
-    synthesises via Kokoro, sends the WAV bytes back. Full duplex mic
-    capture + faster-whisper STT is the next iteration."""
+    """Full duplex voice pipeline (Hermes Phase A):
+
+    mic → Web Audio API → WS audio frames (16-bit PCM, 16kHz mono)
+      → Silero VAD gate → faster-whisper (medium.en int8) → text
+      → Claude via LiteLLM → sentence_buffer → Kokoro TTS → audio bytes
+      → WS back to orb → orb Speaking state
+
+    Protocol:
+    - Client sends binary frames: raw 16-bit PCM @ 16kHz mono
+    - Client sends JSON text frames:
+        {"type": "say", "text": "..."} — TTS-only shortcut (no STT)
+        {"type": "backchannel", "name": "..."} — pre-rendered WAV
+        {"type": "config", "backchannel_mode": true/false} — toggle barge-in suppression
+    - Server sends binary frames: WAV audio (Kokoro TTS output)
+    - Server sends JSON text frames:
+        {"type": "transcript", "text": "..."} — what STT heard
+        {"type": "reply_text", "text": "..."} — Claude's response text
+        {"type": "state", "state": "listening|thinking|speaking"} — orb state
+        {"type": "latency", "stt_ms": N, "llm_ms": N, "tts_ms": N, "total_ms": N}
+    """
     await ws.accept()
+    history: list[dict[str, str]] = []
+    audio_buffer = bytearray()
+    backchannel_mode = False  # suppress barge-in during backchannel playback
+    CHUNK_BYTES = 32000  # 1 second of 16-bit 16kHz mono = 32000 bytes
+    VAD_SILENCE_THRESHOLD = 2  # consecutive silent chunks before processing
+
+    # Lazy imports for STT + VAD (only loaded if audio frames arrive)
+    _vad_mod = None
+    _whisper_mod = None
+
+    def _ensure_stt():
+        nonlocal _vad_mod, _whisper_mod
+        if _vad_mod is None:
+            try:
+                sys.path.insert(0, str(REPO_ROOT / "lib"))
+                import silero_vad as _v
+                import whisper_cpu as _w
+                _vad_mod = _v
+                _whisper_mod = _w
+            except ImportError:
+                pass
+
+    silent_chunks = 0
+
     try:
         while True:
-            msg = await ws.receive_text()
-            try:
-                data = json.loads(msg)
-            except json.JSONDecodeError:
-                continue
-            if data.get("type") == "say":
-                wav = await kokoro_synthesize(data.get("text", ""))
-                await ws.send_bytes(wav)
-            elif data.get("type") == "backchannel":
-                name = re.sub(r"[^a-z_]", "", str(data.get("name", "")).lower())
-                path = BACKCHANNEL_DIR / f"{name}.wav"
-                if path.exists():
-                    await ws.send_bytes(path.read_bytes())
+            msg = await ws.receive()
+
+            # --- Binary frame: raw audio from mic ---
+            if "bytes" in msg and msg["bytes"]:
+                _ensure_stt()
+                if _vad_mod is None or _whisper_mod is None:
+                    # STT not available — send error and continue
+                    await ws.send_json({"type": "error", "message": "STT modules not available on this server"})
+                    continue
+
+                audio_buffer.extend(msg["bytes"])
+
+                # Process in 1-second chunks
+                if len(audio_buffer) < CHUNK_BYTES:
+                    continue
+
+                chunk = bytes(audio_buffer[:CHUNK_BYTES])
+                audio_buffer = audio_buffer[CHUNK_BYTES:]
+
+                # VAD gate — skip silence
+                try:
+                    import numpy as np
+                    samples = np.frombuffer(chunk, dtype=np.int16).astype(np.float32) / 32768.0
+                    has_speech = _vad_mod.is_speech(samples, sample_rate=16000)
+                except Exception:
+                    has_speech = True  # fallback: process anyway
+
+                if not has_speech:
+                    silent_chunks += 1
+                    if silent_chunks < VAD_SILENCE_THRESHOLD or len(audio_buffer) == 0:
+                        continue
+                    # Silence after speech — process accumulated audio
+                else:
+                    silent_chunks = 0
+                    continue  # Keep accumulating while speech is active
+
+                # We have speech followed by silence — transcribe the accumulated audio
+                if backchannel_mode:
+                    audio_buffer.clear()
+                    silent_chunks = 0
+                    continue  # suppress barge-in during backchannel
+
+                await ws.send_json({"type": "state", "state": "thinking"})
+                t_start = time.time()
+
+                # STT via faster-whisper
+                try:
+                    import numpy as np
+                    # Combine all buffered audio for transcription
+                    all_audio = chunk  # the chunk that triggered processing
+                    pcm = np.frombuffer(all_audio, dtype=np.int16).astype(np.float32) / 32768.0
+                    t_stt_start = time.time()
+                    transcript = _whisper_mod.transcribe(pcm, sample_rate=16000)
+                    t_stt = int((time.time() - t_stt_start) * 1000)
+                except Exception as exc:
+                    await ws.send_json({"type": "error", "message": f"STT error: {type(exc).__name__}"})
+                    audio_buffer.clear()
+                    silent_chunks = 0
+                    continue
+
+                transcript = transcript.strip()
+                if not transcript or len(transcript) < 2:
+                    await ws.send_json({"type": "state", "state": "listening"})
+                    audio_buffer.clear()
+                    silent_chunks = 0
+                    continue
+
+                # Send transcript to client
+                await ws.send_json({"type": "transcript", "text": transcript})
+
+                # Claude LLM call
+                t_llm_start = time.time()
+                reply, violations = await atlas_respond(transcript, history)
+                t_llm = int((time.time() - t_llm_start) * 1000)
+                history.append({"role": "user", "content": transcript})
+                history.append({"role": "assistant", "content": reply})
+
+                await ws.send_json({"type": "reply_text", "text": reply})
+
+                # Sentence-buffered TTS via Kokoro
+                await ws.send_json({"type": "state", "state": "speaking"})
+                t_tts_start = time.time()
+                try:
+                    sys.path.insert(0, str(REPO_ROOT / "lib"))
+                    from sentence_buffer import sentence_buffer
+                    sentences = list(sentence_buffer([reply]))
+                    for sentence in sentences:
+                        wav = await kokoro_synthesize(sentence)
+                        if wav:
+                            await ws.send_bytes(wav)
+                except Exception:
+                    # Fallback: synthesize entire reply at once
+                    wav = await kokoro_synthesize(reply)
+                    if wav:
+                        await ws.send_bytes(wav)
+                t_tts = int((time.time() - t_tts_start) * 1000)
+
+                t_total = int((time.time() - t_start) * 1000)
+                await ws.send_json({
+                    "type": "latency",
+                    "stt_ms": t_stt,
+                    "llm_ms": t_llm,
+                    "tts_ms": t_tts,
+                    "total_ms": t_total,
+                })
+                await ws.send_json({"type": "state", "state": "listening"})
+                audio_buffer.clear()
+                silent_chunks = 0
+
+            # --- Text frame: JSON commands ---
+            elif "text" in msg and msg["text"]:
+                try:
+                    data = json.loads(msg["text"])
+                except json.JSONDecodeError:
+                    continue
+
+                if data.get("type") == "say":
+                    # TTS-only shortcut (text → Kokoro → audio)
+                    await ws.send_json({"type": "state", "state": "speaking"})
+                    text = data.get("text", "")
+                    reply, violations = await atlas_respond(text, history)
+                    history.append({"role": "user", "content": text})
+                    history.append({"role": "assistant", "content": reply})
+                    await ws.send_json({"type": "reply_text", "text": reply})
+                    wav = await kokoro_synthesize(reply)
+                    if wav:
+                        await ws.send_bytes(wav)
+                    await ws.send_json({"type": "state", "state": "listening"})
+
+                elif data.get("type") == "backchannel":
+                    name = re.sub(r"[^a-z_]", "", str(data.get("name", "")).lower())
+                    path = BACKCHANNEL_DIR / f"{name}.wav"
+                    if path.exists():
+                        backchannel_mode = True
+                        await ws.send_bytes(path.read_bytes())
+                        # Re-enable barge-in after ~1.5s backchannel playback
+                        await asyncio.sleep(1.5)
+                        backchannel_mode = False
+
+                elif data.get("type") == "config":
+                    if "backchannel_mode" in data:
+                        backchannel_mode = bool(data["backchannel_mode"])
+
     except WebSocketDisconnect:
         return
 
