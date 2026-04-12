@@ -51,7 +51,7 @@ from pathlib import Path
 from typing import Any
 
 try:
-    from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException
+    from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException, Request
     from fastapi.responses import HTMLResponse, JSONResponse, FileResponse, Response
     from fastapi.staticfiles import StaticFiles
 except ImportError as exc:  # pragma: no cover
@@ -582,16 +582,30 @@ try:
     from lib.dashboard_api import get_dashboard_data, render_mobile_html
     from lib.dashboard_desktop import render_desktop_html
 
+    # Dashboard auth: optional token-based access control.
+    # Set ATLAS_DASHBOARD_TOKEN in env to require ?token=<value> on all dashboard routes.
+    # When unset, dashboards are open (suitable for VPS-only / Caddy-gated access).
+    _DASHBOARD_TOKEN = os.environ.get("ATLAS_DASHBOARD_TOKEN", "")
+
+    def _check_dashboard_auth(request) -> None:
+        if _DASHBOARD_TOKEN:
+            from fastapi import HTTPException
+            token = request.query_params.get("token", "")
+            if token != _DASHBOARD_TOKEN:
+                raise HTTPException(status_code=401, detail="Invalid dashboard token")
+
     @app.get("/mobile")
-    def mobile_dashboard() -> HTMLResponse:
+    def mobile_dashboard(request: Request) -> HTMLResponse:
         """MP-3 §2 — Mobile status dashboard (375-430px)."""
+        _check_dashboard_auth(request)
         data = get_dashboard_data()
         html = render_mobile_html(data)
         return HTMLResponse(html)
 
     @app.get("/desktop")
-    def desktop_dashboard() -> HTMLResponse:
+    def desktop_dashboard(request: Request) -> HTMLResponse:
         """MP-3 §3 — Desktop Solon OS Control Center."""
+        _check_dashboard_auth(request)
         data = get_dashboard_data()
         html = render_desktop_html(data)
         return HTMLResponse(html)

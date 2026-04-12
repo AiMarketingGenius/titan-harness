@@ -37,12 +37,19 @@ from lib.approval_system import list_pending, list_stale
 
 
 def get_dashboard_data() -> dict:
-    """Assemble all dashboard data from live sources."""
+    """Assemble all dashboard data from live sources.
+
+    Returns a safe, serializable dict. All exceptions in data assembly
+    are caught per-section so partial data is returned rather than a 500.
+    """
     now = datetime.now(timezone.utc)
 
-    # Subsystem health (default healthy metrics for now — will be wired to real data)
-    metrics = {name: SubsystemMetrics() for name in SUBSYSTEM_NAMES}
-    health_results = evaluate_all(metrics)
+    # Subsystem health (default healthy metrics — will be wired to real data in MP-4)
+    try:
+        metrics = {name: SubsystemMetrics() for name in SUBSYSTEM_NAMES}
+        health_results = evaluate_all(metrics)
+    except Exception:
+        health_results = []
 
     # Orb state
     orb_subsystems = health_to_orb_inputs(health_results)
@@ -212,8 +219,14 @@ $health_rows_html
 <div class="footer">Atlas · Solon OS · $timestamp</div>
 
 <script>
-// Auto-refresh every 30s
-setTimeout(() => location.reload(), 30000);
+// Visibility-aware refresh: only reload when tab is visible, pause when hidden
+let refreshTimer;
+function scheduleRefresh() { refreshTimer = setTimeout(() => location.reload(), 30000); }
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden) { clearTimeout(refreshTimer); }
+  else { scheduleRefresh(); }
+});
+scheduleRefresh();
 </script>
 </body>
 </html>"""
