@@ -157,29 +157,7 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'SF Pro', system-ui, sans
   <div class="panel grid-2">
     <h3>Client Pipelines</h3>
     $clients_desktop_html
-    <div style="margin-top:8px;">
-      <h3 style="margin-top:12px;">7-Lane View (Sample Client)</h3>
-      <div>
-        <div class="lane-row">
-          <div class="lane-cell" style="font-weight:600;background:transparent;">Inbound</div>
-          <div class="lane-cell" style="font-weight:600;background:transparent;">Outbound</div>
-          <div class="lane-cell" style="font-weight:600;background:transparent;">Nurture</div>
-          <div class="lane-cell" style="font-weight:600;background:transparent;">Onboard</div>
-          <div class="lane-cell" style="font-weight:600;background:transparent;">Fulfill</div>
-          <div class="lane-cell" style="font-weight:600;background:transparent;">Report</div>
-          <div class="lane-cell" style="font-weight:600;background:transparent;">Upsell</div>
-        </div>
-        <div class="lane-row">
-          <div class="lane-cell lane-active">Active</div>
-          <div class="lane-cell lane-idle">Paused</div>
-          <div class="lane-cell lane-active">Running</div>
-          <div class="lane-cell lane-active">Step 3/5</div>
-          <div class="lane-cell lane-pending">Queued</div>
-          <div class="lane-cell lane-active">Current</div>
-          <div class="lane-cell lane-idle">—</div>
-        </div>
-      </div>
-    </div>
+    $pipeline_html
   </div>
 
   <!-- Reviewer Loop + VPS -->
@@ -263,6 +241,87 @@ def render_desktop_html(data: dict | None = None) -> str:
     if not killchain_items:
         killchain_items = ['<div style="font-size:12px;color:#525252;">No tasks completed today yet</div>']
 
+    # Pipeline lanes (dynamic from Supabase or fallback)
+    pipeline_sections = []
+    demo_pipeline = data.get("demo_pipeline", {})
+    if demo_pipeline:
+        for pid, pdata in demo_pipeline.items():
+            lanes = sorted(pdata.get("lanes", []), key=lambda l: l["lane_order"])
+            tasks = pdata.get("tasks", [])
+            if not lanes:
+                continue
+            # Find client name
+            client_name = pid
+            for c in data.get("clients", []):
+                if any(dc.get("project_id") == pid for dc in []):
+                    client_name = c["name"]
+                    break
+            # Build header + status rows
+            header_cells = []
+            status_cells = []
+            for lane in lanes:
+                header_cells.append(
+                    f'<div class="lane-cell" style="font-weight:600;background:transparent;">{lane["lane_name"]}</div>'
+                )
+                css = {"active": "lane-active", "running": "lane-active", "complete": "lane-active",
+                       "queued": "lane-pending", "paused": "lane-idle", "idle": "lane-idle"}.get(lane["lane_status"], "lane-idle")
+                label = {"active": "Active", "running": "Running", "complete": "\u2713 Done",
+                         "queued": "Queued", "paused": "Paused", "idle": "\u2014"}.get(lane["lane_status"], lane["lane_status"])
+                status_cells.append(f'<div class="lane-cell {css}">{label}</div>')
+            # Build task cards per lane
+            task_rows = []
+            for lane in lanes:
+                lane_tasks = [t for t in tasks if t["lane_order"] == lane["lane_order"]]
+                task_cards = []
+                for t in lane_tasks:
+                    color = {"completed": "#22c55e", "in_progress": "#60a5fa", "blocked": "#f97316", "pending": "#525252"}.get(t["task_status"], "#525252")
+                    icon = {"completed": "\u2713", "in_progress": "\u25b6", "blocked": "\u26a0", "pending": "\u25cb"}.get(t["task_status"], "\u25cb")
+                    note = f'<div style="font-size:10px;color:#a3a3a3;margin-top:2px;">{t["notes"]}</div>' if t.get("notes") else ""
+                    task_cards.append(
+                        f'<div style="background:#1a1a1a;padding:4px 6px;border-radius:4px;font-size:11px;border-left:3px solid {color};">'
+                        f'<span style="color:{color};margin-right:4px;">{icon}</span>{t["task_name"]}{note}</div>'
+                    )
+                task_rows.append(
+                    f'<div style="display:flex;flex-direction:column;gap:4px;min-width:0;">'
+                    + ("\n".join(task_cards) if task_cards else '<div style="font-size:11px;color:#525252;">\u2014</div>')
+                    + "</div>"
+                )
+            pipeline_sections.append(f"""<div style="margin-top:8px;">
+      <h3 style="margin-top:12px;">7-Lane Pipeline \u2014 {pid}</h3>
+      <div>
+        <div class="lane-row">{"".join(header_cells)}</div>
+        <div class="lane-row">{"".join(status_cells)}</div>
+        <div style="display:grid;grid-template-columns:repeat({len(lanes)},1fr);gap:8px;margin-top:8px;">
+          {"".join(task_rows)}
+        </div>
+      </div>
+    </div>""")
+    if not pipeline_sections:
+        # Fallback: static 7-lane sample
+        pipeline_sections = ["""<div style="margin-top:8px;">
+      <h3 style="margin-top:12px;">7-Lane View (Sample Client)</h3>
+      <div>
+        <div class="lane-row">
+          <div class="lane-cell" style="font-weight:600;background:transparent;">Inbound</div>
+          <div class="lane-cell" style="font-weight:600;background:transparent;">Outbound</div>
+          <div class="lane-cell" style="font-weight:600;background:transparent;">Nurture</div>
+          <div class="lane-cell" style="font-weight:600;background:transparent;">Onboard</div>
+          <div class="lane-cell" style="font-weight:600;background:transparent;">Fulfill</div>
+          <div class="lane-cell" style="font-weight:600;background:transparent;">Report</div>
+          <div class="lane-cell" style="font-weight:600;background:transparent;">Upsell</div>
+        </div>
+        <div class="lane-row">
+          <div class="lane-cell lane-active">Active</div>
+          <div class="lane-cell lane-idle">Paused</div>
+          <div class="lane-cell lane-active">Running</div>
+          <div class="lane-cell lane-active">Step 3/5</div>
+          <div class="lane-cell lane-pending">Queued</div>
+          <div class="lane-cell lane-active">Current</div>
+          <div class="lane-cell lane-idle">\u2014</div>
+        </div>
+      </div>
+    </div>"""]
+
     vps = data.get("vps_health", {})
     return DESKTOP_HTML.safe_substitute(
         orb_color=orb["color"],
@@ -276,6 +335,7 @@ def render_desktop_html(data: dict | None = None) -> str:
         approvals_desktop_html="\n".join(approval_items),
         health_desktop_html="\n".join(health_items),
         clients_desktop_html="\n".join(client_cards),
+        pipeline_html="\n".join(pipeline_sections),
         killchain_html="\n".join(killchain_items),
         vps_cpu=vps.get("cpu_pct", "—"),
         vps_mem=vps.get("mem_pct", "—"),

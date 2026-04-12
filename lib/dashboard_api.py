@@ -123,7 +123,82 @@ def get_dashboard_data() -> dict:
     except Exception:
         pass
 
-    # Fallback: static client data if no onboardings in memory
+    # Pull demo/active clients from Supabase clients table
+    demo_pipeline = {}  # project_id -> {lanes: [...], tasks: [...]}
+    try:
+        import urllib.request as _ur
+        _sb_url = os.environ.get("SUPABASE_URL", "")
+        _sb_key = os.environ.get("SUPABASE_SERVICE_ROLE_KEY", "")
+        if _sb_url and _sb_key:
+            # Fetch active clients
+            _creq = _ur.Request(
+                f"{_sb_url}/rest/v1/clients?status=eq.active&select=project_id,name,status",
+                method="GET",
+            )
+            _creq.add_header("apikey", _sb_key)
+            _creq.add_header("Authorization", f"Bearer {_sb_key}")
+            with _ur.urlopen(_creq, timeout=3) as _cresp:
+                db_clients = json.loads(_cresp.read().decode())
+            # Add DB clients that aren't already in client_tiles
+            existing_names = {c["name"] for c in client_tiles}
+            for dc in db_clients:
+                if dc["name"] not in existing_names:
+                    client_tiles.append({
+                        "name": dc["name"],
+                        "stage": "Active",
+                        "last_task": "Pipeline active",
+                        "last_task_elapsed": "now",
+                        "open_blockers": 0,
+                        "health_color": "green",
+                    })
+            # Fetch pipeline lanes for demo client
+            _lreq = _ur.Request(
+                f"{_sb_url}/rest/v1/client_pipeline_lanes?select=project_id,lane_order,lane_name,lane_status&order=lane_order",
+                method="GET",
+            )
+            _lreq.add_header("apikey", _sb_key)
+            _lreq.add_header("Authorization", f"Bearer {_sb_key}")
+            with _ur.urlopen(_lreq, timeout=3) as _lresp:
+                lanes_raw = json.loads(_lresp.read().decode())
+            for lane in lanes_raw:
+                pid = lane["project_id"]
+                demo_pipeline.setdefault(pid, {"lanes": [], "tasks": []})
+                demo_pipeline[pid]["lanes"].append(lane)
+            # Fetch pipeline tasks
+            _treq = _ur.Request(
+                f"{_sb_url}/rest/v1/client_pipeline_tasks?select=project_id,lane_order,task_name,task_status,notes&order=lane_order,created_at",
+                method="GET",
+            )
+            _treq.add_header("apikey", _sb_key)
+            _treq.add_header("Authorization", f"Bearer {_sb_key}")
+            with _ur.urlopen(_treq, timeout=3) as _tresp:
+                tasks_raw = json.loads(_tresp.read().decode())
+            for task in tasks_raw:
+                pid = task["project_id"]
+                if pid in demo_pipeline:
+                    demo_pipeline[pid]["tasks"].append(task)
+            # Update demo client tile with blocker count
+            for tile in client_tiles:
+                for pid, pdata in demo_pipeline.items():
+                    client_name_match = any(
+                        dc["name"] == tile["name"] and dc["project_id"] == pid
+                        for dc in db_clients
+                    )
+                    if client_name_match:
+                        blocked = sum(1 for t in pdata["tasks"] if t["task_status"] == "blocked")
+                        completed = sum(1 for t in pdata["tasks"] if t["task_status"] == "completed")
+                        in_prog = sum(1 for t in pdata["tasks"] if t["task_status"] == "in_progress")
+                        tile["open_blockers"] = blocked
+                        tile["health_color"] = "orange" if blocked > 0 else "green"
+                        tile["last_task"] = f"{completed} done, {in_prog} active"
+                        # Determine stage from active lanes
+                        active_lanes = [l for l in pdata["lanes"] if l["lane_status"] in ("active", "running")]
+                        if active_lanes:
+                            tile["stage"] = active_lanes[0]["lane_name"]
+    except Exception:
+        pass
+
+    # Fallback: static client data if no onboardings and no DB clients
     if not client_tiles:
         client_tiles = [
             {"name": "Levar / JDJ", "stage": "Onboarding", "last_task": "Content audit",
@@ -182,6 +257,7 @@ def get_dashboard_data() -> dict:
         "blockers": [],
         "completed_today": completed_today,
         "clients": client_tiles,
+        "demo_pipeline": demo_pipeline,
         "vps_health": vps_health,
         "data_source": "live" if (_sb_url and _sb_key) else "static_fallback",
         "timestamp": now.isoformat(),
