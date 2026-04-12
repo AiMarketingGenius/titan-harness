@@ -45,7 +45,8 @@ echo "HEAD: $HEAD"
 echo "BRANCH: $BRANCH"
 
 # --- Working tree clean ---
-DIRTY=$(git status --porcelain 2>/dev/null | grep -v '^ M MIRROR_STATUS.md$' | grep -v '^M  MIRROR_STATUS.md$' | grep -v '^\?\? MIRROR_STATUS.md$' || true)
+# Exclude files that are expected to be dirty after boot (refreshed by this script or post-commit hook)
+DIRTY=$(git status --porcelain 2>/dev/null | grep -v 'MIRROR_STATUS.md' | grep -v '^ M RADAR.md$' || true)
 if [ -z "$DIRTY" ]; then
   echo "WORKING_TREE_CLEAN: yes"
 else
