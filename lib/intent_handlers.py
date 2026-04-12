@@ -104,21 +104,53 @@ def handle_status(msg: ClassifiedMessage) -> dict:
 
 
 def handle_approval(msg: ClassifiedMessage) -> dict:
-    """MP-3 §1-B: Approval action → execute/reject/hold + log."""
-    decision = msg.parameters.get("decision", "approve")
-    target = msg.parameters.get("target", "the pending item")
-    context = msg.parameters.get("context", "explicit")
+    """MP-3 §1-B + §6: Approval action → route through approval_system."""
+    from lib.approval_system import (
+        get_packet_by_thread, process_decision, parse_modify_from_text,
+        Decision as ApprovalDecision,
+    )
 
-    action_verb = {"approve": "Approved", "reject": "Rejected", "hold": "Held"}.get(decision, "Processed")
+    decision_str = msg.parameters.get("decision", "approve")
+    thread_ts = msg.parameters.get("_thread_ts")
+
+    # Check for Modify command
+    modify_constraint = parse_modify_from_text(msg.raw_text)
+    if modify_constraint:
+        decision_str = "modify"
+
+    # Map to Decision enum
+    decision_map = {
+        "approve": ApprovalDecision.APPROVE,
+        "reject": ApprovalDecision.REJECT,
+        "hold": ApprovalDecision.HOLD,
+        "modify": ApprovalDecision.MODIFY,
+    }
+    decision = decision_map.get(decision_str, ApprovalDecision.APPROVE)
+
+    # Find the approval packet from thread context
+    packet = get_packet_by_thread(thread_ts) if thread_ts else None
+
+    if packet:
+        _, reply = process_decision(
+            packet.id,
+            decision,
+            modify_constraint=modify_constraint or "",
+        )
+        return reply
+
+    # No packet found — still log and return structured reply
+    target = msg.parameters.get("target", "the pending item")
+    action_verb = {"approve": "Approved", "reject": "Rejected", "hold": "Held", "modify": "Modify requested"}.get(decision_str, "Processed")
+
+    _log_to_mcp("approval", msg.raw_text, msg.parameters, f"{action_verb}: {target}")
 
     header = f"{action_verb}: {target}"
     sections = [
         f"*Outcome:* {action_verb} — `{target}`",
-        f"*Next steps:* {'Executing approved action...' if decision == 'approve' else 'Action cancelled.' if decision == 'reject' else 'Action frozen until further notice.'}",
+        f"*Next steps:* {'Executing approved action...' if decision_str == 'approve' else 'Action cancelled.' if decision_str == 'reject' else 'Action frozen until further notice.' if decision_str == 'hold' else 'Drafting revised packet...'}",
     ]
     footer = "📋 Logged to MCP | <https://ops.aimarketinggenius.io|View in Dashboard>"
 
-    _log_to_mcp("approval", msg.raw_text, msg.parameters, f"{action_verb}: {target}")
     return _slack_blocks(header, sections, footer)
 
 
