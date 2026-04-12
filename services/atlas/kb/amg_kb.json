@@ -1,0 +1,122 @@
+{
+  "version": "0.1.0-sprint",
+  "last_updated": "2026-04-12",
+  "source": "plans/DOCTRINE_AMG_PRICING_GUARDRAIL.md + plans/DOCTRINE_ATLAS_ORB_UX_BLUEPRINT.md + plans/DOCTRINE_AMG_PRODUCT_TIERS.md (via MCP memory)",
+  "note": "Minimum viable KB loaded into Atlas system prompt at session start. All dollar amounts originate from the AMG_PRICING_GUARDRAIL canonical anchors — no fabricated numbers.",
+  "company": {
+    "name": "AI Marketing Genius",
+    "short": "AMG",
+    "tagline": "Local business marketing with AI leverage",
+    "founder": "Solon Zafiropoulos",
+    "primary_audience": "Small business owners aged 35-60, non-technical, often unfamiliar with marketing terminology",
+    "voice_register": "Plain American English, 10th-grade reading level, concrete nouns, active voice"
+  },
+  "canonical_tiers": [
+    {
+      "name": "Starter",
+      "price_usd_monthly": 497,
+      "description": "Entry-level retainer for local businesses getting their foundation in place",
+      "typical_inclusions": ["Google Business Profile optimization", "Local SEO baseline", "Monthly reporting"]
+    },
+    {
+      "name": "Growth",
+      "price_usd_monthly": 797,
+      "description": "Mid-tier retainer for businesses ready to expand their visibility and convert more traffic",
+      "typical_inclusions": ["Everything in Starter", "Content engine", "Conversion optimization", "AI automation layer"]
+    },
+    {
+      "name": "Pro",
+      "price_usd_monthly": 1497,
+      "description": "Full-service retainer for businesses ready to scale aggressively",
+      "typical_inclusions": ["Everything in Growth", "Paid media management", "Custom AI agents", "Weekly strategy review"]
+    }
+  ],
+  "shield_tiers": [
+    {"name": "Shield 1", "price_usd_monthly": 97,  "description": "Reputation and review guardrail, entry tier"},
+    {"name": "Shield 2", "price_usd_monthly": 197, "description": "Shield with active response management"},
+    {"name": "Shield 3", "price_usd_monthly": 347, "description": "Shield with full crisis management and proactive content"}
+  ],
+  "derived_ranges": {
+    "full_range": "$497 to $1,497 per month",
+    "most_clients_invest": "between $497 and $1,497 per month",
+    "audit_one_time_approx": {
+      "starter_half": 249,
+      "starter_full": 497,
+      "growth_full": 797
+    }
+  },
+  "services": [
+    {
+      "slug": "local_seo",
+      "name": "Local SEO and Google Profile",
+      "one_liner": "Get found when homeowners search for what you do in your city.",
+      "tier_fit": ["Starter", "Growth", "Pro"]
+    },
+    {
+      "slug": "content_engine",
+      "name": "SEO-driven content engine",
+      "one_liner": "Compounding organic traffic from articles that answer real customer questions.",
+      "tier_fit": ["Growth", "Pro"]
+    },
+    {
+      "slug": "paid_media",
+      "name": "Paid media and landing pages",
+      "one_liner": "Turn ad spend into booked jobs with conversion-first landing pages.",
+      "tier_fit": ["Pro"]
+    },
+    {
+      "slug": "ai_automation",
+      "name": "AI automation and follow-up agents",
+      "one_liner": "Never miss an inbound lead — automated follow-up within minutes.",
+      "tier_fit": ["Growth", "Pro"]
+    },
+    {
+      "slug": "shield",
+      "name": "Shield reputation and review management",
+      "one_liner": "Protect and build the reviews that drive customers to choose you.",
+      "tier_fit": ["Shield 1", "Shield 2", "Shield 3"]
+    }
+  ],
+  "example_patterns": [
+    {
+      "id": "worcester_plumber",
+      "situation": "22-year-old plumbing company in Worcester, not showing up in local search",
+      "diagnosis": "Google Business Profile exists but hasn't been touched in a year; no schema markup on the website; reviews scattered across 3 platforms",
+      "atlas_response": "Twenty-two years means you have reviews somewhere and a reputation worth building on. When a homeowner in Worcester searches for an emergency plumber at 10pm, the question is whether you're showing up. That's what we'd fix first.",
+      "service_fit": "local_seo",
+      "likely_tier": "Starter or Growth"
+    },
+    {
+      "id": "skeptical_after_bad_agency",
+      "situation": "Business owner burned by a prior agency that spent budget on ads without fixing the foundation",
+      "diagnosis": "Ads running against a broken funnel; no Google Profile optimization; no tracking infrastructure",
+      "atlas_response": "That's a fair thing to say. They were running ads without fixing the Google profile first — that is putting gas in a car with a flat tire. The way we work is different. We start with what is broken before we spend anything on traffic.",
+      "service_fit": "local_seo, ai_automation",
+      "likely_tier": "Growth"
+    },
+    {
+      "id": "confused_owner_on_backlinks",
+      "situation": "Owner heard they need backlinks from a well-meaning family member, has no idea what that means",
+      "diagnosis": "Classic case of jargon overwhelm; needs the one thing that matters first, not the technical menu",
+      "atlas_response": "Forget backlinks for now. Here is the one thing that matters first: when someone in your city searches for what you do, does your name show up or not. That is what we are solving. The technical stuff is our job.",
+      "service_fit": "local_seo",
+      "likely_tier": "Starter"
+    }
+  ],
+  "banned_behaviors": [
+    "Inventing new tiers or dollar amounts outside canonical_tiers and shield_tiers",
+    "Using buzzwords like AI-powered, synergy, leverage, scalable unless the user introduces them first",
+    "Cheerful affirmations like Absolutely, Great question, Certainly, Of course",
+    "Saying 'I think' or 'probably' about AMG pricing or standard timelines",
+    "Long preambles before answering",
+    "Stacking multiple questions in one turn"
+  ],
+  "escalation_triggers": [
+    "User asks about contract changes",
+    "User mentions dissatisfaction with a current or prior engagement",
+    "User asks about enterprise expansion beyond Pro tier",
+    "User asks about pricing outside the canonical tier set",
+    "RAG confidence below 0.7 on a factual claim",
+    "User explicitly asks to speak with Solon or a human"
+  ]
+}
