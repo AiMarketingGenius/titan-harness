@@ -363,6 +363,9 @@ async def ws_voice(ws: WebSocket, sid: str) -> None:
     history: list[dict[str, str]] = []
     audio_buffer = bytearray()
     backchannel_mode = False  # suppress barge-in during backchannel playback
+    # Barge-in state flags. Safe without locks because Python asyncio runs
+    # a single event loop thread — all coroutines interleave cooperatively
+    # at await points, so flag reads/writes are atomic.
     speaking = False  # True while sending TTS audio to client
     interrupted = False  # Set by truncate signal or barge-in VAD detection
     CHUNK_BYTES = 32000  # 1 second of 16-bit 16kHz mono = 32000 bytes
@@ -414,8 +417,13 @@ async def ws_voice(ws: WebSocket, sid: str) -> None:
                     try:
                         from lib.rnnoise_wrapper import denoise as _rnnoise
                         samples = _rnnoise(samples, 16000)
-                    except Exception:
-                        pass  # RNNoise unavailable — use raw audio
+                    except ImportError:
+                        pass  # RNNoise not installed — use raw audio (expected on Mac)
+                    except Exception as _rn_exc:
+                        # RNNoise runtime error — log once, continue with raw audio
+                        if not getattr(ws_voice, '_rnnoise_warned', False):
+                            print(f"[ws_voice] RNNoise fallback: {_rn_exc!r}", file=sys.stderr)
+                            ws_voice._rnnoise_warned = True
                     has_speech = _vad_mod.is_speech(samples, sample_rate=16000)
                 except Exception:
                     has_speech = True  # fallback: process anyway
@@ -445,6 +453,8 @@ async def ws_voice(ws: WebSocket, sid: str) -> None:
                     silent_chunks = 0
                     continue  # suppress barge-in during backchannel
 
+                # Reset interrupted flag before new transcription
+                interrupted = False
                 await ws.send_json({"type": "state", "state": "thinking"})
                 t_start = time.time()
 
