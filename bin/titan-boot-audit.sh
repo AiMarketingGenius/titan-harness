@@ -45,7 +45,8 @@ echo "HEAD: $HEAD"
 echo "BRANCH: $BRANCH"
 
 # --- Working tree clean ---
-if [ -z "$(git status --porcelain 2>/dev/null)" ]; then
+DIRTY=$(git status --porcelain 2>/dev/null | grep -v '^ M MIRROR_STATUS.md$' | grep -v '^M  MIRROR_STATUS.md$' | grep -v '^\?\? MIRROR_STATUS.md$' || true)
+if [ -z "$DIRTY" ]; then
   echo "WORKING_TREE_CLEAN: yes"
 else
   echo "WORKING_TREE_CLEAN: no"

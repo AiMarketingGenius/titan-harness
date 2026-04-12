@@ -25,7 +25,9 @@ mkdir -p "$TITAN_SESSION_DIR"
 # Supabase creds — try multiple locations in order
 _load_env_file() {
   local f="$1"
-  [ -f "$f" ] && set -a && source "$f" 2>/dev/null && set +a
+  if [ -f "$f" ]; then
+    set -a; source "$f" 2>/dev/null || true; set +a
+  fi
 }
 _load_env_file "$HOME/.titan-env"
 _load_env_file "/opt/amg-titan/.env"
