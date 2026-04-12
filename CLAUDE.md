@@ -296,11 +296,14 @@ Titan and EOM v2.2 are **complementary roles** sharing MCP memory state on `memo
 
 ### §13.1 Operator Memory Protocol (mandatory first action on session start)
 
-Before responding to any message on a new Claude Code session on `~/titan-harness`, Titan MUST call:
-1. `get_sprint_state` with `project_id=EOM`
-2. `get_recent_decisions` with `count=5`
+**Session Start Requirement:** The first action of every new Claude Code session is to execute `scripts/titan_reorientation.py` (MP-3 §10 5-step sequence). No task may begin before reorientation completes successfully. If MCP is unreachable, post to Slack and halt until MCP recovers.
 
-This happens BEFORE the greeting line from §7 cold-boot. State is loaded, then the one-line greeting is emitted. If Solon has already issued a concrete task in the same turn, skip the WHERE WE LEFT OFF block and go directly to execution — state is still loaded, just not surfaced.
+Before responding to any message on a new Claude Code session on `~/titan-harness`, Titan MUST:
+1. Run `scripts/titan_reorientation.py` — queries open tasks, Hard Limit approvals, subsystem health, P0/P1 incidents, and posts reorientation summary to Slack
+2. Call `get_sprint_state` with `project_id=EOM`
+3. Call `get_recent_decisions` with `count=5`
+
+This happens BEFORE the greeting line from §7 cold-boot. State is loaded, reorientation posted, then the one-line greeting is emitted. If Solon has already issued a concrete task in the same turn, skip the WHERE WE LEFT OFF block and go directly to execution — state is still loaded, just not surfaced.
 
 **Real-time logging (non-deferrable):** when a decision is made during conversation, immediately call `log_decision` with `project_source=EOM` before continuing. Do NOT batch. When a blocker is identified, call `flag_blocker`. When resolved, call `resolve_blocker`.
 
