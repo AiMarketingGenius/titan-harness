@@ -580,6 +580,7 @@ def _systemd_active(unit: str) -> str:
 
 try:
     from lib.dashboard_api import get_dashboard_data, render_mobile_html
+    from lib.dashboard_desktop import render_desktop_html
 
     @app.get("/mobile")
     def mobile_dashboard() -> HTMLResponse:
@@ -588,9 +589,21 @@ try:
         html = render_mobile_html(data)
         return HTMLResponse(html)
 
+    @app.get("/desktop")
+    def desktop_dashboard() -> HTMLResponse:
+        """MP-3 §3 — Desktop Solon OS Control Center."""
+        data = get_dashboard_data()
+        html = render_desktop_html(data)
+        return HTMLResponse(html)
+
     @app.get("/api/dashboard/mobile")
     def api_dashboard_mobile() -> dict:
         """JSON data for mobile dashboard."""
+        return get_dashboard_data()
+
+    @app.get("/api/dashboard/desktop")
+    def api_dashboard_desktop() -> dict:
+        """JSON data for desktop dashboard."""
         return get_dashboard_data()
 
     @app.get("/api/dashboard/orb")
