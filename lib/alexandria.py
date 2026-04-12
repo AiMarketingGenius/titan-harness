@@ -68,6 +68,7 @@ APPROVED_ROOT_DOCS = {
     "P9.1_CUTOVER_REPORT.md",
     "HERCULES_BACKFILL_REPORT.md",
     "ALEXANDRIA_INDEX.md",
+    "MIRROR_STATUS.md",
 }
 
 # Paths where new doctrine files are ALLOWED to land
@@ -79,6 +80,8 @@ APPROVED_DOCTRINE_PARENTS = [
     "baselines",
     "templates",
     "library_of_alexandria",
+    "config",
+    "docs",
 ]
 
 
