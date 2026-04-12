@@ -90,42 +90,99 @@ def get_dashboard_data() -> dict:
         for p in pending_approvals_raw
     ]
 
+    # Sprint data — pull from MCP sprint state if available, else static
+    sprint_data = {"name": "AMG Atlas Build Sprint", "completion_pct": 96}
+    try:
+        import urllib.request as _ur
+        _sb_url = os.environ.get("SUPABASE_URL", "")
+        _sb_key = os.environ.get("SUPABASE_SERVICE_ROLE_KEY", "")
+        if _sb_url and _sb_key:
+            _req = _ur.Request(
+                f"{_sb_url}/rest/v1/sprint_state?project_id=eq.EOM&select=sprint_name,completion_pct&limit=1",
+                method="GET",
+            )
+            _req.add_header("apikey", _sb_key)
+            _req.add_header("Authorization", f"Bearer {_sb_key}")
+            with _ur.urlopen(_req, timeout=3) as _resp:
+                _rows = json.loads(_resp.read().decode())
+                if _rows:
+                    sprint_data = {
+                        "name": _rows[0].get("sprint_name", sprint_data["name"]),
+                        "completion_pct": _rows[0].get("completion_pct", sprint_data["completion_pct"]),
+                    }
+    except Exception:
+        pass  # Use static fallback
+
+    # Client data — pull from onboarding system if available
+    client_tiles = []
+    try:
+        from lib.onboarding_flow import list_onboardings, onboarding_to_client_tile
+        onboardings = list_onboardings()
+        for ob in onboardings:
+            client_tiles.append(onboarding_to_client_tile(ob))
+    except Exception:
+        pass
+
+    # Fallback: static client data if no onboardings in memory
+    if not client_tiles:
+        client_tiles = [
+            {"name": "Levar / JDJ", "stage": "Onboarding", "last_task": "Content audit",
+             "last_task_elapsed": "2h ago", "open_blockers": 0, "health_color": "green"},
+            {"name": "Sean Suddeth", "stage": "Active", "last_task": "SEO sweep",
+             "last_task_elapsed": "5h ago", "open_blockers": 1, "health_color": "yellow"},
+            {"name": "Shop UNIS", "stage": "Active", "last_task": "Monthly report",
+             "last_task_elapsed": "1d ago", "open_blockers": 0, "health_color": "green"},
+        ]
+
+    # Completed today — pull from MCP recent decisions
+    completed_today = []
+    try:
+        if _sb_url and _sb_key:
+            today_str = now.strftime("%Y-%m-%d")
+            _req2 = _ur.Request(
+                f"{_sb_url}/rest/v1/decisions?select=text,created_at&created_at=gte.{today_str}T00:00:00Z"
+                "&order=created_at.desc&limit=10",
+                method="GET",
+            )
+            _req2.add_header("apikey", _sb_key)
+            _req2.add_header("Authorization", f"Bearer {_sb_key}")
+            with _ur.urlopen(_req2, timeout=3) as _resp2:
+                _decisions = json.loads(_resp2.read().decode())
+                for d in _decisions:
+                    completed_today.append({
+                        "text": (d.get("text") or "")[:80],
+                        "time": (d.get("created_at") or "")[:19],
+                    })
+    except Exception:
+        pass
+
+    # VPS health from JSONL (latest entries)
+    vps_health = {"cpu_pct": "—", "mem_pct": "—", "disk_pct": "—"}
+    try:
+        from pathlib import Path as _P
+        _health_dir = _P(os.environ.get("TITAN_HEALTH_LOG_DIR", "/var/log/titan"))
+        for metric, fname in [("cpu_pct", "vps-health.jsonl"), ("disk_pct", "disk-health.jsonl")]:
+            _f = _health_dir / fname
+            if _f.exists():
+                last_line = _f.read_text().strip().split("\n")[-1]
+                entry = json.loads(last_line)
+                if metric == "cpu_pct":
+                    vps_health["cpu_pct"] = f"{entry.get('metrics', {}).get('load_1m', '—')}"
+                    vps_health["mem_pct"] = f"{entry.get('metrics', {}).get('mem_avail_pct', '—')}%"
+                elif metric == "disk_pct":
+                    vps_health["disk_pct"] = f"{entry.get('metrics', {}).get('usage_pct', '—')}%"
+    except Exception:
+        pass
+
     return {
         "orb": orb_json,
         "health": health_data,
         "approvals": approvals,
-        "sprint": {
-            "name": "AMG Atlas Build Sprint",
-            "completion_pct": 88,
-        },
+        "sprint": sprint_data,
         "blockers": [],
-        "completed_today": [],
-        "clients": [
-            {
-                "name": "Levar / JDJ",
-                "stage": "Onboarding",
-                "last_task": "Content audit",
-                "last_task_elapsed": "2h ago",
-                "open_blockers": 0,
-                "health_color": "green",
-            },
-            {
-                "name": "Sean Suddeth",
-                "stage": "Active",
-                "last_task": "SEO sweep",
-                "last_task_elapsed": "5h ago",
-                "open_blockers": 1,
-                "health_color": "yellow",
-            },
-            {
-                "name": "Shop UNIS",
-                "stage": "Active",
-                "last_task": "Monthly report",
-                "last_task_elapsed": "1d ago",
-                "open_blockers": 0,
-                "health_color": "green",
-            },
-        ],
+        "completed_today": completed_today,
+        "clients": client_tiles,
+        "vps_health": vps_health,
         "timestamp": now.isoformat(),
     }
 

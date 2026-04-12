@@ -193,7 +193,7 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'SF Pro', system-ui, sans
     </div>
     <h3 style="margin-top:16px;">VPS Health</h3>
     <div style="font-size:13px;color:#a3a3a3;">
-      <div>CPU: ~12% · RAM: 8.2G/56G · Disk: 34%</div>
+      <div>Load: $vps_cpu · RAM avail: $vps_mem · Disk: $vps_disk</div>
       <div style="margin-top:4px;">Last healthcheck: just now</div>
     </div>
   </div>
@@ -253,15 +253,17 @@ def render_desktop_html(data: dict | None = None) -> str:
     if not approval_items:
         approval_items = ['<div style="font-size:12px;color:#525252;margin-top:8px;">None pending</div>']
 
-    # Kill chain (placeholder — will be wired to real task completions)
-    killchain_items = [
-        '<div style="background:#1a1a1a;padding:8px 12px;border-radius:6px;font-size:12px;">MP-3.01 Intent Classifier</div>',
-        '<div style="background:#1a1a1a;padding:8px 12px;border-radius:6px;font-size:12px;">MP-3.02 Approval System</div>',
-        '<div style="background:#1a1a1a;padding:8px 12px;border-radius:6px;font-size:12px;">MP-3.03 Orb State Machine</div>',
-        '<div style="background:#1a1a1a;padding:8px 12px;border-radius:6px;font-size:12px;">MP-3.06 Health Flags</div>',
-        '<div style="background:#1a1a1a;padding:8px 12px;border-radius:6px;font-size:12px;">MP-3.04 Mobile Dashboard</div>',
-    ]
+    # Kill chain — wired to live MCP completed tasks
+    killchain_items = []
+    for task in data.get("completed_today", []):
+        text = task.get("text", "")[:60]
+        killchain_items.append(
+            f'<div style="background:#1a1a1a;padding:8px 12px;border-radius:6px;font-size:12px;">{text}</div>'
+        )
+    if not killchain_items:
+        killchain_items = ['<div style="font-size:12px;color:#525252;">No tasks completed today yet</div>']
 
+    vps = data.get("vps_health", {})
     return DESKTOP_HTML.safe_substitute(
         orb_color=orb["color"],
         orb_css_color=orb["css_color"],
@@ -275,5 +277,8 @@ def render_desktop_html(data: dict | None = None) -> str:
         health_desktop_html="\n".join(health_items),
         clients_desktop_html="\n".join(client_cards),
         killchain_html="\n".join(killchain_items),
+        vps_cpu=vps.get("cpu_pct", "—"),
+        vps_mem=vps.get("mem_pct", "—"),
+        vps_disk=vps.get("disk_pct", "—"),
         timestamp=data.get("timestamp", "")[:19],
     )
