@@ -363,6 +363,8 @@ async def ws_voice(ws: WebSocket, sid: str) -> None:
     history: list[dict[str, str]] = []
     audio_buffer = bytearray()
     backchannel_mode = False  # suppress barge-in during backchannel playback
+    speaking = False  # True while sending TTS audio to client
+    interrupted = False  # Set by truncate signal or barge-in VAD detection
     CHUNK_BYTES = 32000  # 1 second of 16-bit 16kHz mono = 32000 bytes
     VAD_SILENCE_THRESHOLD = 2  # consecutive silent chunks before processing
 
@@ -405,10 +407,15 @@ async def ws_voice(ws: WebSocket, sid: str) -> None:
                 chunk = bytes(audio_buffer[:CHUNK_BYTES])
                 audio_buffer = audio_buffer[CHUNK_BYTES:]
 
-                # VAD gate — skip silence
+                # Optional RNNoise denoising before VAD (best-effort)
                 try:
                     import numpy as np
                     samples = np.frombuffer(chunk, dtype=np.int16).astype(np.float32) / 32768.0
+                    try:
+                        from lib.rnnoise_wrapper import denoise as _rnnoise
+                        samples = _rnnoise(samples, 16000)
+                    except Exception:
+                        pass  # RNNoise unavailable — use raw audio
                     has_speech = _vad_mod.is_speech(samples, sample_rate=16000)
                 except Exception:
                     has_speech = True  # fallback: process anyway
@@ -421,6 +428,16 @@ async def ws_voice(ws: WebSocket, sid: str) -> None:
                 else:
                     silent_chunks = 0
                     continue  # Keep accumulating while speech is active
+
+                # Barge-in detection: user spoke while Atlas was speaking
+                if speaking and has_speech:
+                    interrupted = True
+                    speaking = False
+                    await ws.send_json({"type": "state", "state": "listening"})
+                    await ws.send_json({"type": "barge_in", "message": "User interrupted — stopping playback"})
+                    # Don't clear buffer — let the new speech accumulate for next turn
+                    silent_chunks = 0
+                    continue
 
                 # We have speech followed by silence — transcribe the accumulated audio
                 if backchannel_mode:
@@ -465,22 +482,30 @@ async def ws_voice(ws: WebSocket, sid: str) -> None:
 
                 await ws.send_json({"type": "reply_text", "text": reply})
 
-                # Sentence-buffered TTS via Kokoro
+                # Sentence-buffered TTS via Kokoro (with barge-in support)
                 await ws.send_json({"type": "state", "state": "speaking"})
+                speaking = True
+                interrupted = False
                 t_tts_start = time.time()
                 try:
                     sys.path.insert(0, str(REPO_ROOT / "lib"))
                     from sentence_buffer import sentence_buffer
                     sentences = list(sentence_buffer([reply]))
                     for sentence in sentences:
+                        if interrupted:
+                            # Barge-in detected — stop sending TTS immediately
+                            await ws.send_json({"type": "state", "state": "listening"})
+                            break
                         wav = await kokoro_synthesize(sentence)
-                        if wav:
+                        if wav and not interrupted:
                             await ws.send_bytes(wav)
                 except Exception:
                     # Fallback: synthesize entire reply at once
-                    wav = await kokoro_synthesize(reply)
-                    if wav:
-                        await ws.send_bytes(wav)
+                    if not interrupted:
+                        wav = await kokoro_synthesize(reply)
+                        if wav:
+                            await ws.send_bytes(wav)
+                speaking = False
                 t_tts = int((time.time() - t_tts_start) * 1000)
 
                 t_total = int((time.time() - t_start) * 1000)
@@ -524,6 +549,14 @@ async def ws_voice(ws: WebSocket, sid: str) -> None:
                         # Re-enable barge-in after ~1.5s backchannel playback
                         await asyncio.sleep(1.5)
                         backchannel_mode = False
+
+                elif data.get("type") == "truncate":
+                    # Client-side barge-in: user started speaking, stop TTS
+                    if speaking:
+                        interrupted = True
+                        speaking = False
+                        await ws.send_json({"type": "state", "state": "listening"})
+                        await ws.send_json({"type": "barge_in", "message": "Truncated by client"})
 
                 elif data.get("type") == "config":
                     if "backchannel_mode" in data:
