@@ -71,7 +71,7 @@ BACKCHANNEL_DIR  = REPO_ROOT / "services" / "kokoro" / "backchannels"
 KOKORO_ENDPOINT  = os.environ.get("ATLAS_KOKORO_URL", "http://127.0.0.1:8880")
 LITELLM_BASE     = os.environ.get("LITELLM_BASE_URL", "").rstrip("/")
 LITELLM_KEY      = os.environ.get("LITELLM_MASTER_KEY", "").strip()
-LLM_MODEL        = os.environ.get("ATLAS_LLM_MODEL", "anthropic/claude-sonnet-4-5")
+LLM_MODEL        = os.environ.get("ATLAS_LLM_MODEL", "claude-sonnet-4-6")
 SPRINT_CONTEXT   = "staging"  # pricing guardrail §5
 
 # ─── KB + pricing whitelist ────────────────────────────────────────────────────
@@ -552,6 +552,13 @@ def root() -> HTMLResponse:
 # ─── helpers ───────────────────────────────────────────────────────────────────
 
 def _git_head() -> str:
+    # Prefer static commit file written at deploy time (works in systemd context)
+    commit_file = REPO_ROOT / ".current-commit"
+    try:
+        return commit_file.read_text().strip()
+    except Exception:
+        pass
+    # Fallback to git (works in dev, fails in systemd)
     try:
         return subprocess.check_output(["git", "rev-parse", "--short", "HEAD"], cwd=REPO_ROOT).decode().strip()
     except Exception:

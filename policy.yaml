@@ -367,7 +367,7 @@ autopilot:
 
   # Parked-on-purpose (do NOT auto-start, do NOT forget)
   p91_docker_worker_pool_soak_enabled: false    # 60h canary PARKED per 2026-04-11 directive
-  n8n_queue_mode_cutover_enabled: false         # PARKED per 2026-04-11 directive
+  n8n_queue_mode_cutover_enabled: true          # APPROVED 2026-04-12 by Solon — queue mode active with concurrency=20
 
   # --- Reviewer Loop transport config (CORE_CONTRACT §0.8, DR §9, 2026-04-12) ---
   # Fully-automated Reviewer Loop per Solon directive: no manual copy-paste.

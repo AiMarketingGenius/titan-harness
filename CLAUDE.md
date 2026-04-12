@@ -71,9 +71,9 @@ These pull in this order by default. Encoded in `RADAR.md` "Execution Priority" 
 ## 5. Parked-on-purpose (not forgotten)
 
 - **P9.1 Docker worker pool 60-hour canary / soak** — PARKED, do not start until Solon approves.
-- **n8n queue-mode cutover** — PARKED, do not cut over until Solon approves.
+- **n8n queue-mode cutover** — ✅ ACTIVE. Approved 2026-04-12. Running `EXECUTIONS_MODE=queue` with `QUEUE_WORKER_CONCURRENCY=20`, Redis-backed Bull queue (`n8n-redis-live`). Health confirmed via `/healthz`.
 
-Both live on `RADAR.md` under `# Open Infra / Harness Items` and appear daily in `RADAR_SUMMARY.md` under "Upgrade candidates when Solon approves."
+P9.1 lives on `RADAR.md` under `# Open Infra / Harness Items` and appears daily in `RADAR_SUMMARY.md` under "Upgrade candidates when Solon approves."
 
 ---
 
