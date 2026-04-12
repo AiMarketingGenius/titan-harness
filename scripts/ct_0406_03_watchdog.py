@@ -42,7 +42,13 @@ def _env(name: str, default: str | None = None) -> str:
 
 SUPABASE_URL = _env("SUPABASE_URL")
 SUPABASE_KEY = _env("SUPABASE_SERVICE_ROLE_KEY")
-SLACK_WEBHOOK_URL = _env("SLACK_TITAN_ARISTOTLE_WEBHOOK")
+# Support both webhook and bot-token paths for Slack notifications
+SLACK_WEBHOOK_URL = os.environ.get("SLACK_TITAN_ARISTOTLE_WEBHOOK", "")
+SLACK_BOT_TOKEN = os.environ.get("SLACK_BOT_TOKEN", "")
+SLACK_CHANNEL_ID = os.environ.get("ARISTOTLE_CHANNEL_ID", "")
+if not SLACK_WEBHOOK_URL and not (SLACK_BOT_TOKEN and SLACK_CHANNEL_ID):
+    print("[ct_0406_03_watchdog] FATAL: need SLACK_TITAN_ARISTOTLE_WEBHOOK or SLACK_BOT_TOKEN+ARISTOTLE_CHANNEL_ID", file=sys.stderr)
+    sys.exit(1)
 STALL_MINUTES = int(os.environ.get("CT0406_STALL_MINUTES", "15"))
 
 
@@ -143,7 +149,15 @@ def notify_slack(task: dict) -> None:
     )
 
     try:
-        _http_post_json(SLACK_WEBHOOK_URL, {"text": text})
+        if SLACK_WEBHOOK_URL:
+            _http_post_json(SLACK_WEBHOOK_URL, {"text": text})
+        else:
+            # Use Slack chat.postMessage API with bot token
+            _http_post_json(
+                "https://slack.com/api/chat.postMessage",
+                {"channel": SLACK_CHANNEL_ID, "text": text},
+                headers={"Authorization": f"Bearer {SLACK_BOT_TOKEN}"},
+            )
     except Exception as exc:
         print(f"[ct_0406_03_watchdog] Slack post failed for {task_id}: {exc!r}", file=sys.stderr)
 
