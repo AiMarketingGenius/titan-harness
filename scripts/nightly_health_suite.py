@@ -80,13 +80,26 @@ def test_disk_capacity():
         import subprocess
         result = subprocess.run(["df", "--output=pcent", "/"], capture_output=True, timeout=10)
         pct = int(result.stdout.decode().strip().split("\n")[-1].strip().rstrip("%"))
+        # Run disk-health-tracker.sh to record JSONL entry with days_to_full
+        tracker = Path(__file__).parent / "disk-health-tracker.sh"
+        if tracker.exists():
+            subprocess.run(["bash", str(tracker)], capture_output=True, timeout=15)
+        # Read days_to_full from the latest JSONL entry
+        dtf = None
+        jsonl_path = LOG_DIR / "disk-health.jsonl"
+        if jsonl_path.exists():
+            last_line = jsonl_path.read_text().strip().splitlines()[-1]
+            dtf = json.loads(last_line).get("days_to_full")
     except Exception:
         return "dead", "df failed", {}
+    metrics = {"usage_pct": pct}
+    if dtf is not None:
+        metrics["days_to_full"] = dtf
     if pct > 85:
-        return "dead", f"{pct}% used", {"usage_pct": pct}
+        return "dead", f"{pct}% used, dtf={dtf}", metrics
     if pct > 70:
-        return "degraded", f"{pct}% used", {"usage_pct": pct}
-    return "healthy", f"{pct}% used", {"usage_pct": pct}
+        return "degraded", f"{pct}% used, dtf={dtf}", metrics
+    return "healthy", f"{pct}% used, dtf={dtf}", metrics
 
 
 def test_kokoro_synth():
