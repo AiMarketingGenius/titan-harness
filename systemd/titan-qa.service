@@ -1,0 +1,11 @@
+[Unit]
+Description=Hermes Phase A Voice QA runner
+After=network.target atlas-api.service titan-kokoro.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/python3 /opt/titan-harness-work/bin/qa_runner.py
+Environment=ATLAS_API_BASE=http://127.0.0.1:8084
+Environment=ATLAS_KOKORO_URL=http://127.0.0.1:8880
+Environment=QA_LOG_DIR=/var/log/titan/voice-qa
+TimeoutSec=300
