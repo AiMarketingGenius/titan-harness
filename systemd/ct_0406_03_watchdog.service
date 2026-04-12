@@ -1,0 +1,9 @@
+[Unit]
+Description=CT-0406-03 Titan Auto-Wake Watchdog
+
+[Service]
+Type=oneshot
+EnvironmentFile=/root/.titan-env
+WorkingDirectory=/opt/titan-harness
+ExecStart=/usr/bin/env python3 scripts/ct_0406_03_watchdog.py
+Nice=10

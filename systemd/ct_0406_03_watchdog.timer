@@ -1,0 +1,10 @@
+[Unit]
+Description=Run CT-0406-03 every 5 minutes
+
+[Timer]
+OnBootSec=2min
+OnUnitActiveSec=5min
+Unit=ct_0406_03_watchdog.service
+
+[Install]
+WantedBy=timers.target
