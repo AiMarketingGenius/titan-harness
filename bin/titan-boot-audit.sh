@@ -30,7 +30,8 @@ set -u
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 VPS_HOST="${TITAN_VPS_HOST:-root@170.205.37.148}"
-VPS_PATH="/opt/titan-harness"
+VPS_WORK_PATH="/opt/titan-harness-work"
+VPS_BARE_PATH="/opt/titan-harness.git"
 NEXT_TASK_PATH="${TITAN_SESSION_DIR:-$HOME/titan-session}/NEXT_TASK.md"
 
 cd "$REPO_ROOT" || { echo "BOOT_FAILED: cannot cd to $REPO_ROOT" >&2; exit 2; }
@@ -61,9 +62,9 @@ DRIFT="no"
 if [ -n "$MAC_HEAD_FULL" ]; then
   # Try VPS working tree via ssh (short timeout — don't block boot)
   VPS_WORK_HEAD=$(ssh -o ConnectTimeout=3 -o BatchMode=yes "$VPS_HOST" \
-    "git -C $VPS_PATH rev-parse HEAD 2>/dev/null" 2>/dev/null || echo "unreachable")
+    "git -C $VPS_WORK_PATH rev-parse HEAD 2>/dev/null" 2>/dev/null || echo "unreachable")
   VPS_BARE_HEAD=$(ssh -o ConnectTimeout=3 -o BatchMode=yes "$VPS_HOST" \
-    "git -C ${VPS_PATH}.git rev-parse master 2>/dev/null" 2>/dev/null || echo "unreachable")
+    "git -C $VPS_BARE_PATH rev-parse master 2>/dev/null" 2>/dev/null || echo "unreachable")
 
   if [ "$VPS_WORK_HEAD" != "unreachable" ] && [ "$VPS_WORK_HEAD" != "$MAC_HEAD_FULL" ]; then
     DRIFT="yes (VPS working tree at ${VPS_WORK_HEAD:0:7})"
