@@ -1086,7 +1086,9 @@ done
 
 ### Domain 9: MCP Memory Layer
 
-**Topology:** Custom Node.js MCP server running on VPS port 3030, persisting rule/context embeddings to a JSON store on disk and optionally to Supabase pgvector table
+> **DESCOPED 2026-04-14** — Doctrine Domain 9 predates current architecture. Real MCP runs at `https://memory.aimarketinggenius.io` (separate Cloudflare-fronted infra on its own dedicated host), NOT a local Node.js server on VPS port 3030 at `/opt/amg/mcp/`. The janitor, embedding drift, OOM, and session-leak controls below do not apply to the current MCP deployment; equivalents are handled upstream by the live MCP endpoint's own ops layer. DELTA-E is marked COMPLETE-BY-DESCOPE. Any future MCP hardening will be tracked as a new DR against the live endpoint, not this section.
+
+**Topology (HISTORICAL — not current):** Custom Node.js MCP server running on VPS port 3030, persisting rule/context embeddings to a JSON store on disk and optionally to Supabase pgvector table
 
 #### Detection
 
