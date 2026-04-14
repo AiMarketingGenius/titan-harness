@@ -55,10 +55,101 @@ def count_fail2ban_bans() -> dict:
     return {"unique_ips": len(unique_ips), "total_bans": total_bans}
 
 
+def count_breach_incidents() -> dict:
+    """Count breach incidents + review state (Item 5 v1.1 patch)."""
+    incidents_dir = Path("/opt/amg-security/incidents")
+    if not incidents_dir.exists():
+        return {"total": 0, "confirmed": 0, "false_positive": 0, "pending_review": 0}
+    total = confirmed = fp = pending = 0
+    cutoff = datetime.now(timezone.utc) - timedelta(days=7)
+    for f in incidents_dir.glob("INC-*.json"):
+        try:
+            d = json.load(open(f))
+            detected = datetime.fromisoformat(d.get("detected_at", ""))
+            if detected < cutoff: continue
+            total += 1
+            s = d.get("status", "")
+            if s == "CONFIRMED": confirmed += 1
+            elif s == "DISMISSED_FALSE_POSITIVE": fp += 1
+            elif s == "PENDING_REVIEW": pending += 1
+        except Exception:
+            continue
+    return {"total": total, "confirmed": confirmed, "false_positive": fp, "pending_review": pending}
+
+
+def count_gate_activity() -> dict:
+    """Count enforcement-gate activity from audit logs (Item 5 v1.1 patch).
+
+    Gate #1 bypass-log, Gate #2 hypothesis audit, Gate #4 opa-decisions +
+    mode-changes. Best-effort reads; missing logs = zeros.
+    """
+    out = {"gate1_bypass": 0, "gate2_alerts": 0, "gate2_force_baseline": 0,
+           "gate4_decisions": 0, "gate4_mode_changes": 0, "gate4_auto_reverts": 0}
+    harness_state = Path(os.path.expanduser("~/titan-harness/.harness-state"))
+    vps_logs = Path("/var/log/amg")
+    cutoff_epoch = (datetime.now(timezone.utc) - timedelta(days=7)).timestamp()
+
+    def _count_jsonl(path: Path, match: callable) -> int:
+        if not path.exists(): return 0
+        n = 0
+        try:
+            with open(path) as f:
+                for line in f:
+                    try:
+                        d = json.loads(line)
+                        ts = d.get("ts_epoch") or d.get("timestamp", 0)
+                        if isinstance(ts, str):
+                            try: ts = datetime.fromisoformat(ts.rstrip("Z")).timestamp()
+                            except Exception: ts = 0
+                        if ts >= cutoff_epoch and match(d): n += 1
+                    except Exception: continue
+        except Exception: pass
+        return n
+
+    out["gate1_bypass"] = _count_jsonl(harness_state / "bypass-log.jsonl", lambda d: True)
+    out["gate2_alerts"] = _count_jsonl(harness_state / "hypothesis-audit.jsonl",
+                                       lambda d: d.get("event") == "alert")
+    out["gate2_force_baseline"] = _count_jsonl(harness_state / "hypothesis-audit.jsonl",
+                                               lambda d: d.get("event") == "force-baseline")
+    out["gate4_decisions"] = _count_jsonl(vps_logs / "opa-decisions.jsonl", lambda d: True)
+    out["gate4_mode_changes"] = _count_jsonl(vps_logs / "opa-mode-changes.jsonl", lambda d: True)
+    out["gate4_auto_reverts"] = _count_jsonl(vps_logs / "opa-mode-changes.jsonl",
+                                             lambda d: "auto-revert" in d.get("reason", ""))
+    return out
+
+
+def count_watchdog_truthful_failures() -> dict:
+    """Count truthful_check failures from watchdog (Item 5 v1.1 patch).
+
+    Events that carry truthful_check=True and sev >= SEV2 are real health
+    problems that v1.0 surface checks would have missed.
+    """
+    out = {"caddy_flapping": 0, "caddy_restart_increase": 0,
+           "n8n_flapping": 0, "fail2ban_jail_missing": 0}
+    if not EVENTS_FILE.exists(): return out
+    cutoff = datetime.now(timezone.utc) - timedelta(days=7)
+    with open(EVENTS_FILE) as f:
+        for line in f:
+            try:
+                e = json.loads(line)
+                ts = datetime.fromisoformat(e.get("timestamp", ""))
+                if ts < cutoff: continue
+                t = e.get("type", "")
+                if t == "caddy_container_flapping": out["caddy_flapping"] += 1
+                elif t == "caddy_restart_count_increased": out["caddy_restart_increase"] += 1
+                elif t == "n8n_flapping": out["n8n_flapping"] += 1
+                elif t == "fail2ban_sshd_jail_missing": out["fail2ban_jail_missing"] += 1
+            except Exception: continue
+    return out
+
+
 def generate_digest() -> str:
     """Generate the weekly security digest."""
     events = load_events()
     f2b = count_fail2ban_bans()
+    breaches = count_breach_incidents()
+    gates = count_gate_activity()
+    truthful = count_watchdog_truthful_failures()
 
     # Categorize events
     severity_counts = Counter(e.get("severity", "unknown") for e in events)
@@ -123,7 +214,13 @@ def generate_digest() -> str:
 🔔 Alerts: SEV1 {severity_counts.get('SEV1', 0)}, SEV2 {severity_counts.get('SEV2', 0)}, SEV3 {severity_counts.get('SEV3', 0)}
 🔍 Suricata IDS: {suricata_alerts} alerts
 🛡️ Wazuh: {wazuh_alerts} alerts
-📋 Sources: security-events.jsonl, fail2ban.log, suricata/fast.log, wazuh/alerts.json"""
+⚖️ Breach incidents: {breaches['total']} total ({breaches['confirmed']} confirmed, {breaches['false_positive']} FP, {breaches['pending_review']} pending review)
+🛂 Enforcement gates:
+    Gate #1 bypass-log entries: {gates['gate1_bypass']}
+    Gate #2 alerts: {gates['gate2_alerts']} | force-baseline: {gates['gate2_force_baseline']}
+    Gate #4 decisions: {gates['gate4_decisions']} | mode changes: {gates['gate4_mode_changes']} | auto-reverts: {gates['gate4_auto_reverts']}
+🕵️ Truthful-check failures (post-DELTA-B): caddy flap {truthful['caddy_flapping']}, caddy restart+ {truthful['caddy_restart_increase']}, n8n flap {truthful['n8n_flapping']}, fail2ban jail missing {truthful['fail2ban_jail_missing']}
+📋 Sources: security-events.jsonl, breach-audit.jsonl, bypass-log.jsonl, hypothesis-audit.jsonl, opa-decisions.jsonl, fail2ban.log, suricata/fast.log, wazuh/alerts.json"""
 
     return digest
 

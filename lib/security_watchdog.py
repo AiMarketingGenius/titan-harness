@@ -103,13 +103,27 @@ async def check_credential_ages():
 
 
 async def check_fail2ban_running():
-    """Check fail2ban is active."""
+    """Check fail2ban is active AND sshd jail loaded (post-DELTA-B truthfulness patch).
+
+    v1.0 only checked systemd-active → service could be up with no jails = no protection.
+    v1.1 asserts the sshd jail is present in fail2ban-client status output.
+    """
     rc, out, _ = run_cmd(["systemctl", "is-active", "fail2ban"])
     if "active" not in out:
         log_event("fail2ban_down", "SEV2", {"status": out.strip()})
         await remediate_fail2ban_down()
-    else:
-        log_event("fail2ban_check", "SEV4", {"status": "active"})
+        return
+
+    # Post-DELTA-B: verify sshd jail actually loaded
+    rc2, jail_out, _ = run_cmd(["fail2ban-client", "status"])
+    jails_line = next((l for l in jail_out.splitlines() if "Jail list" in l), "")
+    if "sshd" not in jails_line:
+        log_event("fail2ban_sshd_jail_missing", "SEV2",
+                  {"jails": jails_line.strip(), "note": "fail2ban up but sshd jail not loaded — ineffective"})
+        return
+
+    log_event("fail2ban_check", "SEV4",
+              {"status": "active", "jails": jails_line.strip(), "truthful_check": True})
 
 
 async def check_ufw_drift():
@@ -127,7 +141,13 @@ async def check_wazuh_agent():
 
 
 async def check_caddy_running():
-    """Check all 5 domains respond."""
+    """Check all 5 domains respond AND container not in restart loop.
+
+    Post-DELTA-B truthfulness: docker-caddy outage (INC-2026-04-14-01) showed
+    surface 200s can overlap a container crash-loop. v1.1 asserts docker
+    restart count is stable (same value last 2 ticks) AND container uptime
+    >= 60s before declaring healthy.
+    """
     domains = [
         "chatapi.aimarketinggenius.io",
         "memory.aimarketinggenius.io",
@@ -140,6 +160,45 @@ async def check_caddy_running():
                               f"https://{domain}/", "--max-time", "10"])
         if rc != 0:
             log_event("caddy_domain_down", "SEV2", {"domain": domain, "http_code": out.strip()})
+
+    # Truthfulness: verify docker-caddy container uptime + restart count stability
+    rc, rc_out, _ = run_cmd(["docker", "inspect", "--format",
+                             "{{.RestartCount}}|{{.State.StartedAt}}|{{.State.Running}}",
+                             "docker-caddy"])
+    if rc == 0 and "|" in rc_out:
+        try:
+            restart_count, started_at, running = rc_out.strip().split("|", 2)
+            restart_count = int(restart_count)
+            running = running.lower() == "true"
+            started_dt = datetime.fromisoformat(started_at.rstrip("Z").split(".")[0] + "+00:00")
+            uptime_sec = (datetime.now(timezone.utc) - started_dt).total_seconds()
+
+            # Persist last restart count across ticks for flap detection
+            rc_state_file = LOG_DIR / "caddy-restart-count.state"
+            prior = 0
+            if rc_state_file.exists():
+                try: prior = int(rc_state_file.read_text().strip())
+                except Exception: prior = restart_count
+            rc_state_file.write_text(str(restart_count))
+
+            if not running:
+                log_event("caddy_container_not_running", "SEV1",
+                          {"truthful_check": True, "state": rc_out.strip()})
+            elif uptime_sec < 60:
+                log_event("caddy_container_flapping", "SEV2",
+                          {"truthful_check": True, "uptime_sec": round(uptime_sec, 1),
+                           "restart_count": restart_count,
+                           "note": "container up <60s — surface 200s unreliable"})
+            elif restart_count > prior:
+                log_event("caddy_restart_count_increased", "SEV2",
+                          {"truthful_check": True, "prior": prior, "now": restart_count,
+                           "delta": restart_count - prior})
+            else:
+                log_event("caddy_truthful_ok", "SEV4",
+                          {"uptime_sec": round(uptime_sec, 1),
+                           "restart_count": restart_count, "truthful_check": True})
+        except Exception as e:
+            log_event("caddy_inspect_parse_error", "SEV3", {"error": str(e), "raw": rc_out[:200]})
 
 
 async def check_supabase_rls():
@@ -203,11 +262,41 @@ async def check_titan_restrictions():
 
 
 async def check_n8n_running():
-    """Check n8n health endpoint."""
+    """Check n8n health endpoint + container uptime (post-DELTA-B truthfulness).
+
+    /healthz returning 200 is necessary but not sufficient — container could
+    be flapping and return 200 briefly between restarts. v1.1 also asserts
+    container uptime >= 60s.
+    """
     rc, out, _ = run_cmd(["curl", "-sf", "-o", "/dev/null", "-w", "%{http_code}",
                           "http://127.0.0.1:5678/healthz", "--max-time", "5"])
-    if out.strip() != "200":
-        log_event("n8n_down", "SEV2", {"http_code": out.strip()})
+    http_code = out.strip()
+    if http_code != "200":
+        log_event("n8n_down", "SEV2", {"http_code": http_code, "truthful_check": True})
+        return
+
+    # Truthfulness: container uptime check
+    rc2, insp, _ = run_cmd(["docker", "inspect", "--format",
+                            "{{.State.StartedAt}}|{{.State.Running}}", "n8n"])
+    if rc2 == 0 and "|" in insp:
+        try:
+            started_at, running = insp.strip().split("|", 1)
+            running = running.lower() == "true"
+            started_dt = datetime.fromisoformat(started_at.rstrip("Z").split(".")[0] + "+00:00")
+            uptime_sec = (datetime.now(timezone.utc) - started_dt).total_seconds()
+            if not running:
+                log_event("n8n_container_not_running", "SEV1",
+                          {"truthful_check": True, "state": insp.strip()})
+            elif uptime_sec < 60:
+                log_event("n8n_flapping", "SEV2",
+                          {"truthful_check": True, "uptime_sec": round(uptime_sec, 1),
+                           "note": "/healthz 200 but container up <60s — unreliable"})
+            else:
+                log_event("n8n_truthful_ok", "SEV4",
+                          {"uptime_sec": round(uptime_sec, 1), "http_code": http_code,
+                           "truthful_check": True})
+        except Exception as e:
+            log_event("n8n_inspect_parse_error", "SEV3", {"error": str(e)})
 
 
 async def check_gitleaks_hook():

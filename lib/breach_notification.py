@@ -17,6 +17,42 @@ from pathlib import Path
 
 LOG_DIR = Path("/var/log/amg-security")
 INCIDENTS_DIR = Path("/opt/amg-security/incidents")
+AUDIT_LOG = LOG_DIR / "breach-audit.jsonl"   # append-only trail, separate from events
+REVIEW_TIMER_DIR = Path("/opt/amg-security/breach-review-timers")
+
+
+def _slack_alert(incident: dict) -> None:
+    """Best-effort Slack SEV-1 on incident creation. Non-blocking."""
+    try:
+        import sys as _sys
+        _sys.path.insert(0, "/opt/titan-harness/lib")
+        _sys.path.insert(0, os.path.expanduser("~/titan-harness/lib"))
+        from aristotle_slack import post_to_channel  # type: ignore
+        deadline = incident["gdpr_72h_deadline"]
+        post_to_channel(
+            "#titan-aristotle",
+            f":rotating_light: *SEV-1 BREACH* — {incident['incident_id']}\n"
+            f"*Type:* {incident['type']}\n"
+            f"*Affected:* {incident['affected_count']} records ({incident['affected_data']})\n"
+            f"*GDPR 72h deadline:* {deadline}\n"
+            f"*Review gate:* 1h from detection — confirm or dismiss before drafts go out\n"
+            f"*Incident file:* /opt/amg-security/incidents/{incident['incident_id']}.json",
+        )
+    except Exception:
+        pass
+
+
+def _append_audit(entry: dict) -> None:
+    """Append-only audit trail. Distinct from events log."""
+    LOG_DIR.mkdir(parents=True, exist_ok=True)
+    import fcntl
+    with open(AUDIT_LOG, "a") as f:
+        try:
+            fcntl.flock(f.fileno(), fcntl.LOCK_EX)
+            f.write(json.dumps(entry, sort_keys=True) + "\n")
+        finally:
+            try: fcntl.flock(f.fileno(), fcntl.LOCK_UN)
+            except Exception: pass
 
 
 def create_incident(incident_type: str, description: str, affected_data: str,
@@ -119,7 +155,64 @@ Number of California residents affected: {affected_count}
     (INCIDENTS_DIR / f"{incident_id}-dpa-draft.txt").write_text(dpa_draft)
     (INCIDENTS_DIR / f"{incident_id}-ccpa-draft.txt").write_text(ccpa_draft)
 
+    # v1.1 patches (Item 5):
+    # - Append-only audit trail (separate from events.jsonl for legal defensibility)
+    # - Slack SEV-1 alert with GDPR deadline + review gate
+    # - Review-deadline timer file for external cron to action if operator silent
+    _append_audit({
+        "event": "breach_incident_created",
+        "incident_id": incident_id,
+        "ts_utc": now.isoformat(),
+        "type": incident_type,
+        "affected_count": affected_count,
+        "affected_data": affected_data,
+        "gdpr_deadline": gdpr_deadline.isoformat(),
+        "ccpa_deadline": ccpa_deadline.isoformat(),
+        "review_deadline": review_deadline.isoformat(),
+    })
+
+    REVIEW_TIMER_DIR.mkdir(parents=True, exist_ok=True)
+    timer_file = REVIEW_TIMER_DIR / f"{incident_id}.timer"
+    timer_file.write_text(json.dumps({
+        "incident_id": incident_id,
+        "review_deadline_epoch": int(review_deadline.timestamp()),
+        "gdpr_deadline_epoch": int(gdpr_deadline.timestamp()),
+        "state": "PENDING_REVIEW",
+    }, indent=2))
+
+    _slack_alert(incident)
+
     return incident
+
+
+def mark_reviewed(incident_id: str, reviewer: str, outcome: str) -> bool:
+    """Operator marks a PENDING_REVIEW incident as confirmed_breach or false_positive.
+
+    outcome must be one of: 'confirmed_breach' | 'false_positive'.
+    Updates incident file + appends audit entry + clears review timer.
+    """
+    if outcome not in ("confirmed_breach", "false_positive"):
+        raise ValueError(f"invalid outcome: {outcome}")
+    f = INCIDENTS_DIR / f"{incident_id}.json"
+    if not f.exists():
+        return False
+    incident = json.load(open(f))
+    incident["false_positive_review"]["reviewed"] = True
+    incident["false_positive_review"]["reviewer"] = reviewer
+    incident["false_positive_review"]["outcome"] = outcome
+    incident["status"] = "CONFIRMED" if outcome == "confirmed_breach" else "DISMISSED_FALSE_POSITIVE"
+    json.dump(incident, open(f, "w"), indent=2)
+    _append_audit({
+        "event": "breach_review_completed",
+        "incident_id": incident_id,
+        "ts_utc": datetime.now(timezone.utc).isoformat(),
+        "reviewer": reviewer,
+        "outcome": outcome,
+    })
+    # Clear timer
+    timer = REVIEW_TIMER_DIR / f"{incident_id}.timer"
+    if timer.exists(): timer.unlink()
+    return True
 
 
 if __name__ == "__main__":
