@@ -1,0 +1,13 @@
+[Unit]
+Description=Gate #4 — OPA auto-revert timer (every 15min)
+Documentation=https://github.com/AiMarketingGenius/titan-harness
+
+[Timer]
+OnBootSec=3min
+OnUnitActiveSec=15min
+AccuracySec=30s
+Persistent=true
+Unit=amg-opa-auto-revert.service
+
+[Install]
+WantedBy=timers.target

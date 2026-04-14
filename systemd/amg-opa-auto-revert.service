@@ -1,0 +1,16 @@
+[Unit]
+Description=Gate #4 — OPA auto-revert: flips enforce→audit on chrony drift, escape-hatch red, or 7d expiry
+Documentation=https://github.com/AiMarketingGenius/titan-harness
+After=network-online.target
+
+[Service]
+Type=oneshot
+WorkingDirectory=/opt/titan-harness
+ExecStart=/opt/titan-harness/bin/opa-auto-revert-tick.sh
+SuccessExitStatus=0 1 2
+StandardOutput=append:/var/log/amg/opa-auto-revert.log
+StandardError=append:/var/log/amg/opa-auto-revert.log
+NoNewPrivileges=true
+ProtectSystem=strict
+ReadWritePaths=/etc/amg /var/log/amg /opt/titan-harness/.harness-state
+PrivateTmp=true

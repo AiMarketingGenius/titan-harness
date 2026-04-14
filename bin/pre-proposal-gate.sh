@@ -108,6 +108,37 @@ validate_baseline() {
   return 0
 }
 
+scan_shell_for_unguarded_ssh() {
+  # Gate #4 v1.2 integration: flag SSH-scope shell invocations in staged
+  # shell files that don't go through bin/opa-guard.sh.
+  # Recognized exemptions:
+  #   - Line prefixed with '# opa-guard-exempt:' comment above OR same line trailing
+  #   - Lines already invoking opa-guard.sh
+  #   - The opa-guard.sh script itself + escape-hatch-verify.sh + ssh-audit-firstpass.sh
+  #     + bin/harness-* drift/install/heal scripts (read-only probes)
+  local f="$1"
+  case "$f" in
+    bin/opa-guard.sh|bin/escape-hatch-verify.sh|bin/ssh-audit-firstpass.sh) return 0 ;;
+    bin/harness-*|bin/install-*|bin/titan-*|bin/trigger-*|bin/update-*) return 0 ;;
+    bin/pre-proposal-gate.sh|bin/post-commit-bypass-logger.sh|bin/refresh-policy-checksums.sh) return 0 ;;
+    bin/opa-*|bin/hypothesis-*) return 0 ;;
+  esac
+  [[ "$f" == *.sh ]] || return 0
+  [[ -f "${REPO_ROOT}/$f" ]] || return 0
+
+  local hits
+  hits="$(grep -nE '^[[:space:]]*(ssh|ufw|iptables|ip6tables|fail2ban-client)([[:space:]]|$)' "${REPO_ROOT}/$f" | \
+          grep -vE '(opa-guard\.sh|# opa-guard-exempt:)' || true)"
+  if [[ -n "$hits" ]]; then
+    echo "[GATE-1] Gate #4 integration: $f has SSH-scope invocation(s) NOT routed through opa-guard.sh:" >&2
+    echo "$hits" | sed 's/^/    /' >&2
+    echo "    Fix: wrap with bin/opa-guard.sh --baseline <path> --incident <ID> -- <cmd>" >&2
+    echo "    Or add trailing '# opa-guard-exempt: <reason>' comment for read-only probes" >&2
+    return 1
+  fi
+  return 0
+}
+
 check_commit() {
   # $1 = commit sha (or empty = staged index)
   # $2 = optional explicit commit-message file (commit-msg mode)
@@ -165,6 +196,14 @@ EOF
 
   # Validate
   validate_baseline "$claim_sha" "$claim_path" || return 1
+
+  # Gate #4 v1.2 integration: shell files with unguarded SSH-scope invocations
+  local unguarded_fail=0
+  while IFS= read -r f; do
+    [[ -z "$f" ]] && continue
+    scan_shell_for_unguarded_ssh "$f" || unguarded_fail=1
+  done <<<"$files"
+  (( unguarded_fail == 1 )) && return 1
 
   echo "[GATE-1] SSH-scope trailer validated — path=$claim_path incident=$claim_inc"
   return 0

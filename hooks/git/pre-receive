@@ -63,6 +63,37 @@ except Exception: pass
   return 0
 }
 
+# Gate #4 v1.2 extension: validate rego policies in incoming tree against
+# pinned SHAs in .harness-state/policy-checksums.yaml. Any mismatch on files
+# under opa/policies/ or opa/tests/ → reject push.
+verify_policy_checksums() {
+  local newsha="$1"
+  local checksums_blob policies_json
+  checksums_blob="$(git --git-dir="$REPO_DIR" show "${newsha}:opa/checksums.yaml" 2>/dev/null)" || return 0
+  [[ -z "$checksums_blob" ]] && return 0
+
+  # Extract expected SHAs
+  local expected
+  expected="$(echo "$checksums_blob" | awk '/^[[:space:]]+"/ {gsub(/"/,"",$1); gsub(/:/,"",$1); gsub(/"/,"",$2); print $1" "$2}')"
+  [[ -z "$expected" ]] && return 0
+
+  local failed=0
+  while IFS=' ' read -r path expected_sha; do
+    [[ -z "$path" || -z "$expected_sha" ]] && continue
+    [[ "$expected_sha" == "pending-refresh" ]] && continue
+    local actual
+    actual="$(git --git-dir="$REPO_DIR" show "${newsha}:${path}" 2>/dev/null | shasum -a 256 | awk '{print $1}')" || continue
+    if [[ "$actual" != "$expected_sha" ]]; then
+      echo "[GATE-4 pre-receive] policy checksum mismatch: $path" >&2
+      echo "  expected: $expected_sha" >&2
+      echo "  actual:   $actual" >&2
+      echo "  Fix: run bin/refresh-policy-checksums.sh, commit with SSH-Baseline trailer" >&2
+      failed=1
+    fi
+  done <<<"$expected"
+  return $failed
+}
+
 FAIL=0
 while read -r OLD NEW REF; do
   # Handle branch deletion (NEW = 000...)
@@ -78,6 +109,15 @@ while read -r OLD NEW REF; do
       continue
     fi
     echo "[GATE-1 pre-receive] REJECTED $REF ($OLD..$NEW) — SSH-scope commit failed validation" >&2
+    FAIL=1
+  fi
+
+  if ! verify_policy_checksums "$NEW"; then
+    if check_override; then
+      echo "[GATE-4 pre-receive] override accepted — allowing policy checksum failure" >&2
+      continue
+    fi
+    echo "[GATE-4 pre-receive] REJECTED $REF — policy rego checksum mismatch" >&2
     FAIL=1
   fi
 done
