@@ -1,0 +1,25 @@
+# /etc/cron.d/amg-security — DR-AMG-SECURITY-01 Phase 2+3 schedules
+# Install via: sudo bin/install-amg-security-schedules.sh
+# Logs: /var/log/amg/*.log (rotate via logrotate.d/amg)
+#
+# Lockout-risk gate note (2026-04-14): all 5 = NO.
+# No SSH/firewall/PAM/auth touch. R2 uploads + Supabase queries + log writes only.
+
+SHELL=/bin/bash
+PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+MAILTO=""
+
+# Daily R2 backup — age-encrypted, SHA-256 manifest
+0  2 * * *   root  /opt/amg/bin/amg-backup.sh           >> /var/log/amg/amg-backup.log 2>&1
+
+# Daily backup verification — downloads manifest, re-hashes, size anomaly check
+0  4 * * *   root  /opt/amg/bin/verify-backup.sh        >> /var/log/amg/amg-backup.log 2>&1
+
+# Monthly restore drill — 1st Sunday 04:00 UTC (day-of-month 1-7 AND DoW=0)
+0  4 1-7 * 0 root  /opt/amg/bin/restore-drill.sh        >> /var/log/amg/amg-restore-drill.log 2>&1
+
+# Daily credential age check — alerts on rotation-eligible keys
+0  3 * * *   root  /opt/amg/bin/rotate-credential.sh --check-ages  >> /var/log/amg/amg-cred-rotation.log 2>&1
+
+# Weekly security digest — Monday 09:00 UTC
+0  9 * * 1   root  /usr/bin/python3 -m lib.security_digest         >> /var/log/amg/amg-security-digest.log 2>&1
