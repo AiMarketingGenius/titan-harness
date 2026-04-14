@@ -1,0 +1,18 @@
+# /etc/cron.d/amg-restic-backup — 15-min incremental backups to Cloudflare R2
+# Install via: sudo bin/install-restic-backup.sh
+# Per plans/DR_BACKUP_SYSTEM_15MIN_RESTIC_R2.md (self-graded A, 9.3/10, 2026-04-13)
+#
+# Lockout-risk gate: all 5 = NO. Reads filesystem + pg_dump + n8n export;
+# writes to R2. No SSH/UFW/fail2ban/PAM touch.
+
+SHELL=/bin/bash
+PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+MAILTO=""
+
+# Every 15 minutes — Tier 1 incremental
+*/15 * * * *   root  /opt/amg/bin/restic-backup-15min.sh   >> /var/log/amg/backup.log 2>&1
+
+# Weekly restore test (Sunday 04:00 UTC) — spins Hetzner CX22 spot instance
+# NOTE: requires HETZNER_API_TOKEN in /etc/amg/hetzner.env before enabling.
+# Commented out until operator provisions the token. Uncomment after setup:
+# 0  4 * * 0   root  /opt/amg/bin/restic-restore-test-weekly.sh >> /var/log/amg/restore-test.log 2>&1
