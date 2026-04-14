@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.amg.titan-autorestart</string>
+
+    <!-- The canonical HOME path is replaced by bin/install-titan-autorestart.sh
+         at install time. Do not commit a machine-specific path. -->
+    <key>ProgramArguments</key>
+    <array>
+        <string>/bin/bash</string>
+        <string>__TITAN_HARNESS__/bin/titan-restart-launch.sh</string>
+    </array>
+
+    <!-- Watch the flag file touched by bin/titan-restart-capture.sh. -->
+    <key>WatchPaths</key>
+    <array>
+        <string>__HOME__/.claude/titan-restart.flag</string>
+    </array>
+
+    <!-- RunAtLoad false — we only want to fire on flag touch, not at boot. -->
+    <key>RunAtLoad</key>
+    <false/>
+
+    <!-- Don't respawn if our script exits; we handle debounce internally. -->
+    <key>KeepAlive</key>
+    <false/>
+
+    <!-- Logs live in ~/.claude/titan-restart.log (written by script). -->
+    <key>StandardOutPath</key>
+    <string>__HOME__/.claude/titan-restart.launchd.stdout.log</string>
+    <key>StandardErrorPath</key>
+    <string>__HOME__/.claude/titan-restart.launchd.stderr.log</string>
+
+    <!-- Nice low; don't hog CPU if flag is touched in a storm. -->
+    <key>Nice</key>
+    <integer>5</integer>
+
+    <!-- Throttle: at most once per 30s at the launchd level too. -->
+    <key>ThrottleInterval</key>
+    <integer>30</integer>
+
+    <key>ProcessType</key>
+    <string>Interactive</string>
+
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>PATH</key>
+        <string>/usr/local/bin:/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+    </dict>
+</dict>
+</plist>

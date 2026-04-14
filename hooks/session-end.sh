@@ -41,4 +41,22 @@ titan_supabase_post "session_handover" "$BODY"
 # Also post to titan_audit_log
 titan_supabase_post "titan_audit_log" "{\"session_id\":\"${SESSION_ID:-unknown}\",\"task_id\":\"${ACTIVE_TASK:-null}\",\"action\":\"session_end\",\"actor\":\"titan\",\"payload\":{\"instance\":\"$TITAN_INSTANCE\",\"reason\":${SAFE_REASON}}}"
 
+# Item 7 — pre-exit state capture for auto-restart.
+# Fires regardless of reason so any unexpected exit leaves a usable resume file.
+# Non-blocking (exit 0 always from the capture script).
+if [ "$TITAN_OS" = "macos" ] && [ -x "$SCRIPT_DIR/../bin/titan-restart-capture.sh" ]; then
+    CAPTURE_REASON="${REASON:-session-end-unexpected}"
+    # Don't touch the launchd flag on every session-end — only when the
+    # exchange threshold was reached OR reason is explicit context-flush.
+    if [ -f "$HOME/.claude/titan-exchange-threshold-reached.json" ] || \
+       [ "$CAPTURE_REASON" = "context-flush" ] || \
+       [ "$CAPTURE_REASON" = "manual-restart" ]; then
+        bash "$SCRIPT_DIR/../bin/titan-restart-capture.sh" "$CAPTURE_REASON" >/dev/null 2>&1 || true
+        rm -f "$HOME/.claude/titan-exchange-threshold-reached.json"
+    else
+        # Silent capture only (no flag touch, no new-session spawn).
+        SILENT_CAPTURE=1 bash "$SCRIPT_DIR/../bin/titan-restart-capture.sh" "$CAPTURE_REASON" >/dev/null 2>&1 || true
+    fi
+fi
+
 exit 0
