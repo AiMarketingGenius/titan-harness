@@ -1,0 +1,18 @@
+[Unit]
+Description=Gate #2 — hypothesis runaway timer tick (checks state, fires alerts, forces baseline restart at thresholds)
+Documentation=https://github.com/AiMarketingGenius/titan-harness
+After=network-online.target
+
+[Service]
+Type=oneshot
+WorkingDirectory=/opt/titan-harness
+ExecStart=/opt/titan-harness/bin/hypothesis-timer-tick.sh
+# Fail silently if the script errors — we never want the timer to stop firing.
+SuccessExitStatus=0 1 2
+StandardOutput=append:/var/log/amg/hypothesis-timer.log
+StandardError=append:/var/log/amg/hypothesis-timer.log
+# Least-privilege hardening
+NoNewPrivileges=true
+ProtectSystem=strict
+ReadWritePaths=/opt/titan-harness/.harness-state /var/log/amg
+PrivateTmp=true

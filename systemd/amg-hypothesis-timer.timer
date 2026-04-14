@@ -1,0 +1,13 @@
+[Unit]
+Description=Gate #2 — hypothesis runaway timer (fires every 5min)
+Documentation=https://github.com/AiMarketingGenius/titan-harness
+
+[Timer]
+OnBootSec=2min
+OnUnitActiveSec=5min
+AccuracySec=30s
+Persistent=true
+Unit=amg-hypothesis-timer.service
+
+[Install]
+WantedBy=timers.target
