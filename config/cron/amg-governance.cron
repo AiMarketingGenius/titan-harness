@@ -1,0 +1,18 @@
+# /etc/cron.d/amg-governance — DR-AMG-GOVERNANCE-01 Phase 3 schedules
+# Install via: sudo bin/install-amg-governance-schedules.sh
+# Logs: /var/log/amg/governance-*.log
+#
+# Lockout-risk gate: all 5 = NO. Supabase reads+writes only; no SSH/UFW/fail2ban/PAM.
+
+SHELL=/bin/bash
+PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+MAILTO=""
+
+# Daily governance collection (behavioral baseline, drift scoring, anti-pattern monitoring)
+0  6 * * *   root  /opt/amg/bin/gov-daily-cron.sh           >> /var/log/amg/governance-daily.log 2>&1
+
+# Weekly governance review (GHS composite, weekly review data)
+30 7 * * 1   root  /opt/amg/bin/gov-weekly-cron.sh          >> /var/log/amg/governance-weekly.log 2>&1
+
+# Weekly retention cleanup (reads governance_retention_policy table)
+0  4 * * 0   root  /opt/amg/bin/gov-retention-cron.sh       >> /var/log/amg/governance-retention.log 2>&1
