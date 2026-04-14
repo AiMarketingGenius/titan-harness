@@ -22,3 +22,5 @@ __pycache__/
 logs/
 plans/*
 plans/review_bundles/
+var/log/
+var/
