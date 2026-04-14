@@ -1,0 +1,27 @@
+# /etc/logrotate.d/suricata (REPLACEMENT)
+# Owner: AMG / Item 6 audit 2026-04-14.
+#
+# Current config at /etc/logrotate.d/suricata rotates /var/log/suricata/*.{log,json}
+# with rotate=14, compress, copytruncate — but lacks a frequency directive
+# (no daily/weekly/size/monthly). As a result eve.json reached 591MB before
+# any rotation triggered. Adds `daily` + `size 250M` to force rotation on
+# either cadence or size, whichever comes first.
+#
+# To deploy: replace /etc/logrotate.d/suricata with this file, then run
+# logrotate -f /etc/logrotate.d/suricata once to force the backlog drain.
+
+/var/log/suricata/*.log
+/var/log/suricata/*.json
+{
+    daily
+    size 250M
+    rotate 14
+    missingok
+    compress
+    delaycompress
+    copytruncate
+    sharedscripts
+    postrotate
+        /bin/kill -HUP $(cat /var/run/suricata.pid) 2>/dev/null || true
+    endscript
+}

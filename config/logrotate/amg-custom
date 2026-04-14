@@ -1,0 +1,46 @@
+# /etc/logrotate.d/amg-custom
+# Owner: AMG / Item 6 audit 2026-04-14.
+# Covers: every AMG/Titan custom log path referenced in root crontab that
+# had no dedicated rotation policy.
+#
+# Sources (crontab inventory 2026-04-14): mem-pipeline, nurture-sender,
+# titan-agent-watchdog, titan-cost-tracker, titan-icloud-mirror,
+# titan-idea-exec, titan-night-grind, titan-hourly-drain, amg-inference-report,
+# amg-chaos-test, titan-backup, titan-baseline, titan/stuck_detector,
+# titan/janitor, amg-vps-backup, amg-supabase-backup, titan-last-mirror.ts.
+
+/var/log/mem-pipeline.log
+/var/log/nurture-sender.log
+/var/log/titan-agent-watchdog.log
+/var/log/titan-cost-tracker.log
+/var/log/titan-icloud-mirror.log
+/var/log/titan-idea-exec.log
+/var/log/titan-night-grind.log
+/var/log/titan-hourly-drain.log
+/var/log/titan-baseline.log
+/var/log/titan-blog-scheduler.log
+/var/log/amg-inference-report.log
+/var/log/amg-chaos-test.log
+/var/log/amg-vps-backup.log
+/var/log/amg-supabase-backup.log
+/var/log/amg/opa-decisions.jsonl
+/var/log/amg/opa-auto-revert.log
+/var/log/amg/opa-mode-changes.jsonl
+/var/log/amg/hypothesis-timer.log
+/var/log/amg/gate-overrides.jsonl
+/var/log/titan/janitor.log
+/var/log/titan/stuck_detector.log
+/var/log/titan/kokoro-health.jsonl
+/var/log/titan-harness-mirror.log
+/var/log/titan-last-mirror.ts
+{
+    daily
+    rotate 30
+    compress
+    delaycompress
+    missingok
+    notifempty
+    copytruncate
+    maxsize 50M
+    create 0644 root root
+}

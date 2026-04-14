@@ -1,0 +1,37 @@
+# /etc/logrotate.d/amg-security
+# Owner: AMG / Item 6 audit 2026-04-14.
+# Covers: every log path written by lib/security_watchdog.py +
+# lib/breach_notification.py + lib/security_digest.py.
+#
+# Rationale: amg-watchdog rotation ONLY covers /var/log/amg/watchdog.jsonl;
+# security-events.jsonl (13MB and growing) + breach-audit.jsonl had no rotation.
+
+/var/log/amg-security/*.log
+/var/log/amg-security/*.jsonl
+/var/log/amg-security/security-events.jsonl
+/var/log/amg-security/breach-audit.jsonl
+{
+    daily
+    rotate 60
+    compress
+    delaycompress
+    missingok
+    notifempty
+    copytruncate
+    maxsize 100M
+    create 0640 security-watchdog security-watchdog
+}
+
+# Breach-audit is append-only for legal defensibility — keep longer + no compress
+# on active file for faster forensic search.
+/var/log/amg-security/breach-audit.jsonl
+{
+    monthly
+    rotate 84
+    compress
+    delaycompress
+    missingok
+    notifempty
+    copytruncate
+    create 0640 security-watchdog security-watchdog
+}
