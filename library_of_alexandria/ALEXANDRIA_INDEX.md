@@ -87,4 +87,4 @@ This way Aristotle, Titan, and Solon always see the same Library state.
   - claude threads: 0 (pending Solon sessionKey)
   - Gmail: 0 (pending OAuth + harvester)
   - Loom: 0 (pending creds)
-- **Last index refresh:** 2026-04-12 07:41 UTC
+- **Last index refresh:** 2026-04-14 19:00 UTC
