@@ -1,0 +1,12 @@
+[Unit]
+Description=AMG Disk Hygiene Heal — daily
+Requires=amg-disk-heal.service
+
+[Timer]
+OnBootSec=10min
+OnCalendar=daily
+AccuracySec=15min
+Persistent=true
+
+[Install]
+WantedBy=timers.target

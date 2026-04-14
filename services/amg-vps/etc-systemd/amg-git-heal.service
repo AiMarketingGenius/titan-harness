@@ -1,0 +1,11 @@
+[Unit]
+Description=AMG Git Mirror Integrity Heal (Domain 1)
+After=network.target
+
+[Service]
+Type=oneshot
+ExecStart=/opt/amg/scripts/git-heal.sh
+Nice=15
+TimeoutStartSec=120
+StandardOutput=journal
+StandardError=journal

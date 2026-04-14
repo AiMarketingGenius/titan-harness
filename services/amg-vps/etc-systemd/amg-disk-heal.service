@@ -1,0 +1,11 @@
+[Unit]
+Description=AMG Disk Hygiene Heal (Domain 2)
+After=network.target
+
+[Service]
+Type=oneshot
+ExecStart=/opt/amg/scripts/disk-heal.sh
+Nice=15
+TimeoutStartSec=900
+StandardOutput=journal
+StandardError=journal

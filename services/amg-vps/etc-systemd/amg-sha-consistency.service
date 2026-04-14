@@ -1,0 +1,11 @@
+[Unit]
+Description=AMG Harness-vs-VPS Expected-SHA Consistency Check (DELTA-D)
+After=network.target
+
+[Service]
+Type=oneshot
+ExecStart=/opt/amg/scripts/sha-consistency-check.sh
+Nice=15
+TimeoutStartSec=60
+StandardOutput=journal
+StandardError=journal

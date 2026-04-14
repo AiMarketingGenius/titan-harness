@@ -1,0 +1,7 @@
+739edad7c846bafff30ebe208a049d71ab50e6a79921ce5e900b9e0123d0a155  /opt/amg/docs/amg-self-healing-doctrine-v1.md
+ac372397859027c1347536d5845ffc605273b442d474829cac7dd0f9a86bf535  /opt/n8n/Caddyfile
+317082f4ab28c7b1d867e36e126027e2dc287713ab179c651422163ff7773db1  /opt/n8n/docker-compose.yml
+579e22d7b62a152ba869e2aeb7f8167e3d53044755b4a101df4cd97b05dacfd9  /etc/ssh/sshd_config
+4cfae7e2842717d211a057abee0e5de23020d8313f04454d6a785be058c9dc83  /etc/amg/ufw-canonical-commands.sh
+6d6a09ca925c5ce3197f2f9acb8e847232798748ec4ffccafd7d7b49072e4716  /etc/fail2ban/jail.local
+a15df28a581346453e7ef09152cb905d09ef6130a5ecd86f785e1ebc2ebe086a  /etc/fail2ban/jail.d/whitelist.conf

@@ -1,0 +1,11 @@
+[Unit]
+Description=AMG Doctrine SHA Drift Check (DELTA-D)
+After=network.target
+
+[Service]
+Type=oneshot
+ExecStart=/opt/amg/scripts/doctrine-drift-check.sh
+Nice=15
+TimeoutStartSec=30
+StandardOutput=journal
+StandardError=journal

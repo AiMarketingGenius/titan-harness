@@ -1,0 +1,11 @@
+[Unit]
+Description=AMG Config File SHA Drift Check — 6 security + operational configs (DELTA-D)
+After=network.target
+
+[Service]
+Type=oneshot
+ExecStart=/opt/amg/scripts/config-drift-check.sh
+Nice=15
+TimeoutStartSec=30
+StandardOutput=journal
+StandardError=journal

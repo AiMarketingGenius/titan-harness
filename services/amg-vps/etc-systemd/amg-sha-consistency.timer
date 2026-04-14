@@ -1,0 +1,12 @@
+[Unit]
+Description=AMG Harness-vs-VPS Expected-SHA Consistency Check — weekly
+Requires=amg-sha-consistency.service
+
+[Timer]
+OnBootSec=15min
+OnCalendar=weekly
+AccuracySec=30min
+Persistent=true
+
+[Install]
+WantedBy=timers.target
