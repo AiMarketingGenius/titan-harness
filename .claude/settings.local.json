@@ -2,7 +2,11 @@
   "permissions": {
     "allow": [
       "mcp__0f44c9ec-a530-47dc-a8b8-4db51c221197__perplexity_review",
-      "mcp__mcp-registry__search_mcp_registry"
+      "mcp__mcp-registry__search_mcp_registry",
+      "mcp__0f44c9ec-a530-47dc-a8b8-4db51c221197__claim_task",
+      "mcp__c1fc4002-5f49-5f9d-a4e5-93c4ef5d6a75__google_drive_search",
+      "Skill(update-config)",
+      "Skill(update-config:*)"
     ]
   }
 }
