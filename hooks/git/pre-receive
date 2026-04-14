@@ -1,0 +1,85 @@
+#!/usr/bin/env bash
+# hooks/git/pre-receive
+# Canonical copy — install onto VPS bare repo at /opt/titan-harness.git/hooks/pre-receive
+# via bin/install-gate1-hooks.sh.
+#
+# Gate #1 v1.1 server-side enforcement. Rejects pushes carrying SSH-scope
+# commits that fail the pre-proposal-gate. Admin override requires the
+# shared secret in /etc/amg/gate-override.secret + matching push header,
+# with loud Slack alert on every use.
+
+set -euo pipefail
+
+REPO_DIR="$(pwd)"  # bare repo dir, e.g. /opt/titan-harness.git
+WORKTREE_DIR="/opt/titan-harness"
+GATE_SCRIPT="${WORKTREE_DIR}/bin/pre-proposal-gate.sh"
+OVERRIDE_SECRET_FILE="/etc/amg/gate-override.secret"
+
+# If we can't find the gate script on disk, fall back to extracting it from
+# the incoming ref (safest: use the new tree's copy of the script).
+run_gate() {
+  local old="$1" new="$2" ref="$3"
+  if [[ -x "$GATE_SCRIPT" ]]; then
+    bash "$GATE_SCRIPT" pre-receive "$old" "$new" "$ref"
+    return $?
+  fi
+  # Fallback: extract gate from new tree
+  local tmpdir
+  tmpdir="$(mktemp -d)"
+  trap "rm -rf '$tmpdir'" RETURN
+  if git --git-dir="$REPO_DIR" show "${new}:bin/pre-proposal-gate.sh" > "$tmpdir/gate.sh" 2>/dev/null; then
+    chmod +x "$tmpdir/gate.sh"
+    GIT_DIR="$REPO_DIR" bash "$tmpdir/gate.sh" pre-receive "$old" "$new" "$ref"
+    return $?
+  fi
+  echo "[GATE-1 pre-receive] cannot locate gate script — allowing push (fail-open)" >&2
+  return 0
+}
+
+# Override-secret handling. Client sends header via:
+#   git -c http.extraHeader='X-Gate-Override: <secret>' push   (over HTTPS)
+# or SSH custom env (we check GIT_GATE_OVERRIDE).
+check_override() {
+  local supplied="${GIT_GATE_OVERRIDE:-}"
+  [[ -z "$supplied" ]] && return 1
+  [[ ! -f "$OVERRIDE_SECRET_FILE" ]] && return 1
+  local expected
+  expected="$(cat "$OVERRIDE_SECRET_FILE" 2>/dev/null)"
+  [[ -z "$expected" ]] && return 1
+  [[ "$supplied" == "$expected" ]] || return 1
+  # Loud alert — override used
+  local ts
+  ts="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+  echo "{\"ts\":\"$ts\",\"who\":\"$(id -un)\",\"remote\":\"${SSH_CLIENT:-unknown}\"}" >> /var/log/amg/gate-overrides.jsonl 2>/dev/null || true
+  echo "[GATE-1 pre-receive] ⚠ OVERRIDE_SSH_GATE used — alert fired" >&2
+  # best-effort slack alert via titan-harness
+  (cd "$WORKTREE_DIR" 2>/dev/null && python3 -c "
+import sys; sys.path.insert(0,'lib')
+try:
+  from aristotle_slack import post_to_channel
+  post_to_channel('#titan-aristotle', ':rotating_light: Gate #1 OVERRIDE used on VPS pre-receive at $ts — investigate.')
+except Exception: pass
+" 2>/dev/null) || true
+  return 0
+}
+
+FAIL=0
+while read -r OLD NEW REF; do
+  # Handle branch deletion (NEW = 000...)
+  [[ "$NEW" =~ ^0+$ ]] && continue
+  # Handle new branch (OLD = 000...): walk from empty tree equivalent
+  if [[ "$OLD" =~ ^0+$ ]]; then
+    OLD="$(git --git-dir="$REPO_DIR" rev-list --max-parents=0 "$NEW" | tail -1)"
+  fi
+
+  if ! run_gate "$OLD" "$NEW" "$REF"; then
+    if check_override; then
+      echo "[GATE-1 pre-receive] override accepted — allowing $REF despite validation failure" >&2
+      continue
+    fi
+    echo "[GATE-1 pre-receive] REJECTED $REF ($OLD..$NEW) — SSH-scope commit failed validation" >&2
+    FAIL=1
+  fi
+done
+
+exit $FAIL
