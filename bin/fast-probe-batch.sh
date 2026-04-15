@@ -81,9 +81,22 @@ trap 'rm -f "$TMP_PROMPT"' EXIT
 # the per-agent MCP-context-preparation overhead identified in DR_PERF investigation.
 echo "[fast-probe-batch] spawning fresh CC child session (--no-mcp) with $NUM_AGENTS agents..."
 
-# Launch (the actual flag name may differ across CC versions; --no-mcp is the
-# documented flag in CC 2.x; older versions may use --skip-mcp or env var).
-if "$CC_BIN" --no-mcp --print < "$TMP_PROMPT" > /tmp/fast_probe_batch_out.$$.log 2>&1; then
+# 2026-04-15 V5 live-test correction: Claude Code 2.1.92 does NOT support --no-mcp
+# flag. The actual no-MCP path is `--strict-mcp-config --mcp-config /tmp/empty-mcp.json`
+# (empty MCP set). `--bare` mode strips even more but ALSO strips the Agent tool, so
+# Agent-spawn timing cannot be measured from --bare.
+#
+# For the SPAWN-STAGGER test specifically, what matters is: does this Claude Code
+# session have fewer MCP servers attached? The wrapper writes a temporary empty MCP
+# config and uses --strict-mcp-config to force it.
+#
+# Live measurement requires Solon's interactive Mac session because Agent tool needs
+# the full Claude Code harness (not available via headless `claude -p` CLI alone).
+
+EMPTY_MCP=$(mktemp -t empty_mcp.XXXXXX.json)
+echo '{"mcpServers":{}}' > "$EMPTY_MCP"
+
+if "$CC_BIN" --strict-mcp-config --mcp-config "$EMPTY_MCP" --print < "$TMP_PROMPT" > /tmp/fast_probe_batch_out.$$.log 2>&1; then
   RC=0
 else
   RC=$?
