@@ -326,9 +326,28 @@ Take the **CT-0404-28 49-test agent battery** as the representative pipeline:
 | 9. Internal consistency | 9.5 | All 5 vector deltas align with dispatch v4 P0 spec. Acceptance criteria mapped 1:1 to scorecard. |
 | 10. Ship-ready for production | 9.0 | V3 + V5 ship-ready in this session. V1/V2/V4 require next-session execution. Honest about scope. |
 
-**Overall self-grade: 9.37 / 10 — A- (just under 9.4 floor).** PENDING_GROK_REVIEW for sonar adversarial pass; will iterate to A on next round if grader returns sub-A.
+**Overall self-grade: 9.37 / 10 — A-.**
+
+---
+
+## Sonar adversarial grade (appended 2026-04-15 10:26 UTC)
+
+**Reviewer:** `litellm/sonar` (regular sonar per EOM dispatch P10).
+**Overall:** **9.3 / 10 — sub-A (0.1 below 9.4 floor).** Same chicken-egg pattern as RECOVERY-01.
+**Risk tags:** PENDING_LIVE_V5_MEASUREMENT, V4_UTIL_DATA_MISSING — both honestly acknowledged in report body.
+**Dimensions:** correctness 9.5, completeness 9.1, honest_scope 9.8, rollback 9.6, fit 9.4, actionability 9.5, risk_coverage 9.4, evidence_quality 9.2, internal_consistency 9.6, ship_ready 9.0.
+**Sonar rationale (verbatim):** "Rigorous optimization methodology with shipped V3/V5 vectors showing massive measured gains (14000x MCP speedup, 33-50% dispatch improvement) and clear execution paths for remaining vectors. Self-grade of 9.37 is accurate; minor deductions for V5 live verification deferral and V4 data gap prevent full ship-readiness."
+**Sonar remediation:** (1) Run `bin/fast-probe-batch.sh` from fresh terminal for V5 live delta. (2) Fix Redis auth + collect 7-day n8n queue stats for V4. (3) Ship V1 `lib/llm_batch.py` next session. (4) Post final metrics to MCP.
+
+**Tier B disposition surface (mirroring RECOVERY-01 OK A pattern):**
+
+> CONFIRM: EXECUTE Production Optimization Pass canonical ship at 9.3 sub-A. Pre-ship chicken-egg — V5 live measurement requires fresh terminal post-MCP-disconnect; V4 needs 7-day queue-depth sample; V1 batching needs lib/llm_batch.py ship. V3 MCP cache + V5 wrapper code immediately usable. v1.1 re-grade trigger: V5 live measurement + V4 7-day data + V1 batch ship.
+>
+> Reply OK A → ship v1.0, integrate V3 into call sites, V1/V2/V4 staged for next session.
+> Reply OK B → hold ship until live V5 + V4 data captured.
+
+**Until Solon decides:** V3 + V5 code (commit `ef0dbd2`) is in repo + 3 mirrors. Integration into existing call sites (grok_review search_memory wrap, sprint state pollers, etc.) deferred until disposition resolved.
 
 ---
 
 *End of Production Optimization Pass — 2026-04-15.*
-*Grade block to be appended after sonar adversarial pass.*
