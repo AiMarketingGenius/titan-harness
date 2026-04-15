@@ -5,6 +5,15 @@ set -u
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$SCRIPT_DIR/../lib/titan-env.sh"
 
+# CLAUDE.md §17.7 — Fast Mode default-on per session. Emit fast-mode banner so
+# Titan sees it in its boot context block. (Env vars set here don't propagate
+# back to the parent claude process, but the operator reading this context
+# will know fast mode should be behaviorally ON for this session.)
+if [ -f "$SCRIPT_DIR/../lib/fast-mode.sh" ]; then
+  # shellcheck disable=SC1091
+  source "$SCRIPT_DIR/../lib/fast-mode.sh" && fast_mode_enable
+fi
+
 echo "===== TITAN HARNESS — instance: $TITAN_INSTANCE ($TITAN_OS) ====="
 echo "Session dir: $TITAN_SESSION_DIR"
 
