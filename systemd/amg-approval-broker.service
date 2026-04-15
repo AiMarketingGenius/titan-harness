@@ -1,0 +1,19 @@
+[Unit]
+Description=AMG Titan Approval Broker (CT-0412-06) — phone-mobile approval bidirectional channel
+After=network.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/opt/amg-broker
+EnvironmentFile=-/etc/amg/approval-broker.env
+ExecStart=/usr/bin/python3 /opt/amg-broker/approval_broker.py run
+Restart=always
+RestartSec=30
+StandardOutput=append:/var/log/amg-broker.log
+StandardError=append:/var/log/amg-broker.err.log
+TimeoutStartSec=60
+TimeoutStopSec=30
+
+[Install]
+WantedBy=multi-user.target
