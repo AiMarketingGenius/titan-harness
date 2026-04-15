@@ -1,8 +1,8 @@
 # AMG ENCYCLOPEDIA — FULL SYSTEM INVENTORY
 
 **Prepared for:** Solon Zafiropoulos, Founder & Sole Operator
-**Version:** v1.2 (living document — surgical updates only)
-**Updated:** 2026-04-15 (post overnight Titan queue burndown — AIMG live, SECRETS-01 Phase A done, CT-0415-05 P1 hardened LIVE + P3 staged + P2 smoke-tested, Layer-4 v2 staged for sudo install)
+**Version:** v1.3 (living document — surgical updates only)
+**Updated:** 2026-04-15 (post overnight Titan queue burndown + pre-Hetzner doctrine chain documentation — AIMG live, SECRETS-01 Phase A done, CT-0415-05 P1 hardened LIVE + P3 staged + P2 smoke-tested, Layer-4 v2 staged for sudo install, 4-doctrine adjudication chain specced with grok_review tool + Approval Broker + #titan-nudge queued, Hetzner 2× CX32 hard-gated on chain completion)
 **Purpose:** Investor-grade comprehensive documentation of everything built, in queue, and on roadmap under the AMG umbrella
 **Classification:** INTERNAL — contains trade secret tool names not authorized for client-facing use
 **Instructions to reviewer (Perplexity):** Analyze this document to assess (a) total build cost if commissioned to a consultancy, (b) replacement cost of rebuilding from scratch, (c) Solon's market value as a Senior AI Engineer / AI Systems Architect / Visionary Founder
@@ -660,14 +660,27 @@ Covers:
 
 Enforce-flip procedure (pending Solon): 4 escape-hatch attestations → `install-gate4-opa.sh` → 24h audit mode observation → signed hash ack via `opa-confirm-enforce.sh` → enforce mode with 7-day observe tail + auto-revert still armed.
 
-### 10.5 Queued Doctrines (Perplexity DRs delivered, awaiting Grok adjudication)
+**v1.4 shipping scope (CT-0415-06, Tier A pre-approved):** tightens Gate #4 OPA policy surface (deny-by-default on all mutating SSH scopes absent pre-proposal hash match); wires the escape-hatch preflight into the `harness-conflict-check.sh` pre-write hook so structural commits cannot proceed with stale attestations; adds `bin/enforcement-status.sh` for one-line `ENFORCEMENT: audit|enforce|reverting|auto-reverted` read; logs every gate trip to MCP `log_decision` with tag `enforcement_gate`. Gate #4 enforce-mode flip is still Solon-gated (Hard Limit). **v1.4 ship unblocks CT-0414-07 + CT-0414-08 downstream chain** per the full chain in §10.5.
 
-- DR-AMG-ACCESS-REDUNDANCY-01 (secondary provider lane for VPS/DB access)
-- DR-AMG-UPTIME-01 (99.95% SLO design with error budget)
-- DR-AMG-DATA-INTEGRITY-01 (checksums, snapshot verification, restore drills)
-- DR-AMG-RECOVERY-01 (disaster recovery runbook)
+### 10.5 Queued Doctrines — 4-Doctrine Adjudication Chain (CT-0414-08)
 
-Queued as CT-0414-08: Grok-adjudicate these 4 Perplexity DRs and ship canonical to `/opt/amg/docs/`. Blocks on grok_review MCP tool live.
+The adjudication chain runs in this strict order (each doctrine is prerequisite to the next):
+
+1. **DR-AMG-ACCESS-REDUNDANCY-01** — secondary provider lane for VPS/DB access (Hetzner 2× CX32 as active/active secondary to HostHatch primary; DNS failover + shared-nothing state; read-replica Postgres)
+2. **DR-AMG-UPTIME-01** — 99.95% SLO design with error budget (monthly budget 21.6 min downtime; burn-rate alerts at 2%/5%/10%)
+3. **DR-AMG-DATA-INTEGRITY-01** — checksums, snapshot verification, restore drills (daily restic+R2 checksum validation; weekly restore smoke-test; quarterly full restore drill)
+4. **DR-AMG-RECOVERY-01** — disaster recovery runbook (RPO ≤ 1h, RTO ≤ 4h; full regional failover playbook; credential revocation + re-provision)
+
+**Adjudication protocol:**
+- Each DR is routed through `grok_review` MCP tool (see §10.6 Phase 2.1).
+- **A-grade floor is 9.4/10** (matches `policy.yaml war_room.min_acceptable_grade`).
+- On A-grade pass: doctrine ships canonical to `/opt/amg/docs/DR_<NAME>_v1.md` on VPS, mirrored to `plans/` on Mac + GitHub via Hercules Triangle.
+- On sub-A grade: iterate per §12 war-room rounds (max 5), then re-route through grok_review.
+- **Hetzner 2× CX32 provisioning is hard-gated on all 4 doctrines shipping canonical.** No infra spend until adjudication complete.
+
+**Dependencies:** blocks on `grok_review` MCP tool being live (CT-0414-07 Phase 2.1). `grok_review` itself blocks on DR-AMG-ENFORCEMENT-01 v1.4 shipping (CT-0415-06) per its own pre-flight gate.
+
+**Full chain:** CT-0415-06 (ENFORCEMENT-01 v1.4) → CT-0414-07 (grok_review + mailbox + Channels listener) → CT-0414-08 (4-doctrine adjudication) → Hetzner 2× CX32 provisioning → secondary-lane cutover.
 
 ### 10.6 CT-0415-05 Titan Autonomy Completion Sprint (2026-04-15) — PARTIAL SHIP
 
@@ -685,6 +698,21 @@ Closes the remaining ~35% of the autonomy stack. ~65% already existed pre-sprint
 - Smoke test PASS: `/healthz` returns `{ok:true}`, POST with allowed `X-Source: monitor` accepted + task_id assigned + `notifications/claude/channel` MCP notification fired, POST with `X-Source: attacker` rejected 403.
 - Architecture: n8n/Slack/external → POST 8790 → MCP notification → Claude Code session sees `<channel source="...">` tag → Titan executes → replies via webhook through `reply` tool. Zero polling.
 - Permission relay listener pre-wired for forwarding to Slack bot (localhost:3300) when `notifications/claude/channel/permission_request` arrives.
+
+**Phase 2.1 — `grok_review` MCP tool + mailbox + hybrid retrieval + Channels listener (CT-0414-07, big infra build):**
+
+The `grok_review` MCP tool is the adjudication plumbing that makes CT-0414-08 (4-doctrine ship) and all future A-grade doctrine gating possible. It is the *second independent reviewer* in the L2 adversarial-review layer (§8.3) when Slack-Aristotle is unavailable or when the doctrine explicitly demands Grok rather than Perplexity (cross-provider blind-spot coverage).
+
+| Component | Purpose | Implementation target |
+|---|---|---|
+| `grok_review` tool surface | MCP tool: `grok_review(artifact_path, rubric, context_files=[])` → returns `{grade, dimension_scores{}, risk_tags[], rationale, remediation}` | Added to `titan-channel.ts` tool registry; routes via LiteLLM gateway `grok-4-fast-reasoning` model |
+| Mailbox pattern | Async durable outbox: artifact + rubric dropped in `/var/lib/titan-channel/mailbox/outbox/`, Grok review result written to `inbox/<artifact_hash>.json`. Survives both-side restarts. | Filesystem-backed FIFO + inotify watcher + MCP resource exposure |
+| Hybrid retrieval | Grok gets semantic KB snippets (via `search_memory`) + structural context (code paths, prior grades) in a single retrieval bundle, not just raw artifact text | `lib/hybrid_retrieval.py`: MCP `search_memory` + AST-aware code slicer + doctrine-freshness pointer injection |
+| Channels listener | New `X-Source: grok-reviewer` allowlisted source on port 8790. Grok result POSTs back as channel notification, Titan session auto-consumes via `<channel source="grok-reviewer">` tag. | Allowlist entry in `titan-channel.ts` + response-handler branch in main session loop |
+
+**Standing rule:** every doctrine/plan requiring A-grade ship (per §12 Idea Builder compliance) that cannot route through Slack-Aristotle MUST route through `grok_review` before Titan labels it "ready for Solon." **Titan self-grade fallback is a last resort and MUST be marked `PENDING_GROK_REVIEW` in the grading block.**
+
+**Pre-flight gate:** `grok_review` tool ship is blocked on ENFORCEMENT-01 v1.4 canonical (CT-0415-06) because the mailbox + channel allowlist additions are structural harness changes that must pass the tightened Gate #4 OPA policy.
 
 **Phase 3 — Mac Desktop Control via Tailscale (STAGED, awaits Solon Tuesday morning):**
 - `config/tailscale-acl.json` (vps/mac/phone tags + ACL).
@@ -748,7 +776,7 @@ Each category assigned L1–L4 defense mechanisms with independent failure modes
 Every operational category must maintain active/active redundancy:
 - **LLM:** Anthropic + OpenAI (via LiteLLM gateway)
 - **Database:** Supabase + VPS PostgreSQL read-only failover
-- **Infrastructure:** HostHatch VPS + planned Hetzner CX22 lane (future)
+- **Infrastructure:** HostHatch VPS (primary, 12c/64G) + **Hetzner 2× CX32 lane** (2× 4 vCPU / 8GB / 80GB NVMe each, active/active secondary, EU-region). Provisioning gated on CT-0414-08 4-doctrine adjudication A-grade ship.
 - **Payment:** PaymentCloud primary + Durango secondary (dual-MID redundancy, applications pending Solon submission). Paddle REJECTED 2026-04-15. Stripe dead. PayPal Levar-blocked.
 - **Deployment:** Mac local + VPS mirror + GitHub
 - **Credential storage:** Infisical + R2 + `/etc/amg/` env files
@@ -867,6 +895,24 @@ Pre-lockout Titan mega-prompt covered 10 parallel workstreams:
 | 8 | File librarian + doc sync + master manifest | Centralized doc governance |
 | 9 | Full outbound + inbound lead gen pipeline | Chatbot + email sequences + SMS via Telnyx + AI voice calls |
 | 10 | Perplexity API auto-consult + Lovable alternative evaluation | Automated blocker escalation |
+
+### 11A.6.1 Mobile Ops Surface — Approval Broker + #titan-nudge (2026-04-15 additions)
+
+Two sibling capabilities extending the CT-0406 Mega-Batch Task 4 mobile command surface. Both are Tier A, pre-approved, lower-urgency than the Hetzner chain but on-deck once CT-0414-08 ships.
+
+**CT-0412-06 — Approval Broker (phone):**
+- **Purpose:** phone-resident Hard-Limit approval channel. When Titan hits a Hard Limit (credentials, financial, destructive, public-facing per CORE_CONTRACT §0.7 / CLAUDE.md §15), it posts the escalation to the broker. Solon approves/denies from iPhone lock screen or `ops.aimarketinggenius.io/m/` with one tap.
+- **Architecture:** `bin/approval-broker.sh` (VPS) queues pending approvals in `/var/lib/amg/approvals/pending/<id>.json` → pushes to iOS via APNs (Pushover or ntfy.sh as first hop, OneSignal as fallback) → Solon taps Approve/Deny/HOLD → broker writes signed decision to `/var/lib/amg/approvals/decided/<id>.json` → Titan reads via `wait-for-approval` MCP tool.
+- **Signing:** every approval carries HMAC-SHA256 signed by a key pinned in `/etc/amg/broker.env` (mode 0600). Titan rejects unsigned or signature-mismatched decisions.
+- **Timeout:** approvals auto-expire after 30 min (configurable per Hard Limit class). Timeout = implicit HOLD, never implicit approve.
+- **Audit:** every decision logs to MCP `log_decision` with tag `approval_broker`.
+
+**CT-0412-07 — #titan-nudge Slack channel (Viktor-style conversational):**
+- **Purpose:** short, conversational, non-blocking nudges for "Solon should probably look at this soon but it's not a Hard Limit." Distinct from `#titan-aristotle` (strategy/grading) and the Approval Broker (urgent Hard-Limit gate).
+- **Style:** Viktor-persona (concise, dry, punctual). Single-line messages. No tagging Solon unless explicitly urgent.
+- **Triggers:** doctrine-freshness stale > 14 days; RADAR parked > 7 days; Governance Health Score drop > 5 points; DLQ backlog > 50; SLO burn-rate > 5% in 24h; any `log_decision` with severity `medium` tag.
+- **Rate-limit:** max 6 nudges per rolling hour + max 30 per day. Excess goes to the daily SOLON_OS_CONTROL_LOOP digest instead.
+- **Implementation:** `lib/nudge_channel.py` (thin wrapper on `lib/aristotle_slack.py` with persona + rate-limit middleware) + `nudge.yaml` trigger config + Slack app bot token `SLACK_BOT_TOKEN_NUDGE` in `/etc/amg/slack.env`.
 
 ### 11A.7 DELTA-INVENTORY-ATLAS-FULL (the master inventory task)
 

@@ -1,7 +1,7 @@
 # AMG CAPABILITIES SPEC SHEET — REDUNDANCY + VALUATION VERSION
 
 **Prepared for:** External adversarial-review (build-cost estimation) + secondary AI platform onboarding (failover-readiness brief)
-**Version:** v1.0 (2026-04-15) — derived from internal AMG Encyclopedia v1.2
+**Version:** v1.1 (2026-04-15) — derived from internal AMG Encyclopedia v1.3; adds operator process auto-restart, personality synthesis pipeline, secondary-AI adjudication protocol, mobile operator approval broker, conversational governance nudge channel, 4-doctrine adjudication chain, and secondary-provider active/active lane status
 **Classification:** SHAREABLE — trade-secret-scrubbed, no proprietary tool names, no internal codenames, no infrastructure identifiers
 **Status:** Production-deployed, revenue-generating, ~12 months old
 
@@ -58,6 +58,8 @@ The platform performs the following classes of work simultaneously, on productio
 | Persistent cross-session memory | Decisions, tasks, sprint state, and operator standing rules persist across separate AI conversation threads via a custom memory layer. | 20+ memory tools, multiple memory types (fact / decision / preference / correction / action / narrative / episodic / entity) |
 | Adversarial peer review | Every significant output is independently reviewed by at least one second AI provider before being marked complete. Minimum 9-out-of-10 quality gate. | Two independent reviewer providers wired |
 | Self-healing infrastructure | Autonomous monitoring + remediation across web server, database, queue, voice, search index, credentials, backups, cost ceilings. | 10 monitored categories, 12 health timers, single supervisor daemon |
+| Operator process auto-restart | Scheduled + event-driven restart of the autonomous operator process with persistent counter state, race-safe file locking, and targeted PID-based signaling. Survives host reboot and 30-way parallel trigger test. | 4 lifecycle hooks + watcher service; E2E verified under serial + parallel load |
+| Operator personality synthesis pipeline | Two-stage pipeline that harvests founder voice corpus (meeting transcripts + recorded walkthroughs) into a structured substrate — personality model, decision framework, voice fingerprint, SOP library — then makes it queryable by every agent so client-facing output speaks in the founder's voice. | Infrastructure shipped; ~50-80 hour synthesis run queued |
 | 24/7 unattended operation | Systems operate without operator presence; alerts only on items requiring human judgment. | Operator-on-call only for explicit escalation tier |
 
 ### 2.3 Quality + Safety Enforcement
@@ -67,7 +69,9 @@ The platform performs the following classes of work simultaneously, on productio
 | 4-layer hallucination defense | (1) Architectural enforcement via typed output contracts. (2) Adversarial review by a second AI provider. (3) Fact-check gate against a knowledge base + web search. (4) Tiered web-grounded verification for high-stakes claims. |
 | Hard tier-A / tier-B / tier-C autonomy gating | Routine work auto-continues. Lockout-risk operations require explicit human confirmation. Credential-rotation operations require pre-approval and auditing. |
 | Trade-secret compliance | A standing rule auto-injected into every operator session prevents specific vendor and tool names from appearing in client-facing output. |
-| 4-gate lockout-prevention doctrine | Hash-pinned pre-proposal gate + cryptographically-signed audit chain + read-only forensic template + policy-as-code with timed auto-revert. |
+| 4-gate lockout-prevention doctrine | Hash-pinned pre-proposal gate + cryptographically-signed audit chain + read-only forensic template + policy-as-code with timed auto-revert. Tightened gate-policy version adds deny-by-default on all mutating privileged scopes and wires preflight attestations into the structural-write hook. |
+| Secondary-AI adjudication protocol | Every A-grade-required artifact routes through a second, independent AI provider via a durable mailbox pattern with hybrid retrieval (semantic knowledge-base snippets + structural code context + doctrine-freshness pointers). Reviewer returns a structured grade, per-dimension scores, risk tags, and remediation. No artifact ships canonical without passing this gate or being explicitly marked as pending secondary review. |
+| Mobile operator approval broker | Phone-resident approval channel for Hard-Limit operations. Escalations push to operator's mobile device via signed payload (HMAC-SHA256); operator taps Approve / Deny / Hold from lock screen; decision returns via signed write-back with auto-expiry. Implicit timeout is never implicit approval. | 
 | Anti-hallucination disclosure phrases | Mandatory tags on uncertain output: insufficient-data / proxy-data / single-source / inference / uncertain. |
 
 ### 2.4 Observability + Governance
@@ -77,6 +81,7 @@ The platform performs the following classes of work simultaneously, on productio
 | Multiple operator dashboards | Mobile-optimized + desktop + ambient-status + aggregated-health views. |
 | Governance Health Score | Numeric daily score tracking architectural drift across multiple anti-pattern categories. Currently 85.0/100 with regular adversarial validation. |
 | Structured incident learning loop | Every incident generates a structured log entry feeding back into doctrine refinement. |
+| Conversational governance nudge channel | Short-form, rate-limited, persona-styled nudges to the operator for soft-urgency events (stale doctrine, parked backlog, governance-score drops, backlog thresholds, SLO burn-rate). Distinct from strategy / grading channels and from the Hard-Limit approval broker. Rate-limit: max 6 per rolling hour, 30 per day; excess rolls into the daily control-loop digest. |
 | Cross-track audit chain | Every significant decision is signed, timestamped, and traceable to its originating context. |
 
 ---
@@ -146,7 +151,7 @@ The unified AI fulfillment platform is structured as 7 interlocking subsystems. 
 
 ## 5. INFRASTRUCTURE ENVELOPE (SCALE + CAPACITY)
 
-The platform runs on a single primary 12-core / 64GB-RAM Linux server (with documented secondary-provider failover lane planned). Operational ceilings under this hardware envelope:
+The platform runs on a single primary 12-core / 64GB-RAM Linux server, with a **secondary-provider active/active failover lane being provisioned** (2× 4-vCPU / 8GB nodes in a separate region, gated on completion of the 4-doctrine adjudication chain described in Section 6). Operational ceilings under the primary hardware envelope:
 
 | Metric | Ceiling |
 |---|---|
@@ -177,10 +182,12 @@ The platform ships with multiple cross-validated operational doctrines. Each is 
 | Security doctrine | Complete (3/3 phases shipped) | File integrity monitoring, heartbeat, encrypted backups, drift detection, isolated execution user, auth hardening, secrets remediation, RLS audit, threat model, watchdog load test, 4-source security digest |
 | Governance doctrine | Complete (3/3 phases shipped, A-graded) | Behavioral baseline, drift scoring (statistical test), governance dashboard, Governance Health Score, anti-pattern monitoring across multiple categories, weekly review cadence, sister-doctrine integration, red team testing |
 | Lockout-prevention doctrine | Audit-mode shipped, enforce-flip pending operator attestations | 4-gate hash-pinning + audit-chain + forensic template + policy-as-code |
-| Access-redundancy doctrine | Drafted, awaiting cross-validation | Secondary provider lane for server + database access |
-| Uptime doctrine | Drafted, awaiting cross-validation | 99.95% SLO design with error budget |
-| Data-integrity doctrine | Drafted, awaiting cross-validation | Checksums, snapshot verification, restore drills |
-| Recovery doctrine | Drafted, awaiting cross-validation | Disaster recovery runbook |
+| Access-redundancy doctrine | Drafted, awaiting cross-validation | Secondary provider lane for server + database access (DNS failover, shared-nothing state, read-replica database) |
+| Uptime doctrine | Drafted, awaiting cross-validation | 99.95% SLO design with error budget (monthly budget ~21.6 minutes; burn-rate alerts at 2% / 5% / 10% of window) |
+| Data-integrity doctrine | Drafted, awaiting cross-validation | Daily checksum validation of encrypted backups, weekly restore smoke-test, quarterly full restore drill |
+| Recovery doctrine | Drafted, awaiting cross-validation | Disaster recovery runbook with RPO ≤ 1 hour, RTO ≤ 4 hours, full regional failover playbook, credential revocation + re-provision sequence |
+
+**Adjudication protocol for the four drafted doctrines:** they ship as a strict ordered chain (access-redundancy → uptime → data-integrity → recovery). Each is routed through the secondary-AI adjudication protocol (see Section 2.3) with a 9.4-out-of-10 A-grade floor. On pass, the doctrine ships canonical to a versioned location; on sub-A, iterates up to 5 refinement rounds then re-routes. **Secondary-provider infrastructure provisioning is hard-gated on all four doctrines shipping canonical** — no infra spend until the chain clears.
 
 ---
 
