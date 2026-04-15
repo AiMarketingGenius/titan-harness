@@ -1,0 +1,21 @@
+[Unit]
+Description=Persistent Browser Pool (Playwright + Chromium multi-context) — CT-0415 Opt Pass V2
+After=network.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/opt/persistent-browser
+Environment="POOL_SIZE=3"
+Environment="LISTEN_PORT=3201"
+Environment="BASE_USER_DATA=/opt/persistent-browser/user-data"
+ExecStart=/usr/bin/node /opt/persistent-browser/server-pool.js
+Restart=always
+RestartSec=5
+StandardOutput=append:/var/log/persistent-browser-pool.log
+StandardError=append:/var/log/persistent-browser-pool.err.log
+TimeoutStartSec=120
+TimeoutStopSec=30
+
+[Install]
+WantedBy=multi-user.target
