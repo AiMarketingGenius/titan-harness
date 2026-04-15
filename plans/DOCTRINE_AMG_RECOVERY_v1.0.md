@@ -652,4 +652,42 @@ If Cloudflare is down simultaneously with D1 (regional correlation rare but poss
 ---
 
 *End of doctrine DR-AMG-RECOVERY-01 — version 1.0 (2026-04-15).*
-*Grade block to be appended after grok_review adversarial pass.*
+
+---
+
+## Grading block (appended 2026-04-15 05:06 UTC)
+
+**Status:** SUB-A — pending first-drill-cycle evidence for canonical ship. Solon Tier B gate surfaced.
+
+**Grade history:**
+- Round 1 (2026-04-15 05:04 UTC): sonar 9.2/10 (evidence_quality 8.7, ship_ready 8.9). Risk tags: OPERATOR_INC_PEND, DNS_REDUNDANCY_UNDRILLED, R2_FAIL_UNDRILLED.
+- Round 2 (2026-04-15 05:06 UTC): sonar 9.2/10 (evidence_quality 8.7, ship_ready 8.9). Risk tags: STALE_DRILLS, D6_OPERATOR_RISK, UNDRILLED_COMPOSITES. Round-2 deltas (§J.4 composite drills, §J.5 D6 drill, §J.6 paper-key restore drill, §M.6 handoff specificity) pushed rollback_availability 9.7→9.6 and didn't improve evidence_quality or ship_ready.
+
+**Diagnosis of the ceiling:**
+The two constraining dimensions (evidence_quality 8.7, ship_ready 8.9) measure post-ship evidence that cannot exist pre-ship by definition — drill-log metrics, DRILL_COMPOSITE_* reports, time-measured RTO outcomes all require the drill cycle to run after canonical ship. The grader is correctly honest that pre-ship doctrine cannot produce post-drill evidence. No amount of prose iteration will close this gap.
+
+**Recommended disposition:**
+
+Option A (Tier B to Solon): ship RECOVERY-01 v1.0 canonical to `/opt/amg/docs/` despite sub-A grade, with an explicit v1.1 commitment to re-grade after the first full drill cycle (semi-annual D1 drill Q3 2026, or sooner if D2 drill happens quarterly Apr-Jul). This unblocks Hetzner 2× CX32 provisioning per encyclopedia §10.5 hard-gate and accepts that the final 0.2-point lift comes from real drill data.
+
+Option B: delay RECOVERY-01 canonical ship until after the first composite drill runs. This keeps the Hetzner hard-gate in effect. Estimated delay: 1 week to set up + run `bin/drill-d1-cloudflare-dead.sh` against staging + append DRILL_COMPOSITE report.
+
+**Titan's recommendation: Option A.** Reasoning: (1) the other 3 doctrines are A-graded and canonical, meaning this is the only blocker; (2) delaying Hetzner a week for a 0.2-point evidence lift is not a positive ROI trade when the secondary-lane-redundancy itself is the load-bearing reliability investment; (3) shipping v1.0 canonical + committing to v1.1 drill-informed revision is more honest than holding the doctrine hostage to a chicken-and-egg evidence requirement; (4) CLAUDE.md §15 autonomous-interpretive-decision rule supports shipping with explicit version-bump commitment when the alternative is a 1-week artificial delay on the critical path.
+
+**Escalation format (to Solon Claude Code DM):**
+
+> CONFIRM: EXECUTE RECOVERY-01 v1.0 canonical ship despite sub-A grade (9.2 stuck at evidence_quality 8.7 / ship_ready 8.9 across rounds 1+2). Blast radius: ships doctrine to `/opt/amg/docs/` unblocking Hetzner 2× CX32; commits to v1.1 re-grade after first drill cycle; RECOVERY-01 applies immediately as governing doctrine for any D1-D5 event. Alternative: hold ship 1 week + run composite drill first.
+>
+> Awaiting your decision. Reply OK A to ship v1.0, OK B to hold for drill.
+
+**Until Solon decides:**
+- `plans/DOCTRINE_AMG_RECOVERY_v1.0.md` is committed in repo but NOT mirrored to `/opt/amg/docs/`.
+- RADAR.md flag "RECOVERY-01 Tier B pending" added.
+- CT-0414-08 marked "3 of 4 doctrines canonical; 1 awaiting Solon Tier B".
+- Hetzner 2× CX32 provisioning gated per encyclopedia §10.5 until disposition resolved.
+
+**Re-grade trigger on ship (Option A):**
+- Execute `bin/drill-d1-cloudflare-dead.sh` on staging within 14 days of canonical ship.
+- Populate §J.4 table with measured timings + embed `DRILL_COMPOSITE_D1_CLOUDFLARE_DEAD_<date>.md` excerpts as evidence.
+- Re-submit to grok_review; target 9.5+ on evidence_quality, 9.3+ on ship_ready, overall ≥ 9.4.
+- On A-grade clear: version bump to v1.1 canonical.
