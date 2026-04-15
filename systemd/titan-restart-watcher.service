@@ -1,0 +1,15 @@
+[Unit]
+Description=Titan Claude Code Restart Watcher (CT-0415-05 Phase 1)
+After=network.target
+
+[Service]
+Type=simple
+User=root
+ExecStart=/opt/titan-harness-work/.claude/hooks/restart-watcher.sh
+Restart=on-failure
+RestartSec=10
+StandardOutput=append:/var/log/titan-restart-watcher.log
+StandardError=append:/var/log/titan-restart-watcher.log
+
+[Install]
+WantedBy=multi-user.target
