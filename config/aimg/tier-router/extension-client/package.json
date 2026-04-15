@@ -1,0 +1,10 @@
+{
+  "name": "aimg-tier-router-extension-client",
+  "version": "1.1.0",
+  "private": true,
+  "type": "module",
+  "description": "AIMG tier-router extension client (widget + chime + modal + rate-limit middleware). Zero deps.",
+  "scripts": {
+    "test": "node --test tests/tier-router-client.test.js tests/rate-limit-middleware.test.js tests/aimg-client.test.js"
+  }
+}
