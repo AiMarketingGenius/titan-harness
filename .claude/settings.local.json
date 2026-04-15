@@ -16,7 +16,18 @@
       "Agent(*)",
       "mcp__0f44c9ec-a530-47dc-a8b8-4db51c221197__perplexity_review",
       "mcp__0f44c9ec-a530-47dc-a8b8-4db51c221197__update_task",
-      "mcp__0f44c9ec-a530-47dc-a8b8-4db51c221197__log_decision"
+      "mcp__0f44c9ec-a530-47dc-a8b8-4db51c221197__log_decision",
+      "mcp__0f44c9ec-a530-47dc-a8b8-4db51c221197__get_bootstrap_context",
+      "mcp__0f44c9ec-a530-47dc-a8b8-4db51c221197__get_recent_decisions",
+      "mcp__0f44c9ec-a530-47dc-a8b8-4db51c221197__search_memory",
+      "Bash(cat)",
+      "Read(//Users/solonzafiropoulos1/**)",
+      "mcp__0f44c9ec-a530-47dc-a8b8-4db51c221197__get_task_queue",
+      "mcp__0f44c9ec-a530-47dc-a8b8-4db51c221197__queue_operator_task",
+      "Bash(launchctl unload:*)",
+      "Bash(launchctl list:*)",
+      "mcp__0f44c9ec-a530-47dc-a8b8-4db51c221197__update_sprint_state",
+      "mcp__21f70b31-b788-4500-bc02-233323093a83__search_files"
     ]
   }
 }

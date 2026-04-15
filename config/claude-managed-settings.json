@@ -1,0 +1,22 @@
+{
+  "_comment": "CT-0415-05 Layer-4 fix v2 — system-level managed settings for Claude Code Mac app. Created 2026-04-15 per Perplexity sonar-pro review of the Layer-4 regression. Path on Mac: /Library/Application Support/ClaudeCode/managed-settings.json. Install with bin/install-claude-managed-settings.sh (requires sudo). Per code.claude.com/docs/en/permissions: 'managed settings cannot be overridden by user or project settings' — this is the strongest tier of policy enforcement, sits above ~/.claude/settings.json + ~/Library/Application Support/Claude/config.json + .claude/settings.local.json.",
+  "_tool_name_source": "Verified against `claude --help` output 2026-04-15: --allowedTools accepts patterns like 'Bash(git:*) Edit'. CamelCase-with-no-suffix is the real tool ID. NOTE: 'BashExec' and 'SearchFiles' from Perplexity's reply were INCORRECT names — actual CLI evidence shows Bash + Glob (no SearchFiles tool exists on Mac app side; Drive MCP search_files is mcp__<uuid>__search_files which matches mcp__* wildcard).",
+  "permissions": {
+    "defaultMode": "bypassPermissions",
+    "allow": [
+      "Bash(*)",
+      "Edit(*)",
+      "Write(*)",
+      "Read(*)",
+      "WebFetch(*)",
+      "WebSearch(*)",
+      "Glob(*)",
+      "Grep(*)",
+      "TodoWrite(*)",
+      "NotebookEdit(*)",
+      "Skill(*)",
+      "Agent(*)",
+      "mcp__*"
+    ]
+  }
+}

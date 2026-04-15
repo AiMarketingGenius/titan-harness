@@ -1,0 +1,18 @@
+{
+  "_comment": "Tailscale ACL for AMG / Titan / Solon iPhone (CT-0415-05 Phase 3). Paste into tailscale.com/admin → Access Controls. Tag each node in Tailscale admin (Machines → ⋯ → Edit ACL Tags) after first login.",
+  "tagOwners": {
+    "tag:vps": ["autogroup:admin"],
+    "tag:mac": ["autogroup:admin"],
+    "tag:phone": ["autogroup:admin"]
+  },
+  "acls": [
+    { "action": "accept", "src": ["tag:vps"], "dst": ["tag:mac:22"] },
+    { "action": "accept", "src": ["tag:phone"], "dst": ["tag:vps:22", "tag:mac:22"] },
+    { "action": "accept", "src": ["tag:vps"], "dst": ["tag:mac:*"] },
+    { "action": "accept", "src": ["tag:phone"], "dst": ["tag:vps:*"] }
+  ],
+  "ssh": [
+    { "action": "accept", "src": ["tag:vps"], "dst": ["tag:mac"], "users": ["solonzafiropoulos1"] },
+    { "action": "accept", "src": ["tag:phone"], "dst": ["tag:vps"], "users": ["root"] }
+  ]
+}

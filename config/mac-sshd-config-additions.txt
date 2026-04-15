@@ -1,0 +1,14 @@
+# /etc/ssh/sshd_config additions for CT-0415-05 Phase 3 (Mac desktop SSH access via Tailscale).
+# Apply with: sudo bash -c 'cat /opt/titan-harness/config/mac-sshd-config-additions.txt >> /etc/ssh/sshd_config'
+# Then: sudo launchctl stop com.openssh.sshd && sudo launchctl start com.openssh.sshd
+#
+# Pre-req: enable Remote Login in System Settings → General → Sharing.
+# Pre-req: replace MAC_TAILSCALE_IP placeholder with the actual `tailscale ip -4` output before applying.
+
+# === Titan SSH access via Tailscale ===
+PasswordAuthentication no
+ChallengeResponseAuthentication no
+PubkeyAuthentication yes
+AuthorizedKeysFile .ssh/authorized_keys
+AllowUsers solonzafiropoulos1
+ListenAddress MAC_TAILSCALE_IP
