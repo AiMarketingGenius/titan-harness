@@ -111,7 +111,7 @@ EOF'
 
 ## STEP 4 — Phone-theft revocation runbook
 
-A short runbook lives at [`plans/PHONE_THEFT_REVOCATION_RUNBOOK.md`](../../plans/PHONE_THEFT_REVOCATION_RUNBOOK.md) describing instant credential revocation if the iPhone is lost/stolen. **Read it once + bookmark in 1Password.**
+A short runbook lives at [`plans/DR_PHONE_THEFT_REVOCATION_RUNBOOK.md`](../../plans/DR_PHONE_THEFT_REVOCATION_RUNBOOK.md) describing instant credential revocation if the iPhone is lost/stolen. **Read it once + bookmark in 1Password.**
 
 Critical: when adding the iPhone to Tailscale, use a **device-specific ephemeral auth key** so revoking the device instantly terminates all Tailscale connections from it.
 
