@@ -444,6 +444,42 @@ Each drill must:
 3. Generate a post-drill artifact in `plans/deployments/DRILL_<class>_<date>.md`.
 4. Identify at least one improvement opportunity (doctrine drift, tooling gap, runbook ambiguity).
 
+### J.4 Composite-failure drills (simultaneous sister-failure scenarios)
+
+Standard drills test each class in isolation. Real disasters often compose: "Cloudflare outage during a primary-down event" is a different beast from either one alone. This doctrine commits to three composite drills:
+
+| Composite drill | Scenario | Runbook composition | Cadence | Script |
+|---|---|---|---|---|
+| **D1 + Cloudflare-dead** | Full cold-boot AND Cloudflare DNS/LB unreachable | §E cold-boot + `plans/deployments/DNS_FAILBACK_RUNBOOK.md` DNSimple failover | Quarterly | `bin/drill-d1-cloudflare-dead.sh` |
+| **D4 + R2-dead** | Data-layer catastrophic loss AND R2 unreachable for reading paper-key-encrypted backup | §E with tertiary 1Password vault path as SoT for both keys + data bundle | Annual | `bin/drill-d4-r2-dead.sh` |
+| **D1 + Operator-slow-response** | Full cold-boot declared but operator is delayed by 2 hours (simulates jet-lag, phone-dead, etc.) | §E executed by Titan autonomously through Step 4, held at Step 5 (credential-restore requires paper-key) | Quarterly | `bin/drill-d1-operator-delayed.sh` |
+
+Each composite drill produces `DRILL_COMPOSITE_<name>_<date>.md`. Composite drill failure is a higher-weight incident in the learning loop than single-class drill failure — composite drills catch interaction bugs that single-class drills miss.
+
+### J.5 D6 (operator-incapacitation) drill
+
+Annual: Solon pre-arranges a 48-hour unavailability window. Titan + Aristotle coordinate via `#titan-aristotle` and `#titan-nudge` channels to:
+
+1. Handle any SEV-2+ incident that arises (warm-lane runbook §F is executable by Titan; full D1 is NOT — hard boundary).
+2. Maintain client communications via Aristotle-drafted templates routed through pre-authorized auto-send for continuity-class messages only.
+3. Log all actions to MCP with tag `d6_drill` for post-drill review.
+
+Drill output: `DRILL_D6_<date>.md` documenting every decision Titan made without Solon in the loop, and how those decisions compare with Solon's retrospective judgment.
+
+### J.6 Paper-key restore drill (D4 substrate validation)
+
+Annual (November): full paper-key restore cycle on staging VPS.
+
+1. Operator retrieves paper-key from physical safe.
+2. Operator retrieves encrypted backup bundle from 1Password vault.
+3. Executes `age --decrypt --identity <key_file> <bundle>` on staging.
+4. Validates env-file bundle expands to the full `/etc/amg/*.env` set.
+5. Tests: start a minimum-viable LiteLLM + MCP stack on staging using restored credentials.
+6. Cleanup: securely shred decrypted bundle + any temp artifacts.
+7. Output: `DRILL_D4_PAPER_KEY_<YYYY>.md` with elapsed time measurements per step.
+
+Paper-key drill is the substrate confidence check for D4 class. Without a successful annual paper-key drill, D4 RPO is effectively undefined.
+
 ---
 
 ## Section K — Rollback Primitives (Atomic Per-Step Revert) {#section-k}
@@ -525,9 +561,35 @@ D1 events blow the error budget; this doctrine's exit triggers UPTIME's Lockdown
 
 Gate #4 policy protects all lanes, including the fresh-provisioned replacement primary in §E.2.1-8. Installing Gate #4 + attestations is part of Step 6 (before DNS cutover).
 
-### M.6 Operator incapacitation (D6 — referenced)
+### M.6 Operator incapacitation (D6 — specific handoff runbook)
 
-If Solon is unavailable for > 72 hours during an active DR, the runbook becomes: Titan + Aristotle coordinate to bring up the warm-lane (§F), then post-DR review is deferred until operator returns. Full D1 runbooks cannot execute without Solon because they require paper-key + 1Password access. This is an acknowledged gap; mitigation is the geographic + time-zone redundancy of the secondary lane reducing the probability that D1 happens during an operator-unavailable window.
+D6 is a continuity risk, not a technical disaster. Runbook at `plans/deployments/HANDOFF_OPERATOR_D6_RUNBOOK.md` (staged) defines:
+
+**Titan's autonomous authority during D6:**
+- Execute §F warm-lane runbook in full (no operator input required once secondary is healthy).
+- Execute §I F0/F1/F2 service recovery in full.
+- Route any Hard Limit decision through Aristotle as secondary authority (per CLAUDE.md §15 Hard Limits).
+- Delay §E cold-boot execution until operator returns (paper-key + 1Password require physical operator presence; hard block).
+- Delay §G credential rotation unless compromise is actively in-progress (then rotate suspect credentials only, flag scope for operator review on return).
+
+**Aristotle's authority during D6:**
+- Approve Hard Limit exceptions that Titan escalates (client-comms tone, contract-critical incident acknowledgement, legal-adjacent questions).
+- Draft + send client comms using pre-authorized templates from `plans/templates/DR_COMMS_*.md`.
+- Advise Titan on incident classification when ambiguous.
+- Cannot: rotate credentials, execute §E, authorize new infrastructure spend > $100.
+
+**Operator return protocol:**
+- Within 4 hours of operator returning, Titan generates `plans/deployments/D6_HANDBACK_<date>.md` summarizing every decision made + every incident encountered + every client comm sent during the window.
+- Operator reviews + explicitly accepts or reverts each decision.
+- Reverts generate a sub-incident in RESILIENCE-01's learning loop with tag `d6_operator_disagreement`.
+
+**Communication channels during D6:**
+- Titan → Aristotle via `#titan-aristotle` Slack.
+- Titan → Solon via Slack DM (asynchronous; operator may be off-grid).
+- Aristotle → clients via pre-authorized auto-send for continuity-class comms only.
+- No public-channel posts without Aristotle's explicit "aristotle-approved" flag in the comms.
+
+D6 drill per §J.5 validates this pipeline annually.
 
 ---
 
