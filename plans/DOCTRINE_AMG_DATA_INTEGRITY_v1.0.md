@@ -407,6 +407,41 @@ Each file is subject to the drill cadence from §F.1.
 
 Every runbook has a `<!-- last-drill-pass: YYYY-MM-DD -->` marker at the top. Runbooks whose marker is older than their expected drill cadence + grace period (e.g. weekly drill + 2 weeks grace = stale at 3 weeks) trigger a `#titan-nudge` Slack nudge.
 
+### K.4 Atomic rollback primitives (per-asset revert-to-last-known-good)
+
+Every restore carries the risk that the staging validation is incomplete and production cutover introduces a regression. For each asset class, this doctrine defines the atomic revert-to-last-known-good operation:
+
+| Asset | Rollback primitive | One-line revert command | Max rollback window |
+|---|---|---|---|
+| Postgres (full) | restic snapshot prior to current restore | `restic -r $RESTIC_REPO restore <prev-snapshot-id> --target /var/lib/postgresql/ --force && systemctl restart postgresql` | 30 days (restic retention per §E.4) |
+| Postgres (point-in-time) | WAL replay to pre-cutover LSN | `pg_ctl promote -D /var/lib/postgresql/ -o "--recovery-target-lsn=<prev_lsn>"` | 7 days (Supabase WAL retention) |
+| MCP memory | restic snapshot prior to restore + MCP restart | `restic -r r2://amg-backups/restic-mcp/ restore <prev-snapshot-id> --target /var/lib/mcp/ && systemctl restart mcp-server` | 30 days |
+| Claude memory files | git revert OR rsync from prior local snapshot | `git -C ~/.claude/.../memory/ revert --no-edit <cutover-commit>` | as long as git history (months) |
+| Env files | restic + systemd reload | `restic -r r2://amg-backups/restic-env-files/ restore <prev-snapshot-id> --target /etc/amg/ && for svc in amg-*; do systemctl reload $svc; done` | 30 days |
+| R2 object | version-history restore via R2 API | `aws s3api restore-object --bucket amg-client-deliverables --key <path> --version-id <prev-version>` | 30 days (R2 versioning lifecycle) |
+| titan-harness git | `git reset --hard <prev-sha>` on all 3 mirrors | `bin/harness-rollback.sh --target <sha>` (existing per CORE_CONTRACT §0.6.3) | as long as git history |
+
+**Rollback precondition:** the prior-snapshot checksum triplet (R2 + Supabase + local) MUST match before any rollback. Rolling back to a tampered snapshot compounds the incident.
+
+**Rollback logging:** every rollback writes MCP `log_decision` with tag `atomic_rollback`, `pre_cutover_sha`, `rollback_target_sha`, `operator`, `reason`. Non-negotiable.
+
+**Rollback drill:** every quarterly drill (§F.1) includes a rollback-after-cutover step: restore into staging, promote to production, then IMMEDIATELY roll back, then re-promote. This proves the rollback path works under the same conditions as a real emergency.
+
+### K.5 Chaos-drill integration with rollback
+
+The quarterly chaos drill (§F.4) now includes a corruption-into-production rollback test:
+
+1. Inject 1-bit corruption into a non-critical asset in R2 (per §F.4).
+2. Wait for §D.4 continuous audit to detect (measure detection time).
+3. Trigger the restore runbook.
+4. Promote restored asset to production.
+5. Immediately execute the §K.4 atomic rollback to prior snapshot.
+6. Verify rollback succeeded via checksum triplet.
+7. Re-promote the restored asset.
+8. Original (corrupted) snapshot remains in restic as evidence for post-mortem.
+
+This drill shape proves that rollback is not theoretical — it is exercised on the same cadence as the restore path.
+
 ---
 
 ## Section L — Tamper Detection + Response {#section-l}
@@ -469,9 +504,28 @@ Full-region disaster recovery uses this doctrine's backups + restore runbooks as
 
 ENFORCEMENT-01's Gate #4 protects against the credentials-compromise class that could tamper with backup integrity. Rotation runbooks here feed audit records there.
 
-### M.6 DR-AMG-SECURITY-01 (commissioned)
+### M.6 DR-AMG-SECURITY-01 (commissioned) — strict scope boundary
 
-Security doctrine owns encryption-at-rest validation, key management, and access-control policies. This doctrine assumes those guarantees and focuses on integrity given them.
+**Explicit scope boundary:** this doctrine does NOT cover:
+- Encryption-at-rest validation (key rotation cadence, algorithm selection, HSM strategy) — **SECURITY-01 §4**.
+- Access-control policy for R2 buckets, Supabase RLS, Postgres role hierarchy — **SECURITY-01 §5**.
+- TLS certificate lifecycle and certificate-transparency monitoring — **SECURITY-01 §3**.
+- Penetration-test cadence, vulnerability scanning, CVE response — **SECURITY-01 §7**.
+- Secrets-rotation schedule for anything beyond the rotation-validation step of §J.2 of THIS doctrine — **SECURITY-01 §6**.
+
+This doctrine ASSUMES SECURITY-01 guarantees those primitives hold. If a SECURITY-01 guarantee fails (e.g. encryption key leaked), data-integrity incident response here still fires but does NOT attempt to remediate the underlying security primitive — that goes back to SECURITY-01.
+
+**What this doctrine owns exclusively:**
+- sha256 checksums of backup artifacts at rest (integrity, not confidentiality).
+- Restore-drill schedule and runbook execution.
+- RPO / RTO commitments per asset tier.
+- Silent-corruption detection via audit loop.
+- Write-path integrity (outbox pattern + atomic writes + idempotency).
+- Tamper detection triage + scope determination (§L.3); remediation hands off to SECURITY-01 once scope is clear.
+
+**Shared / jointly-owned items (joint-review quarterly):**
+- Credential-backup tiering (this doc §J classifies; SECURITY-01 governs which credentials exist).
+- Backup-credential rotation (this doc tests via §J.2; SECURITY-01 schedules per §6).
 
 ---
 
