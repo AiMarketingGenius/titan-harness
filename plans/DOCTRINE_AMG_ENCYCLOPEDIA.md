@@ -1,8 +1,8 @@
 # AMG ENCYCLOPEDIA — FULL SYSTEM INVENTORY
 
 **Prepared for:** Solon Zafiropoulos, Founder & Sole Operator
-**Version:** v1.3 (living document — surgical updates only)
-**Updated:** 2026-04-15 (post overnight Titan queue burndown + pre-Hetzner doctrine chain documentation — AIMG live, SECRETS-01 Phase A done, CT-0415-05 P1 hardened LIVE + P3 staged + P2 smoke-tested, Layer-4 v2 staged for sudo install, 4-doctrine adjudication chain specced with grok_review tool + Approval Broker + #titan-nudge queued, Hetzner 2× CX32 hard-gated on chain completion)
+**Version:** v1.5 (living document — surgical updates only)
+**Updated:** 2026-04-15 (post 4-doctrine canonical ship + Perplexity DR valuation integration. v1.5 deltas vs v1.4: §17 + §16 + §11A.11 cross-ref to §19; renumbered prior §18-EXTERNAL-VALUATION duplicate to §19; v1.4 prior-state preserved as `git show v1.4-anchor:plans/DOCTRINE_AMG_ENCYCLOPEDIA.md`. v1.4 was: post overnight Titan queue burndown + pre-Hetzner doctrine chain — AIMG live, SECRETS-01 Phase A done, CT-0415-05 P1 hardened LIVE + P3 staged + P2 smoke-tested, Layer-4 v2 staged for sudo install, 4-doctrine adjudication chain specced with grok_review tool + Approval Broker + #titan-nudge queued, Hetzner 2× CX32 hard-gated on chain completion)
 **Purpose:** Investor-grade comprehensive documentation of everything built, in queue, and on roadmap under the AMG umbrella
 **Classification:** INTERNAL — contains trade secret tool names not authorized for client-facing use
 **Instructions to reviewer (Perplexity):** Analyze this document to assess (a) total build cost if commissioned to a consultancy, (b) replacement cost of rebuilding from scratch, (c) Solon's market value as a Senior AI Engineer / AI Systems Architect / Visionary Founder
@@ -974,10 +974,10 @@ Original estimate was 1–2 weeks for Phase 1. Solon's pushback corrected the fr
 
 | Stage | Atlas valuation | Why |
 |---|---|---|
-| **Today** (unfinished, not yet revenue-validated as a product) | **$60K-$120K infrastructure value** | Architecture exists, doctrines shipped, internal-use proven, but no external customer has yet bought Atlas-as-product; valuation is rebuild cost / talent replacement cost only |
+| **Today** (unfinished, not yet revenue-validated as a product) | **$60K-$120K** internal → **$120K-$200K** analyst-corrected (v1.5, see §19) | Internal underpriced the doctrine + harness layer per 2026-04-15 Perplexity DR. Analyst floor reflects accumulated reliability-doctrine + harness-layer market value that internal estimate omitted. |
 | **Phase 1 complete** (~7-10 days from 2026-04-15) | **$120K-$250K** | Track 2 first calls scheduled, Track 3 productization staged; valuation now reflects near-term revenue probability + first proof-of-concept consulting deals priced |
 | **Phase 2 mid** (~30-60 days) | **$250K-$500K** | First consulting contract closed at $25K-$100K; pipeline visible; Track 3 apps in beta with paying users |
-| **Phase 3 mature** (6-12 months) | **$500K-$1M+** | Multiple recurring consulting clients + 2-3 productized verticals + Atlas Template Export deals; valuation no longer "rebuild cost" but "discounted cashflow + multiple expansion on AI infrastructure category comps" |
+| **Phase 3 mature** (6-12 months) | **$500K-$1M+** founder-mode / **$1.8M-$4.5M** strategic-buyer (v1.5, see §19) | Multiple recurring consulting clients + 2-3 productized verticals + Atlas Template Export deals. Founder-mode ceiling validated by 2026-04-15 analyst pass; strategic-buyer ceiling extended to $1.8M-$4.5M at 10-15× ARR multiples paid for AI-native assets in 2026 (PE roll-ups 3-6× ARR, marketing-services holding cos 6-12× ARR per WPP Elevate28 thesis §16, enterprise SaaS roll-ups 8-15× ARR). |
 
 Same asset, different points of maturity. Both numbers are correct — they answer different questions ("what would it cost to rebuild?" vs "what does the market pay for it?").
 
@@ -1176,6 +1176,8 @@ AMG's architecture and business model intentionally mirror patterns shipped by A
 | System-level managed-settings | `/Library/Application Support/ClaudeCode/managed-settings.json` (Anthropic doc) | Layer-4 v2 staged at config/ + bin/install-claude-managed-settings.sh |
 | Fast mode / streaming defaults | Latency-optimized inference path | TITAN_FAST_MODE=1 default-on, sourced before claude alias |
 
+**v1.5 acquirer-thesis insertion (2026-04-15 Perplexity DR finding):** the sharpest strategic-acquirer fit — independently surfaced by analyst pass per §19 Part A — is **WPP (Elevate28 initiative)**, the holding company explicitly building in-house exactly the agentic-marketing-platform AMG has shipped solo. Omnicom + Publicis are tied secondary candidates with comparable AI-infrastructure acquisition posture. Multiples in scope: 6–12× ARR for marketing-services holding companies; the WPP angle is the "acquire-over-build" decision they're being forced to make. See §19 Part A for full acquirer ranking, multiples per category, and the strategic-buyer ceiling extension to $1.8M–$4.5M (Phase 3 mature) that this thesis unlocks.
+
 ### 16.2 Business-Model Parallels (the "factory that builds factories" framing)
 
 This is the deeper match — and the one Solon arrived at independently in conversations with Claude.ai through April 2026.
@@ -1285,7 +1287,9 @@ Breakdown by major component if commissioned to a senior-tier AI consultancy (Bi
 | Chrome extension (AIMG v0.1 + tier routing + QE) | $30K–$60K | $10K–$25K |
 | 16+ Claude projects + KB architecture | $50K–$100K | $20K–$40K |
 | Admin portal + 4 dashboards (mobile/desktop/orb/health) | $40K–$80K | $15K–$30K |
-| **SUBTOTAL — BUILD** | **$705K–$1.46M** | **$260K–$525K** |
+| **SUBTOTAL — BUILD (internal)** | **$705K–$1.46M** | **$260K–$525K** |
+| **SUBTOTAL — BUILD (analyst-calibrated, 2026-04-15 DR)** — *see §19 for full methodology* | **$865K–$1.54M** | **$285K–$556K** |
+| **SUBTOTAL — BUILD (offshore + nearshore, analyst, all-in)** — *new in v1.5* | **$130K–$260K** (labor $89K–$180K + US arch oversight) | n/a (single tier) |
 
 ### 17.2 Annual Operating Cost if Outsourced
 
@@ -1371,7 +1375,7 @@ The AMG umbrella is simultaneously:
 
 ---
 
-## §18. EXTERNAL VALUATION — PERPLEXITY DEEP RESEARCH (2026-04-15)
+## 19. EXTERNAL VALUATION — PERPLEXITY DEEP RESEARCH (2026-04-15)
 
 **Canonical companion:** [`plans/DOCTRINE_AMG_VALUATION_DR_2026-04-15.md`](plans/DOCTRINE_AMG_VALUATION_DR_2026-04-15.md) (564-line Integrated Replacement-Cost Valuation & Secondary AI Platform Assessment, delivered by Perplexity Deep Research, Sonar Pro tier with extended thinking). Co-canonical with `DOCTRINE_AMG_ENCYCLOPEDIA` (this file) and `DOCTRINE_AMG_CAPABILITIES_SPEC`. Anchor file; treat as authoritative external analyst grade against internal estimates.
 
