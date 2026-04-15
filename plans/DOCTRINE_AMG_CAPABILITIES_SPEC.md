@@ -394,6 +394,31 @@ Copy this prompt verbatim into Perplexity Deep Research (Sonar Pro tier with ext
 
 ---
 
+## 15. EXTERNAL-ANALYST VALUATION PASS (2026-04-15)
+
+The internal replacement-cost estimates in Section 9 have been independently reviewed by a Perplexity Deep Research pass (Sonar Pro tier + extended thinking) against this spec sheet. Key analyst-calibrated corrections (HIGH confidence per the DR's own confidence flagging):
+
+| Metric | Internal (§9) | Analyst-calibrated | Direction |
+|---|---|---|---|
+| Big-4 total replacement-build cost | $705K – $1.46M | **$865K – $1.54M** | Internal slightly conservative at floor; the adversarial-review infrastructure, mobile operator approval broker, and secondary-AI adjudication protocol add complexity that Big-4 teams price higher |
+| Boutique build cost | $260K – $525K | $285K – $556K | In-range, validated |
+| Offshore build cost | (not estimated) | $130K – $260K all-in (labor $89K – $180K + US architecture oversight) | New data point |
+| Annual institutional operating cost | $700K / yr | $700K / yr | Validated |
+| Annual boutique operating cost | $330K / yr | $330K / yr (fragile against growth) | Validated with caveat |
+| Founder general rate | $300 – $500/hr | $300 – $500/hr | Validated |
+| Founder niche-premium rate | $600 – $1,000/hr | $600 – $800/hr defensible now; $1,000/hr achievable post-Phase 2 with named enterprise refs or published work | Refined |
+| Today floor (Stage 1 in §10) | $60K – $120K | **$120K – $200K** | Corrected upward — internal underprices the doctrine + harness layer |
+| Phase 3 mature ceiling (founder-mode) | $500K – $1M+ | $500K – $1M+ | Validated |
+| Phase 3 mature ceiling (strategic-buyer) | (not in §10) | **$1.8M – $4.5M** at 10 – 15× ARR multiples for AI-native assets in 2026 | New — strategic-acquisition thesis extends ceiling meaningfully |
+
+**Strategic acquirer ranking (DR, priority order):** (1) PE-rolled-up agency portfolios at 3 – 6× ARR; (2) marketing-services holding companies at 6 – 12× ARR (one named holding company has publicly announced building an "agentic marketing platform" in-house — acquire-over-build is the sharpest thesis); (3) enterprise SaaS roll-ups at 8 – 15× ARR.
+
+**Secondary-AI-platform ranking for active/active failover (DR, priority order):** (1) leading multi-modal frontier-model API with MCP tool protocol (March 2026) + 1M context + multi-tier routing; (2) the incumbent structured-output leader (best schema adherence, easiest integration, native adversarial-review primitive); (3) a major hyperscaler's multi-model gateway (operationally strongest for shops already on that hyperscaler, but HIGH integration complexity for this architecture and no native voice layer). One agentic-adjacent provider was flagged as a monitoring candidate, not production-ready for this workload profile.
+
+**Governance:** this section is co-canonical with the Section 9 internal estimates. When analyst-calibrated numbers differ from internal, analyst numbers supersede until superseded by a later-dated analyst pass. Next pass targeted for quarterly cadence (~2026-07-15) to re-calibrate once the consulting pipeline is visible.
+
+---
+
 ## 14. INTERNAL TERM CLARIFICATION
 
 For the founder's reference: the industry term Solon was searching for is most commonly **AI systems integrator** (commonly abbreviated "AI integrator" in casual usage). Adjacent and partially-overlapping terms used by different segments of the market include:

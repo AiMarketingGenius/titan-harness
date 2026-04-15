@@ -1371,6 +1371,71 @@ The AMG umbrella is simultaneously:
 
 ---
 
+## §18. EXTERNAL VALUATION — PERPLEXITY DEEP RESEARCH (2026-04-15)
+
+**Canonical companion:** [`plans/DOCTRINE_AMG_VALUATION_DR_2026-04-15.md`](plans/DOCTRINE_AMG_VALUATION_DR_2026-04-15.md) (564-line Integrated Replacement-Cost Valuation & Secondary AI Platform Assessment, delivered by Perplexity Deep Research, Sonar Pro tier with extended thinking). Co-canonical with `DOCTRINE_AMG_ENCYCLOPEDIA` (this file) and `DOCTRINE_AMG_CAPABILITIES_SPEC`. Anchor file; treat as authoritative external analyst grade against internal estimates.
+
+### 18.1 Part A — Replacement-cost + valuation corrections to internal estimates
+
+The analyst-calibrated numbers supersede the internal Section 9 estimates where they conflict. Key corrections:
+
+| Metric | Internal estimate (Encyclopedia / Spec Sheet) | Analyst-calibrated (DR 2026-04-15) | Delta |
+|---|---|---|---|
+| **Big-4 replacement-build cost** | $705K – $1.46M | $865K – $1.54M | +$160K floor, +$80K ceiling (internal was slightly conservative) |
+| **Boutique build cost** | $260K – $525K | $285K – $556K | validated, essentially in-range |
+| **Offshore build cost** | (not formally estimated) | $130K – $260K all-in (labor alone $89K – $180K; requires US architecture oversight) | new data point |
+| **Annual institutional operating cost** | $700K / yr (Big-4) | $700K / yr validated as correct benchmark | ✓ validated |
+| **Annual boutique operating cost** | $330K / yr | $330K / yr achievable at 1.5–2.0 FTE lean team but fragile against growth | ✓ validated with caveat |
+| **Solon general hourly rate** | $300–$500/hr | $300–$500/hr fully validated by 2026 market data | ✓ validated |
+| **Solon niche premium (guardrail + memory)** | $600–$1,000/hr | $600–$800/hr defensible NOW with production reference; $1,000/hr ceiling requires named enterprise references or published work (achievable post-Phase 2) | refined — $1K ceiling is future, not current |
+| **Today floor valuation** | $60K – $120K | **$120K – $200K** — internal underprices the doctrine + harness layer | **+$60K to +$80K correction upward** |
+| **Phase 1 complete (7–10 days)** | $120K – $250K | $120K – $250K validated | ✓ validated |
+| **Phase 2 mid (30–60 days)** | $250K – $500K | $250K – $500K validated | ✓ validated |
+| **Phase 3 mature (6–12 months) — founder-mode ceiling** | $500K – $1M+ | $500K – $1M+ validated as founder-mode ceiling | ✓ validated |
+| **Phase 3 mature — STRATEGIC-BUYER ceiling** | (not in internal estimate) | **$1.8M – $4.5M** at 10–15× ARR multiples paid for AI-native assets in 2026 | new data — strategic-acquisition thesis extends ceiling meaningfully |
+
+### 18.2 Part A — Acquirer landscape (new in DR)
+
+Three priority acquirer categories identified by the DR, in order:
+
+1. **PE-rolled-up agency portfolios** — 3–6× ARR multiples. Roll-up consolidators buying agencies that augment their existing portfolio with AI fulfillment capability.
+2. **Marketing-services holding companies** — 6–12× ARR. **WPP Elevate28** is named as explicitly building what AMG has in their "agentic marketing platform" initiative. WPP / Omnicom / Publicis have current AI-infrastructure acquisition posture, per 2026 trade press cited in DR.
+3. **Enterprise SaaS roll-ups** — 8–15× ARR. Most speculative but highest multiples.
+
+**Strategic thesis (DR finding):** the WPP / Omnicom / Publicis "agentic marketing platform" angle is the sharpest strategic fit — they're building in-house exactly what AMG has already built solo. At the right moment, that's an acquire-over-build decision on their part. This is the acquirer narrative most worth cultivating between Phase 1 and Phase 2.
+
+### 18.3 Part B — Secondary AI Platform ranking (for redundancy / failover onboarding)
+
+Per the DR, the three strongest candidates for active/active AI infrastructure redundancy:
+
+| Rank | Platform | Strongest reason | Largest unresolved risk |
+|---|---|---|---|
+| **#1** | **Google Gemini 2.5 Pro (API)** | MCP tool protocol (March 2026 release), 1M token context, Flash / Pro / Ultra model-tier routing, $1.25 – $10/M token pricing. Stable release, production-ready. | Explicitly NOT 3.x preview series — 3.x has no DRZ and 41-second TTFT in preview. Stay on 2.5 Pro. |
+| **#2** | **OpenAI GPT-4.1 / GPT-5** | Best structured-output reliability (100% schema adherence), easiest integration, native adversarial-review primitive. | Safety mode on agentic tool use needs enterprise calibration. |
+| **#3** | **Amazon Bedrock** | Strongest operationally for AWS-native shops; multi-model gateway. | HIGH integration complexity for AMG's non-AWS architecture; no native voice-AI layer means voice workloads cannot fail over to Bedrock. |
+
+**Not recommended (currently):** xAI Grok — flagged as a monitoring candidate, not production-ready for this workload profile per the DR. Reason: agentic primitive gaps at the workload's required concurrency + MCP-protocol maturity vs. the #1 pick. This does NOT conflict with our `grok_review` tool using Grok as the adversarial reviewer channel (a different, narrow use-case); Grok as a failover general-inference provider is the case being deferred.
+
+### 18.4 NDA-scoped questions flagged by the DR
+
+Five questions the analyst noted would materially sharpen confidence if scoped under NDA:
+
+1. Client vertical mix + churn rate (sharpens ARR multiple + acquirer thesis).
+2. Actual inference mix (Claude vs. OpenAI vs. Perplexity vs. Grok — % of calls) for migration-risk pricing.
+3. Current / target gross-margin split across the 3 product lines.
+4. Proprietary IP status of the 4-layer hallucination defense (patentable? publishable?).
+5. Founder runway + capacity to absorb a 12-month acquirer integration period.
+
+These are deliberately NOT answered in the public DR; they're staged for a future NDA-scoped follow-up.
+
+### 18.5 Doctrine authority + revision policy
+
+`DOCTRINE_AMG_VALUATION_DR_2026-04-15.md` is co-canonical with Encyclopedia and Capabilities Spec for valuation and acquirer-thesis material. When internal numbers (Section 9, Section 11A.11) conflict with DR 2026-04-15, **DR supersedes** until superseded by a later-dated analyst pass. Internal estimates are updated to reference the DR rather than overwritten, so the valuation arc history is preserved.
+
+Next analyst pass targeted for **2026-07-15** (quarterly cadence) to re-test the Phase 2 numbers once consulting pipeline is visible.
+
+---
+
 ## APPENDIX A — KEY INFRASTRUCTURE VALUES
 
 ```
