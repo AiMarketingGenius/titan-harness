@@ -52,6 +52,28 @@ if [[ -n "$KEYWORDS" ]]; then
   printf '%s' "$KEYWORDS" | head -30
 fi
 
+# 2.5 v1.4: STRUCTURAL-class writes require fresh escape-hatch preflight.
+# This ensures lockout-prevention posture is valid BEFORE any doctrine mutation.
+# Skippable only via AMG_CONFLICT_CHECK_SKIP_ESCAPE_HATCH=1 (documented opt-out
+# for offline work — logged to last-directive.json for audit).
+if [[ "$CLASS" == "STRUCTURAL" ]] && [[ "${AMG_CONFLICT_CHECK_SKIP_ESCAPE_HATCH:-0}" != "1" ]]; then
+  if [[ -x "$HARNESS_DIR/bin/escape-hatch-verify.sh" ]]; then
+    if ! "$HARNESS_DIR/bin/escape-hatch-verify.sh" --json >/tmp/eh-preflight.$$.json 2>/dev/null; then
+      if [[ "${AMG_CONFLICT_CHECK_ESCAPE_HATCH_ADVISORY:-1}" == "1" ]]; then
+        echo "[WARN] STRUCTURAL write: escape-hatch-verify RED (advisory mode — write allowed)."
+        echo "       To enforce block, set AMG_CONFLICT_CHECK_ESCAPE_HATCH_ADVISORY=0 in env."
+        echo "       Preflight output: /tmp/eh-preflight.$$.json"
+      else
+        echo "[BLOCK] STRUCTURAL write: escape-hatch-verify RED. Fix attestations or ack incident before proceeding." >&2
+        cat /tmp/eh-preflight.$$.json >&2 2>/dev/null || true
+        rm -f /tmp/eh-preflight.$$.json
+        exit 1
+      fi
+    fi
+    rm -f /tmp/eh-preflight.$$.json
+  fi
+fi
+
 # 3. Open-incidents gate — refuse if a CONFLICT incident is unresolved.
 INCIDENT_FILE="$HARNESS_DIR/.harness-state/open-incidents.json"
 if [[ -f "$INCIDENT_FILE" ]]; then
