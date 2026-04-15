@@ -283,7 +283,7 @@ To serve as a credible failover, a secondary platform must support:
 
 1. **Tool-use protocol** compatible with our existing memory + web-fetch + browser-control + file-system + bash tool surface
 2. **System prompt + standing rules injection** at session start (we currently inject ~20 prioritized rules per session)
-3. **Long-context retention** within a single session of at least 200K tokens (currently using 1M)
+3. **Long-context retention** within a single session of at least 200K tokens (current primary supports significantly more)
 4. **Streaming first-token latency** under 2 seconds for routine work
 5. **Adversarial review API** with structured grading output (or comparable evaluation hook)
 6. **Multi-tier model routing** (light / medium / heavy model classes routed by task type)
@@ -292,7 +292,7 @@ To serve as a credible failover, a secondary platform must support:
 9. **Persistent memory tooling** OR willingness to integrate with our existing memory layer via standard protocol
 10. **Permission / safety mode** that can be configured to suppress per-tool consent prompts on routine work while preserving human-gate operations
 
-Candidate platforms for evaluation (not endorsement; require empirical benchmarking against actual workloads): xAI / Grok platforms, Mistral / Codestral platforms, Google Gemini Code Assist, GitHub Copilot Enterprise, OpenAI ChatGPT Team / Enterprise + Codex, Cursor, Cody, Replit Agent.
+Examples of platforms typical for this evaluation (not endorsement; require empirical benchmarking against actual workloads): the major frontier-model providers and their developer-platform variants, plus the leading agentic-IDE and code-execution platforms in market today. The reviewer is requested to recommend the strongest 2-3 candidates for our specific workload profile.
 
 ### 11.3 Recommended failover architecture
 
@@ -330,49 +330,74 @@ A reviewer or secondary-platform team that needs additional detail to complete a
 
 ---
 
-## 13. SUGGESTED PROMPT FOR INDEPENDENT VALUATION REVIEW
+## 13. COMBINED PERPLEXITY DEEP RESEARCH PROMPT (BOTH QUESTIONS IN ONE SHOT)
 
-For Perplexity / Grok / external consultancy: copy the prompt below verbatim above the body of this document.
+Copy this prompt verbatim into Perplexity Deep Research (Sonar Pro tier with extended thinking) and attach the body of this spec sheet (Sections 1-12) as the source document.
 
-> **Brief:** I am submitting a capability spec sheet for an AI infrastructure stack built solo over approximately 12 months by a Boston-area founder with 17 years of digital marketing background. The stack is currently revenue-generating (~$7,298 MRR with > 90% margin) and supports three commercial product lines simultaneously.
+> **Brief.** I am submitting a trade-secret-scrubbed capability spec sheet for an AI infrastructure platform built solo over approximately 12 months by a Boston-area founder. The platform is production-deployed, revenue-generating (approximately $7,298 MRR with greater than 90% gross margin on subscription revenue), and supports three commercial product lines simultaneously: a managed AI marketing service for SMBs, an AI systems integration consulting practice with engagements ranging from $5,000 to $250,000+, and a cross-platform consumer browser extension subscription product. The capability spec sheet attached describes WHAT the platform does and at what scale, but intentionally omits WHAT specific vendors, tools, or platforms are used to deliver those capabilities (this is preserved as commercial trade secret).
 >
-> Assess:
+> I need you to perform two assessments in a single Deep Research run. Both are equally important and the deliverable is a single integrated report.
 >
-> 1. **Total replacement build cost.** What would a senior AI consultancy (Big-4 tier and boutique tier separately) charge to commission an equivalent stack from scratch? Itemize per major component.
+> ---
 >
-> 2. **Annual operating cost.** What headcount + infrastructure spend would an outsourced operator need to keep the stack running at the documented capacity ceilings + reliability doctrines?
+> ### PART A — INDEPENDENT REPLACEMENT-COST AND ASSET VALUATION
 >
-> 3. **Founder market valuation.** Given the founder built this solo over 12 months with approximately $10,000 cash outlay, validate or correct the internal estimate that the founder commands a senior AI architect market rate of $300-$500/hr (and a niche-expertise premium rate of $600-$1,000/hr for hallucination-guardrail and persistent-memory work).
+> Assess what it would cost to commission an equivalent platform from scratch, what it would cost to operate, and what the platform is worth as an asset at progressive maturity stages.
 >
-> 4. **Maturity-stage asset valuation.** Validate or correct the valuation arc: today's infrastructure-only value at $60-$120K, Phase 1 maturity at $120-$250K, Phase 2 mid at $250-$500K, Phase 3 mature at $500K-$1M+. State which valuation methodology you applied.
+> **A1. Total replacement build cost.** What would a senior AI systems integrator charge to commission an equivalent platform from scratch? Provide separate estimates for:
+> - Big-4 / Tier-1 global consultancies (Deloitte, Accenture, IBM, PwC, EY)
+> - Boutique AI consultancies (Boston / NYC / SF specialists, 10-50 person firms)
+> - Offshore + nearshore vendors (India + LATAM)
 >
-> 5. **Strategic positioning.** What is the strongest acquisition / strategic-investor case for this stack at each maturity stage? Who are the most likely buyers, and what multiples would they typically pay for an asset of this profile?
+> Itemize the build estimate by major capability component (memory layer, multi-agent orchestration, hallucination guardrail, workflow orchestration, browser automation, security hardening, reliability doctrines, harness layer, consumer browser extension, knowledge-base architecture, admin dashboards). Show low / mid / high range per component per integrator tier.
 >
-> Cite your sources. Note any places where you require additional detail to complete the assessment with confidence.
+> **A2. Annual operating cost.** What headcount and infrastructure spend would an outsourced operator need to keep the platform running at the documented capacity ceilings (Section 5) plus the reliability doctrines (Section 6)? Itemize: engineering FTEs, SRE / on-call FTE, customer-success FTE, monthly cloud + AI inference + tooling spend.
+>
+> **A3. Founder market valuation.** The internal estimate is that the founder commands a senior AI architect market rate of $300-$500/hr (Boston market), and a niche-expertise premium of $600-$1,000/hr for hallucination-guardrail and persistent-memory work specifically. Validate or correct this against current 2026 freelance + retainer + advisory rate data for senior AI architects with proven production deployments. State the methodology used.
+>
+> **A4. Maturity-stage asset valuation.** Validate or correct the four-stage valuation arc proposed in Section 10: today's infrastructure-only rebuild value at $60K-$120K → Phase 1 (7-10 days from snapshot date, sales engine + first consulting calls warm) at $120K-$250K → Phase 2 mid (30-60 days, first consulting contract closed) at $250K-$500K → Phase 3 mature (6-12 months, multiple consulting clients + 2-3 productized verticals + template-export deals) at $500K-$1M+. Specify which valuation methodology (DCF, comparable-transaction, replacement-cost, multiple-of-revenue, multiple-of-EBITDA) is most appropriate per stage and why.
+>
+> **A5. Strategic positioning + acquirer landscape.** What is the strongest acquisition or strategic-investor thesis for this platform at each maturity stage? Identify the 3-5 most likely acquirer categories (enterprise SaaS roll-ups, AI infrastructure players, marketing-services holding companies, agency-tech consolidators, PE-rolled-up agency portfolios). What multiples would each category typically pay for an asset of this profile in 2026?
+>
+> ---
+>
+> ### PART B — SECONDARY AI PLATFORM SELECTION FOR REDUNDANCY / FAILOVER
+>
+> Recommend the strongest 2-3 candidate AI platforms to onboard as an active/active or hot-standby redundancy partner against single-vendor outage risk on our primary AI inference provider. We need continuous warm-mode validation, not single-shot cold-start failover.
+>
+> **B1. Workload coverage assessment.** For each candidate platform, indicate which of the workloads in Section 11.1 the platform can fully absorb, partially absorb, or not absorb. Use the published 2026 capability documentation for each candidate.
+>
+> **B2. SLA realism.** For each candidate, state which of the SLAs in Section 11.1 the platform can credibly meet (cite published latency / uptime / context-window benchmarks). Where the platform falls short of our SLA, state the realistic alternative number we would have to accept.
+>
+> **B3. Capability gap report.** For each item in Section 11.2 (10 required capabilities of a viable secondary platform), indicate Yes / Partial / No per candidate. Provide brief detail on each Partial and No.
+>
+> **B4. Pricing model.** Provide an annual contract cost estimate per candidate, assuming we route 50% of our inference traffic to the secondary in active/active mode. Use 2026 published enterprise-tier pricing where available; flag where the candidate requires custom contract negotiation.
+>
+> **B5. Migration risk + integration complexity.** For each candidate, what is the integration complexity (low / medium / high) and what specific items from Section 11.4 are likely to fail the failover-readiness test? Recommend the minimum sequence of pre-deployment integration tests.
+>
+> **B6. Continuity guarantee.** Compare the candidates on contractual continuity guarantees: model deprecation policy, regional availability, data-residency options, planned-downtime SLA, force-majeure terms. Where a candidate has weaker continuity guarantees than our primary, flag it.
+>
+> **B7. Final recommendation.** Rank the top 3 candidates by overall fit for active/active deployment with our workload + SLA profile. State the single strongest reason for the #1 pick and the single largest unresolved risk.
+>
+> ---
+>
+> **Deliverable format.** A single integrated report with both Part A and Part B, structured with the exact sub-section identifiers above (A1-A5, B1-B7). Cite all sources. Where you require additional scoped detail under NDA to sharpen any answer, flag it explicitly with the specific question we would need to brief you on.
+>
+> **Confidence flags.** Mark each conclusion with one of: HIGH (multiple independent sources agree, current 2026 data), MEDIUM (single authoritative source or recent extrapolation), LOW (inference from older data or limited evidence base).
 
 ---
 
-## 14. SUGGESTED PROMPT FOR SECONDARY-AI ONBOARDING
+## 14. INTERNAL TERM CLARIFICATION
 
-For onboarding a second AI platform as redundancy: copy the prompt below verbatim above the body of this document, addressed to the secondary AI platform's enterprise-onboarding contact.
+For the founder's reference: the industry term Solon was searching for is most commonly **AI systems integrator** (commonly abbreviated "AI integrator" in casual usage). Adjacent and partially-overlapping terms used by different segments of the market include:
 
-> **Brief:** We operate a production AI infrastructure stack currently dependent on a single primary AI inference provider for our autonomous-operator and adversarial-review workloads. We are establishing active/active or hot-standby redundancy with a second AI provider to eliminate single-vendor downtime risk. This document describes the workloads we need a secondary platform to absorb, the SLAs we require, and the integration capabilities we need.
->
-> Please respond with:
->
-> 1. **Coverage statement.** Which of the workloads in Section 11.1 can your platform absorb today, partially absorb, or not absorb at all?
->
-> 2. **SLA confirmation.** Which of the SLAs in Section 11.1 can your platform meet with documentation? Where you cannot meet our SLA, state the realistic alternative number.
->
-> 3. **Capability gap report.** For each item in Section 11.2, indicate Yes / Partial / No, with details on Partial and No.
->
-> 4. **Pricing.** Annual contract cost for the workload volume in Section 11.1, assuming we route 50% of our inference traffic to your platform (active/active mode).
->
-> 5. **Migration plan.** What is the minimum sequence of integration tests required before we can declare your platform failover-ready? Include the items from Section 11.4.
->
-> 6. **Continuity guarantee.** What contractual or technical guarantees do you provide that our workloads will not be interrupted by your own platform's outages, model deprecations, or policy changes during the term?
->
-> Our intent is to maintain the primary provider as default for routine work and route 10-50% of inference to your platform continuously to keep failover paths warm. Single-shot failover (cold-start when primary dies) is unacceptable; we require continuous warm-mode validation.
+- **AI consultancy** (broader, often retainer-based advisory)
+- **AI implementation partner** (more vendor-aligned, e.g., "Microsoft AI implementation partner")
+- **Agentic AI consultancy** (newer term, 2025-2026 vintage, specifically for multi-agent systems)
+- **AI engineering studio** (smaller / boutique / project-shop framing)
+- **AI development house** (closest analog to "software development house" — full lifecycle build + maintain)
+
+For Perplexity's response in Part A, the most useful term to anchor pricing benchmarks is **AI systems integrator** broken into Big-4 / boutique / offshore tiers as in the prompt above.
 
 ---
 
