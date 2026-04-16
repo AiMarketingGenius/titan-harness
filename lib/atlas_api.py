@@ -848,18 +848,28 @@ async def _card_client_snapshot(slug: str, name: str) -> dict:
 
     if facts:
         rows = []
+        # Tolerant priority list — each entry is a LIST of (category, key) alternatives.
+        # First non-empty match wins. Handles multiple taxonomies in client_facts:
+        #   Levar uses `identity.company_name`; Shop UNIS uses `nap.business_name`.
         priority_keys = [
-            ("identity",  "company_name",              "Company"),
-            ("identity",  "primary_location",          "Location"),
-            ("identity",  "company_vertical",          "Vertical"),
-            ("identity",  "contact_name",              "Contact"),
-            ("business",  "annual_acquisition_volume_usd", "Volume/yr"),
-            ("comms",     "weekly_checkin_cadence",    "Cadence"),
-            ("contract",  "founding_member_status",    "Founding"),
-            ("comms",     "assigned_agents",           "Agents"),
+            ("Company",    [("identity","company_name"), ("nap","business_name")]),
+            ("Location",   [("identity","primary_location"), ("nap","location")]),
+            ("Website",    [("identity","primary_website"), ("nap","website")]),
+            ("Vertical",   [("identity","company_vertical"), ("operational","platform")]),
+            ("Contact",    [("identity","contact_name"), ("operational","primary_contact"), ("nap","email_cta")]),
+            ("Phone",      [("nap","phone")]),
+            ("Contract",   [("operational","contract")]),
+            ("Volume/yr",  [("business","annual_acquisition_volume_usd")]),
+            ("Cadence",    [("comms","weekly_checkin_cadence")]),
+            ("Founding",   [("contract","founding_member_status")]),
+            ("Agents",     [("comms","assigned_agents")]),
         ]
-        for cat, key, label in priority_keys:
-            v = facts.get((cat, key))
+        for label, candidates in priority_keys:
+            v = None
+            for cat, key in candidates:
+                if facts.get((cat, key)):
+                    v = facts[(cat, key)]
+                    break
             if v:
                 display = v if len(v) <= 80 else v[:77] + "…"
                 rows.append({"label": label, "value": display})
