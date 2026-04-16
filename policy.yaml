@@ -98,29 +98,64 @@ install_test:
   verification_timeout_seconds: 90
   cleanup_after_test: true
 
-# --- War Room (Phase G.3 — SHIPPED 2026-04-10, upgraded to A-grade floor) ---
-# The war room is the automated Titan ↔ Perplexity back-and-forth loop that
-# grades plans/designs/phase-closures until convergence. Runs synchronously
-# in-session (via perplexity_review MCP tool) AND from the autonomous
-# titan-queue-watcher daemon on the VPS (via lib/war_room.py direct API call).
+# --- Grader Stack v2 (SHIPPED 2026-04-16, supersedes Perplexity Sonar grader) ---
+# Tiered Gemini + GPT-4o mini backup grading per Perplexity DR + Solon's
+# grader-stack-canonical-v2 directive. Replaces the Perplexity-only grader
+# that ran up the $54 bill on Apr 15 (570 calls/day from runaway n8n loops).
 #
-# AMG QUALITY FLOOR (Solon directive 2026-04-10): every deliverable must
-# hit 9.4-9.5 out of 10, which maps to war-room grade A. B is a failure
-# and must be rewritten and re-graded. Only A is acceptable.
+# Mechanical enforcement via lib/cost_kill_switch.py + lib/grader.py.
+# The doctrine paragraph in CLAUDE.md §12 is now backed by code that
+# physically refuses calls when caps hit.
+grader_stack:
+  enabled: true
+  # Per-tier model routing
+  titan_primary: "gemini-2.5-flash"
+  titan_backup: "gpt-4o-mini"
+  titan_premium: "gemini-2.5-pro"     # security-critical / major-doctrine-ship only
+  aimg_subscriber: "gemini-2.5-flash-lite"
+  amg_starter: "gemini-2.5-flash-lite"
+  amg_growth: "gemini-2.5-flash"
+  amg_pro: "gemini-2.5-pro"            # elite reasoning — justifies $700 Pro upsell
+  # Hard daily cap across all graders combined (sum across vendors)
+  daily_cap_usd: 10.00
+  # Backup trigger — invokes backup model when primary returns:
+  backup_trigger_score_min: 8.6        # borderline scores (8.6-9.3)
+  backup_trigger_score_max: 9.3
+  backup_trigger_confidence_below: 0.7 # primary itself uncertain
+  # Scope discipline — what gets graded vs what's free
+  gradeable_scopes: ["code", "config", "doctrine", "deliverable"]
+  never_grade_scopes:
+    - "routine_ops"
+    - "ssh_diagnostic"
+    - "sysctl"
+    - "mirror_operation"
+    - "service_start_stop"
+    - "git_operation"
+    - "diagnostic"
+    - "wip_intermediate"
+    - "status_report"
+  # Output token ceiling — graders return JSON, not essays
+  output_token_ceiling: 500
+
+# --- War Room (LEGACY — rewired to call grader_stack 2026-04-16) ---
+# Prior Phase G.3 implementation called Perplexity sonar-pro directly.
+# Now routes through lib/grader.py for tiered Gemini grading + cost guards.
+# Kept for backward compatibility with existing call sites — preserves
+# the WarRoomSession/Round/GradeResult interface.
 war_room:
-  enabled: true                      # Phase G.3 shipped 2026-04-10
-  model: "sonar-pro"                 # Perplexity model — see api.perplexity.ai/docs
+  enabled: true                      # Phase G.3 shipped 2026-04-10, rewired 2026-04-16
+  model: "gemini-2.5-flash"          # via lib/grader.py — Perplexity Sonar deprecated
   min_acceptable_grade: "A"          # AMG 9.4/10 floor — A = 9.5-10, B = FAIL
   max_refinement_rounds: 5           # extra headroom to push past B → A
   log_table: "war_room_exchanges"
-  slack_channel: "#amg-war-room"
+  slack_channel: "#amg-war-room"     # SUSPENDED 2026-04-16 (Slack tokens neutered)
   auto_trigger_on:
     - "phase_completion"             # end of any Phase X.Y
     - "plan_finalization"            # before marking a plan "locked"
     - "architecture_decision"        # multi-option design calls
   require_passing_grade_before_lock: true
-  cost_ceiling_cents_per_exchange: 50   # $0.50/review — Sonnet reviser is pricier than Haiku
-  reviser_model: "claude-sonnet-4-6"    # upgraded from Haiku — need Sonnet-grade revisions to reach A
+  cost_ceiling_cents_per_exchange: 50   # $0.50/review — Gemini Flash is cheap, was Sonnet
+  reviser_model: "claude-sonnet-4-6"    # revisions still use Sonnet (separate from grading)
 
   # --- Slack-based Perplexity grading (2026-04-11 blocker mitigation) ---
   # When the direct Perplexity API runs out of quota (observed 2026-04-11),
