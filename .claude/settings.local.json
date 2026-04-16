@@ -27,7 +27,21 @@
       "Bash(launchctl unload:*)",
       "Bash(launchctl list:*)",
       "mcp__0f44c9ec-a530-47dc-a8b8-4db51c221197__update_sprint_state",
-      "mcp__21f70b31-b788-4500-bc02-233323093a83__search_files"
+      "mcp__21f70b31-b788-4500-bc02-233323093a83__search_files",
+      "mcp__Claude_in_Chrome__tabs_context_mcp",
+      "mcp__Claude_in_Chrome__navigate",
+      "mcp__Claude_in_Chrome__resize_window",
+      "mcp__Claude_in_Chrome__computer",
+      "mcp__Claude_in_Chrome__javascript_tool",
+      "mcp__0f44c9ec-a530-47dc-a8b8-4db51c221197__claim_task",
+      "mcp__0f44c9ec-a530-47dc-a8b8-4db51c221197__get_sprint_state",
+      "mcp__45c3b09d-1aea-4843-9256-fb5e962fc522__search_threads",
+      "mcp__45c3b09d-1aea-4843-9256-fb5e962fc522__get_thread",
+      "mcp__21f70b31-b788-4500-bc02-233323093a83__get_file_metadata",
+      "mcp__21f70b31-b788-4500-bc02-233323093a83__read_file_content",
+      "mcp__21f70b31-b788-4500-bc02-233323093a83__list_recent_files",
+      "mcp__21f70b31-b788-4500-bc02-233323093a83__download_file_content",
+      "mcp__Claude_in_Chrome__get_page_text"
     ]
   }
 }
