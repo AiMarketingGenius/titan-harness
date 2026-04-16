@@ -84,8 +84,12 @@ BACKUP_SCORE_MIN = 8.6
 BACKUP_SCORE_MAX = 9.3
 BACKUP_CONFIDENCE_BELOW = 0.7
 
-# Output token ceiling — graders return short JSON, not essays
-OUTPUT_TOKEN_CEILING = 500
+# Output token ceiling — graders return JSON, not essays. 500 was too tight
+# for Gemini Flash-Lite which is more verbose than Flash; truncated mid-string
+# on real-world configs. 1000 is a sweet spot — enough room for full schema
+# with reasonable evidence + reasoning, still constrains runaway output.
+# Cost impact: 2x output tokens worst case, ~$0.0004/call on Flash-Lite.
+OUTPUT_TOKEN_CEILING = 1000
 
 # Scopes that NEVER hit a grader, no matter what (saves money + prevents loops)
 NEVER_GRADE = {

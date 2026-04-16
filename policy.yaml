@@ -134,8 +134,10 @@ grader_stack:
     - "diagnostic"
     - "wip_intermediate"
     - "status_report"
-  # Output token ceiling — graders return JSON, not essays
-  output_token_ceiling: 500
+  # Output token ceiling — graders return JSON, not essays.
+  # 500 was too tight for Flash-Lite verbose mode (truncated mid-string on
+  # real configs). 1000 = full schema room with reasonable evidence/reasoning.
+  output_token_ceiling: 1000
 
 # --- War Room (LEGACY — rewired to call grader_stack 2026-04-16) ---
 # Prior Phase G.3 implementation called Perplexity sonar-pro directly.
