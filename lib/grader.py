@@ -481,8 +481,12 @@ def gradeArtifact(
     parsed, cost_primary = _dispatch_call(
         primary_vendor, primary_model, content, artifact_type, context, keys
     )
-    ks_primary.record_call(content, cost_primary,
-                           result=parsed if parsed else {'failed': True})
+    # NOTE: do NOT cache failures (would poison subsequent identical-input
+    # calls). record_call IS safe for cost tracking even with result=None
+    # because the ledger DOES record the row (cost) but cache lookup checks
+    # for None results and treats them as cache misses.
+    if parsed is not None:
+        ks_primary.record_call(content, cost_primary, result=parsed)
 
     if parsed is None:
         # Primary failed — try backup if defined
@@ -492,8 +496,8 @@ def gradeArtifact(
                 parsed, cost_backup = _dispatch_call(
                     backup_vendor, backup_model, content, artifact_type, context, keys
                 )
-                ks_backup.record_call(content, cost_backup,
-                                      result=parsed if parsed else {'failed': True})
+                if parsed is not None:
+                    ks_backup.record_call(content, cost_backup, result=parsed)
         if parsed is None:
             return _empty_grade_response('primary failed; no backup available or backup also failed')
 
@@ -507,16 +511,12 @@ def gradeArtifact(
                 parsed_backup, cost_backup = _dispatch_call(
                     backup_vendor, backup_model, content, artifact_type, context, keys
                 )
-                ks_backup.record_call(content, cost_backup,
-                                      result=parsed_backup if parsed_backup else {'failed': True})
                 if parsed_backup is not None:
                     valid_b, err_b = _validate_response(parsed_backup)
                     if valid_b:
                         parsed_backup.setdefault('_meta', {})['used_backup'] = True
                         parsed_backup['_meta']['primary_invalid_reason'] = err
-                        ks_primary.record_call(content,
-                                               0.0,  # already counted above
-                                               result=parsed_backup)
+                        ks_backup.record_call(content, cost_backup, result=parsed_backup)
                         return parsed_backup
         return _empty_grade_response(f'invalid schema: {err}')
 
