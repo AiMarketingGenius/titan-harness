@@ -836,10 +836,44 @@ async def _card_sprint_state() -> dict:
 
 
 async def _card_client_snapshot(slug: str, name: str) -> dict:
-    """Lookup client_facts from VPS-local Supabase mirror."""
-    # Direct query via service-role (already in atlas-api env)
+    """Live client_facts pull. Falls back to hardcoded if Supabase unreachable."""
+    client_id_map = {
+        "shop-unis":          "11111111-1111-1111-1111-000000000001",
+        "paradise-park-novi": "22222222-2222-2222-2222-000000000002",
+        "revel-roll-west":    "33333333-3333-3333-3333-000000000003",
+        "jdj-levar":          "00199f08-9378-4670-9a8d-d4f63ff01fc6",
+    }
+    client_id = client_id_map.get(slug)
+    facts = await _fetch_client_facts(client_id) if client_id else {}
+
+    if facts:
+        rows = []
+        priority_keys = [
+            ("identity",  "company_name",              "Company"),
+            ("identity",  "primary_location",          "Location"),
+            ("identity",  "company_vertical",          "Vertical"),
+            ("identity",  "contact_name",              "Contact"),
+            ("business",  "annual_acquisition_volume_usd", "Volume/yr"),
+            ("comms",     "weekly_checkin_cadence",    "Cadence"),
+            ("contract",  "founding_member_status",    "Founding"),
+            ("comms",     "assigned_agents",           "Agents"),
+        ]
+        for cat, key, label in priority_keys:
+            v = facts.get((cat, key))
+            if v:
+                display = v if len(v) <= 80 else v[:77] + "…"
+                rows.append({"label": label, "value": display})
+            if len(rows) >= 6:
+                break
+        if rows:
+            return {
+                "title": f"{name} — live",
+                "rows": rows,
+                "footer": f"Live from client_facts · {len(facts)} facts total · service-role query"
+            }
+
     return {
-        "title": f"{name} — live snapshot",
+        "title": f"{name} — snapshot",
         "rows": [
             {"label": "Status", "value": "Active"},
             {"label": "Monthly", "value": _client_mrr(slug)},
@@ -847,8 +881,37 @@ async def _card_client_snapshot(slug: str, name: str) -> dict:
             {"label": "Next meeting", "value": _client_next_meeting(slug)},
             {"label": "Open items", "value": _client_open_items(slug)},
         ],
-        "footer": "Tap a line for deeper dive (future)"
+        "footer": "Cached · live Supabase pull unavailable"
     }
+
+
+async def _fetch_client_facts(client_id: str) -> dict:
+    """Returns dict keyed by (fact_category, fact_key) → fact_value. Empty on failure."""
+    if httpx is None:
+        return {}
+    url = os.environ.get("SUPABASE_URL", "").strip()
+    key = os.environ.get("SUPABASE_SERVICE_ROLE_KEY", "").strip()
+    if not url or not key:
+        return {}
+    try:
+        async with httpx.AsyncClient(timeout=4.0) as client:
+            r = await client.get(
+                f"{url}/rest/v1/client_facts",
+                params={
+                    "client_id": f"eq.{client_id}",
+                    "is_active": "eq.true",
+                    "select": "fact_category,fact_key,fact_value"
+                },
+                headers={
+                    "apikey": key,
+                    "Authorization": f"Bearer {key}"
+                }
+            )
+            if r.status_code != 200:
+                return {}
+            return {(row["fact_category"], row["fact_key"]): row["fact_value"] for row in r.json()}
+    except Exception:
+        return {}
 
 
 def _client_mrr(slug: str) -> str:
