@@ -22,6 +22,7 @@ plans/*
 plans/review_bundles/
 !plans/DOCTRINE_*.md
 !plans/DR_*.md
+!plans/PLAN_*.md
 !plans/deployments/
 !plans/deployments/**
 var/log/
