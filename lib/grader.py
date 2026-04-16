@@ -287,7 +287,13 @@ def _http_post(url: str, headers: dict[str, str], body: dict[str, Any],
 
 def _grade_via_gemini(model: str, content: str, artifact_type: str,
                       context: str, key: str) -> tuple[Optional[dict], float]:
-    """Returns (parsed_dict_or_None, cost_usd). None = call failed."""
+    """Returns (parsed_dict_or_None, cost_usd). None = call failed.
+
+    Note: Gemini 2.5 series uses "thinking tokens" by default. For grading
+    (rubric-following, deterministic JSON output), thinking is disabled via
+    thinkingConfig.thinkingBudget=0 — saves cost AND prevents thinking from
+    consuming the maxOutputTokens budget.
+    """
     url = f'{GEMINI_API_BASE}/models/{model}:generateContent'
     body = {
         'system_instruction': {'parts': [{'text': GRADING_SYSTEM_PROMPT}]},
@@ -299,6 +305,10 @@ def _grade_via_gemini(model: str, content: str, artifact_type: str,
             'temperature': 0.1,
             'maxOutputTokens': OUTPUT_TOKEN_CEILING,
             'responseMimeType': 'application/json',
+            # Disable thinking mode for graders — we want fast rubric output,
+            # not deep reasoning. Without this, thinking tokens (~478 in tests)
+            # consume the output budget before the JSON response is generated.
+            'thinkingConfig': {'thinkingBudget': 0},
         },
     }
     status, resp = _http_post(
