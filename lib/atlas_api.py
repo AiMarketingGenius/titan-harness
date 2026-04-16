@@ -779,6 +779,12 @@ async def _titan_intent_card(text: str) -> dict | None:
     if any(k in low for k in ("sprint state", "sprint status", "what's the sprint", "current sprint")):
         return await _card_sprint_state()
 
+    # File retrieval (CHECK BEFORE client-snapshot — "send me the X" intent beats client name)
+    if "levar kickoff" in low or "kickoff agenda" in low or ("send me" in low and "levar" in low):
+        return _card_file_link("/opt/amg-docs/clients/levar/KICKOFF_AGENDA_0416.md", "Levar Kickoff Agenda")
+    if "shop unis talking" in low or "talking points" in low or ("send me" in low and "shop unis" in low):
+        return _card_file_link("/opt/amg-docs/clients/shop-unis/TALKING_POINTS_FINAL_0416.md", "Shop UNIS Talking Points")
+
     # Client snapshot
     if "shop unis" in low or "shopunis" in low:
         return await _card_client_snapshot("shop-unis", "Shop UNIS")
@@ -792,12 +798,6 @@ async def _titan_intent_card(text: str) -> dict | None:
     # Blockers
     if "my blocker" in low or "blockers" in low or "blocked on me" in low:
         return await _card_blockers()
-
-    # File retrieval
-    if "levar kickoff" in low or "kickoff agenda" in low or "send me the levar" in low:
-        return _card_file_link("/opt/amg-docs/clients/levar/KICKOFF_AGENDA_0416.md", "Levar Kickoff Agenda")
-    if "shop unis talking" in low or "talking points" in low:
-        return _card_file_link("/opt/amg-docs/clients/shop-unis/TALKING_POINTS_FINAL_0416.md", "Shop UNIS Talking Points")
 
     # Specific CT lookup
     import re as _re
