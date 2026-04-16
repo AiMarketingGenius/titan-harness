@@ -1,0 +1,239 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>AMG Voice Library — Hear From Your Team</title>
+  <style>
+    :root {
+      --bg-0: #0a0f1c;
+      --bg-1: #111827;
+      --bg-2: #1f2937;
+      --accent: #38bdf8;
+      --accent-2: #0891b2;
+      --text: #e5e7eb;
+      --muted: #94a3b8;
+      --border: rgba(148,163,184,0.15);
+    }
+    * { box-sizing: border-box; }
+    html, body {
+      margin: 0; padding: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Inter", "SF Pro Text", system-ui, sans-serif;
+      background: var(--bg-0);
+      color: var(--text);
+      -webkit-font-smoothing: antialiased;
+    }
+    .wrap { max-width: 960px; margin: 0 auto; padding: 32px 20px 80px; }
+    h1 {
+      font-size: clamp(28px, 4vw, 40px);
+      font-weight: 800;
+      letter-spacing: -0.02em;
+      margin: 16px 0 4px;
+      background: linear-gradient(135deg, #38bdf8, #a78bfa);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+    .sub { color: var(--muted); margin: 0 0 28px; font-size: 15px; }
+    .agents { display: grid; gap: 16px; grid-template-columns: 1fr; }
+    @media (min-width: 760px) { .agents { grid-template-columns: 1fr 1fr; } }
+    .agent {
+      background: linear-gradient(180deg, var(--bg-1), var(--bg-2));
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 20px 20px 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .agent-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
+    .agent-name { font-size: 20px; font-weight: 700; letter-spacing: -0.01em; }
+    .agent-role { font-size: 13px; color: var(--muted); }
+    .voice-pill {
+      font-size: 11px;
+      padding: 2px 8px;
+      border-radius: 999px;
+      background: rgba(56,189,248,0.12);
+      color: var(--accent);
+      border: 1px solid rgba(56,189,248,0.25);
+      font-weight: 600;
+      letter-spacing: 0.02em;
+    }
+    .msgs { display: flex; flex-wrap: wrap; gap: 8px; }
+    .msg-btn {
+      background: rgba(148,163,184,0.06);
+      border: 1px solid var(--border);
+      color: var(--text);
+      border-radius: 10px;
+      padding: 10px 14px;
+      font-size: 13px;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      transition: background .15s, border-color .15s, transform .05s;
+      font-weight: 500;
+    }
+    .msg-btn:hover { background: rgba(56,189,248,0.08); border-color: rgba(56,189,248,0.35); }
+    .msg-btn:active { transform: scale(0.97); }
+    .msg-btn.playing { background: rgba(56,189,248,0.18); border-color: var(--accent); color: var(--accent); }
+    .msg-btn.pending { opacity: 0.45; cursor: not-allowed; border-style: dashed; }
+    .msg-btn svg { width: 14px; height: 14px; }
+    .transcript {
+      margin: 6px 0 0;
+      font-size: 13px;
+      color: var(--muted);
+      font-style: italic;
+      min-height: 34px;
+      line-height: 1.45;
+    }
+    .footer {
+      margin-top: 40px;
+      padding-top: 16px;
+      border-top: 1px solid var(--border);
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.6;
+    }
+    .footer code { background: var(--bg-2); padding: 2px 6px; border-radius: 4px; font-size: 11px; }
+    .status-dot {
+      display: inline-block;
+      width: 8px; height: 8px;
+      border-radius: 50%;
+      background: #22c55e;
+      margin-right: 6px;
+      vertical-align: middle;
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <h1>Hear from your AMG team</h1>
+    <p class="sub">Seven voices, one unified account. Tap any message to hear it. <span class="status-dot"></span> Live on ops.aimarketinggenius.io.</p>
+    <div id="agents" class="agents"></div>
+    <div class="footer">
+      Powered by <code>/atlas/voices/</code> static bundle · 7 agents · 42 messages ·
+      data source: Supabase <code>agent_voice_library</code>.
+      Alex uses the ElevenLabs Solon clone (intro only — 5 extended messages queued for regen);
+      all other agents served via Kokoro TTS. Client placeholder <code>{client_name}</code>
+      resolved to "your business" — interpolate per-client at render time for real portals.
+    </div>
+  </div>
+
+  <script>
+    const MANIFEST_URL = "/atlas/voices/manifest.json";
+    const AGENT_TITLES = {
+      alex:   { name: "Alex",   role: "Account manager" },
+      maya:   { name: "Maya",   role: "Content lead" },
+      jordan: { name: "Jordan", role: "Reputation manager" },
+      sam:    { name: "Sam",    role: "SEO strategist" },
+      riley:  { name: "Riley",  role: "Strategic lead" },
+      nadia:  { name: "Nadia",  role: "Onboarding specialist" },
+      lumina: { name: "Lumina", role: "CRO expert" },
+    };
+    const MESSAGE_ORDER = ["intro", "status_update", "question", "deliverable", "escalation", "closing"];
+    const MESSAGE_LABELS = {
+      intro: "Intro",
+      status_update: "Status update",
+      question: "Question",
+      deliverable: "Deliverable",
+      escalation: "Escalation",
+      closing: "Closing",
+    };
+
+    const PLAY_ICON = '<svg viewBox="0 0 16 16" fill="currentColor"><path d="M3 2l11 6-11 6z"/></svg>';
+    const PAUSE_ICON = '<svg viewBox="0 0 16 16" fill="currentColor"><rect x="3" y="2" width="4" height="12"/><rect x="9" y="2" width="4" height="12"/></svg>';
+
+    let currentAudio = null;
+    let currentBtn = null;
+
+    async function init() {
+      const manifest = await fetch(MANIFEST_URL).then(r => r.json());
+      const container = document.getElementById("agents");
+
+      for (const agentId of Object.keys(AGENT_TITLES)) {
+        const agent = manifest.agents[agentId];
+        if (!agent) continue;
+
+        const title = AGENT_TITLES[agentId];
+        const card = document.createElement("div");
+        card.className = "agent";
+        card.innerHTML = `
+          <div class="agent-head">
+            <div>
+              <div class="agent-name">${title.name}</div>
+              <div class="agent-role">${title.role}</div>
+            </div>
+            <div class="voice-pill">${agent.voice}</div>
+          </div>
+          <div class="msgs" id="msgs-${agentId}"></div>
+          <div class="transcript" id="trans-${agentId}">Tap a message to hear ${title.name}.</div>
+        `;
+        container.appendChild(card);
+
+        const msgsDiv = card.querySelector(`#msgs-${agentId}`);
+        for (const mtype of MESSAGE_ORDER) {
+          const file = agent.files[mtype];
+          const btn = document.createElement("button");
+          btn.className = "msg-btn";
+          if (!file || !file.ok) {
+            btn.classList.add("pending");
+            btn.title = file?.pending || "not generated";
+          }
+          btn.innerHTML = `${PLAY_ICON}<span>${MESSAGE_LABELS[mtype]}</span>`;
+          btn.onclick = () => playMessage(agentId, mtype, file, btn);
+          msgsDiv.appendChild(btn);
+        }
+      }
+    }
+
+    function playMessage(agentId, mtype, file, btn) {
+      if (!file || !file.ok) return;
+      const url = `/atlas/voices/${agentId}/${mtype}.mp3`;
+      const transcriptEl = document.getElementById(`trans-${agentId}`);
+
+      // Stop any current playback
+      if (currentAudio && !currentAudio.paused) {
+        currentAudio.pause();
+        currentAudio.currentTime = 0;
+      }
+      if (currentBtn && currentBtn !== btn) {
+        currentBtn.classList.remove("playing");
+        currentBtn.innerHTML = currentBtn.innerHTML.replace(PAUSE_ICON, PLAY_ICON);
+      }
+
+      // If same button tapped while playing → pause (already handled above via stop)
+      if (currentBtn === btn && currentAudio && !currentAudio.ended) {
+        currentBtn = null; currentAudio = null;
+        btn.classList.remove("playing");
+        btn.innerHTML = btn.innerHTML.replace(PAUSE_ICON, PLAY_ICON);
+        return;
+      }
+
+      currentAudio = new Audio(url);
+      currentBtn = btn;
+      btn.classList.add("playing");
+      btn.innerHTML = btn.innerHTML.replace(PLAY_ICON, PAUSE_ICON);
+      if (file.transcript) transcriptEl.textContent = `"${file.transcript}"`;
+
+      currentAudio.onended = () => {
+        btn.classList.remove("playing");
+        btn.innerHTML = btn.innerHTML.replace(PAUSE_ICON, PLAY_ICON);
+        currentAudio = null;
+        currentBtn = null;
+      };
+      currentAudio.onerror = () => {
+        btn.classList.remove("playing");
+        transcriptEl.textContent = `Playback failed for ${agentId} ${mtype}.`;
+      };
+      currentAudio.play().catch(e => {
+        transcriptEl.textContent = `Autoplay blocked — tap again to play.`;
+      });
+    }
+
+    init().catch(e => {
+      document.getElementById("agents").innerHTML =
+        `<div style="color:#ef4444;padding:20px">Failed to load voice manifest: ${e.message}</div>`;
+    });
+  </script>
+</body>
+</html>
