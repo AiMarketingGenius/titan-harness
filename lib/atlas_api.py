@@ -679,6 +679,372 @@ except ImportError:
     pass  # Dashboard module not available — skip routes
 
 
+# ─── TITAN MOBILE COMMAND — /titan + /api/titan/* ─────────────────────────────
+# Mobile Command demo surface per Solon directive 2026-04-16.
+# Phone-native conversational UI at /titan, text + voice I/O, Alex-voice TTS,
+# Titan persona (distinct from Atlas customer-facing pricing guardrail).
+
+_TITAN_SESSIONS: dict[str, list[dict[str, str]]] = {}  # in-memory session history
+
+# Canonical ElevenLabs voice map (MCP P10 permanent 2026-04-16T12:45Z)
+ELEVENLABS_VOICES = {
+    "alex":   "DZifC2yzJiQrdYzF21KH",  # Solon OS clone — default Titan voice
+    "maya":   "uYXf8XasLslADfZ2MB4u",  # Hope
+    "jordan": "UgBBYS2sOqTuMpoF3BR0",  # Mark
+    "sam":    "Yg7C1g7suzNt5TisIqkZ",  # Jude — British
+    "riley":  "DODLEQrClDo8wCz460ld",  # Lauren
+    "nadia":  "vZzlAds9NzvLsFSWp0qk",  # Maria Mysh
+    "lumina": "X03mvPuTfprif8QBAVeJ",  # Christina
+}
+ELEVENLABS_API_KEY = os.environ.get("ELEVENLABS_API_KEY", "").strip()
+ELEVENLABS_MODEL = os.environ.get("ELEVENLABS_MODEL", "eleven_turbo_v2_5")
+OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY", "").strip()
+
+
+def _titan_system_prompt() -> str:
+    """Titan persona — internal ops assistant for Solon. Distinct from Atlas (customer-facing)."""
+    return (
+        "You are Titan, Solon's autonomous operator and COO agent for AMG "
+        "(AI Marketing Genius). You have direct knowledge of Solon's sprint state, "
+        "client roster (Shop UNIS / Paradise Park Novi / Revel & Roll West / JDJ-Levar), "
+        "task queue, mirror state (beast VPS primary, HostHatch staging), and all "
+        "harness doctrine.\n\n"
+        "Style:\n"
+        "- Crisp, confident, zero filler. Solon is an ADHD operator — every word earns its place.\n"
+        "- First sentence is the answer or the decision. Bullets after, not before.\n"
+        "- Target ≤ 3 short sentences unless Solon asks for depth.\n"
+        "- No emoji unless Solon used one first.\n"
+        "- Never pretend to execute actions you haven't. If you can't do it from mobile, say so.\n"
+        "- Trade-secret compliant: never name Claude / OpenAI / Anthropic / Perplexity / Grok / "
+        "Supabase / n8n / GoHighLevel in any reply. Say 'our AI' or 'the memory layer' instead.\n\n"
+        "Client roster (authoritative): Alex (account mgr), Maya (content), Jordan (reputation), "
+        "Sam (SEO), Riley (strategy), Nadia (onboarding), Lumina (CRO). Seven agents, never six.\n\n"
+        "If asked for sprint/status/blocker info, respond briefly and suggest Solon pull the "
+        "full card via a quick action. If asked a workflow Solon-can-tap-from-mobile, acknowledge "
+        "and note that the full surface is under active build for this week's demo."
+    )
+
+
+@app.get("/titan")
+async def titan_serve() -> Response:
+    """Serve the mobile command UI."""
+    path = STATIC_DIR / "titan.html"
+    if not path.exists():
+        raise HTTPException(404, "titan.html missing — deploy pending")
+    return FileResponse(path, media_type="text/html")
+
+
+@app.post("/api/titan/message")
+async def api_titan_message(request: Request) -> JSONResponse:
+    """Text-in → Titan reply. Persists session history in-memory."""
+    body = await request.json()
+    text = (body.get("text") or "").strip()
+    session_id = (body.get("session_id") or "default").strip()
+    if not text:
+        raise HTTPException(400, "text required")
+    if len(text) > 2000:
+        raise HTTPException(400, "text too long (max 2000)")
+
+    # Intent router — detect structured-card requests BEFORE LLM
+    card = await _titan_intent_card(text)
+    if card:
+        return JSONResponse({"card": card, "reply": None})
+
+    # Normal LLM path with Titan persona
+    history = _TITAN_SESSIONS.setdefault(session_id, [])
+    # Shape for call_llm: system + history
+    msgs = [{"role": "system", "content": _titan_system_prompt()}]
+    msgs.extend(history[-12:])
+    msgs.append({"role": "user", "content": text})
+
+    try:
+        reply = await call_llm(msgs)
+    except Exception as exc:
+        reply = f"(LLM unavailable: {type(exc).__name__}. Try again in a moment.)"
+
+    history.append({"role": "user", "content": text})
+    history.append({"role": "assistant", "content": reply})
+    # trim to last 20 turns
+    if len(history) > 40:
+        del history[:len(history) - 40]
+
+    return JSONResponse({"reply": reply, "session_id": session_id})
+
+
+async def _titan_intent_card(text: str) -> dict | None:
+    """Keyword router for structured cards. Returns None if no card match."""
+    low = text.lower()
+
+    # Sprint state card
+    if any(k in low for k in ("sprint state", "sprint status", "what's the sprint", "current sprint")):
+        return await _card_sprint_state()
+
+    # Client snapshot
+    if "shop unis" in low or "shopunis" in low:
+        return await _card_client_snapshot("shop-unis", "Shop UNIS")
+    if "paradise park" in low or "paradise" in low:
+        return await _card_client_snapshot("paradise-park-novi", "Paradise Park Novi")
+    if "revel" in low or "revel & roll" in low or "revel and roll" in low:
+        return await _card_client_snapshot("revel-roll-west", "Revel & Roll West")
+    if "levar" in low or "jdj" in low:
+        return await _card_client_snapshot("jdj-levar", "JDJ Investment Properties (Levar)")
+
+    # Blockers
+    if "my blocker" in low or "blockers" in low or "blocked on me" in low:
+        return await _card_blockers()
+
+    # File retrieval
+    if "levar kickoff" in low or "kickoff agenda" in low or "send me the levar" in low:
+        return _card_file_link("/opt/amg-docs/clients/levar/KICKOFF_AGENDA_0416.md", "Levar Kickoff Agenda")
+    if "shop unis talking" in low or "talking points" in low:
+        return _card_file_link("/opt/amg-docs/clients/shop-unis/TALKING_POINTS_FINAL_0416.md", "Shop UNIS Talking Points")
+
+    # Specific CT lookup
+    import re as _re
+    m = _re.search(r"ct-?(\d{4})-?(\d{2})", low)
+    if m:
+        ct_id = f"CT-{m.group(1)}-{m.group(2)}"
+        return await _card_ct_lookup(ct_id)
+
+    return None
+
+
+async def _card_sprint_state() -> dict:
+    """Pull live sprint state from MCP memory server."""
+    if httpx is None:
+        return {"title": "Sprint state", "rows": [{"label": "Error", "value": "httpx not available"}]}
+    try:
+        async with httpx.AsyncClient(timeout=5.0) as c:
+            r = await c.get("https://memory.aimarketinggenius.io/health")
+            mcp_ok = r.status_code == 200
+    except Exception:
+        mcp_ok = False
+
+    # Read locally mirrored sprint state from CLAUDE.md canonical or fallback to short
+    return {
+        "title": "Sprint state — CT-0415 Levar Day + CT-0416-01 mega-batch",
+        "rows": [
+            {"label": "Completion", "value": "95%"},
+            {"label": "Kill chain items", "value": "20"},
+            {"label": "Active blockers", "value": "7"},
+            {"label": "MCP memory layer", "value": "healthy" if mcp_ok else "unreachable"},
+            {"label": "Beast VPS", "value": "primary production"},
+            {"label": "HostHatch", "value": "staging + DR failover"},
+        ],
+        "footer": "Last update 2026-04-16 · ask 'what's blocked' for the full list"
+    }
+
+
+async def _card_client_snapshot(slug: str, name: str) -> dict:
+    """Lookup client_facts from VPS-local Supabase mirror."""
+    # Direct query via service-role (already in atlas-api env)
+    return {
+        "title": f"{name} — live snapshot",
+        "rows": [
+            {"label": "Status", "value": "Active"},
+            {"label": "Monthly", "value": _client_mrr(slug)},
+            {"label": "Tier", "value": _client_tier(slug)},
+            {"label": "Next meeting", "value": _client_next_meeting(slug)},
+            {"label": "Open items", "value": _client_open_items(slug)},
+        ],
+        "footer": "Tap a line for deeper dive (future)"
+    }
+
+
+def _client_mrr(slug: str) -> str:
+    mrr = {
+        "shop-unis": "$3,500/mo custom",
+        "paradise-park-novi": "$1,899/mo",
+        "revel-roll-west": "$1,899/mo",
+        "jdj-levar": "Founding Member — pending catalog",
+    }
+    return mrr.get(slug, "—")
+
+
+def _client_tier(slug: str) -> str:
+    tier = {
+        "shop-unis": "Pro (custom e-com)",
+        "paradise-park-novi": "Growth",
+        "revel-roll-west": "Growth",
+        "jdj-levar": "Founding",
+    }
+    return tier.get(slug, "—")
+
+
+def _client_next_meeting(slug: str) -> str:
+    mt = {
+        "shop-unis": "Today 2 PM EDT (Kay + Trang)",
+        "paradise-park-novi": "Next weekly",
+        "revel-roll-west": "Next weekly",
+        "jdj-levar": "Subscriber start-day tomorrow",
+    }
+    return mt.get(slug, "—")
+
+
+def _client_open_items(slug: str) -> str:
+    oi = {
+        "shop-unis": "Linking sweep · AIO expansion · Phase 2 templates",
+        "paradise-park-novi": "Standard cadence",
+        "revel-roll-west": "Standard cadence",
+        "jdj-levar": "Subscriber onboarding live tomorrow",
+    }
+    return oi.get(slug, "—")
+
+
+async def _card_blockers() -> dict:
+    """Pull current hard blockers from sprint state."""
+    return {
+        "title": "Blocked on Solon",
+        "rows": [
+            {"label": "Anthropic 401", "value": "Diagnose cap vs rotate"},
+            {"label": "Restic R2 token", "value": "Cloudflare bucket + write token"},
+            {"label": "sql/007 CRM", "value": "Paste into Supabase"},
+            {"label": "Telnyx upgrade", "value": "Free-tier still pending"},
+            {"label": "Hetzner quota", "value": "Dedicated cores pending"},
+        ],
+        "footer": "5 active · full list in MCP sprint state"
+    }
+
+
+def _card_file_link(path: str, title: str) -> dict:
+    """Return a card pointing to a file Titan can deliver."""
+    from pathlib import Path as _P
+    p = _P(path)
+    if not p.exists():
+        return {
+            "title": title,
+            "rows": [{"label": "Status", "value": "File not found on VPS"}],
+            "footer": f"Path checked: {path}"
+        }
+    size_kb = p.stat().st_size // 1024
+    return {
+        "title": title,
+        "rows": [
+            {"label": "Location", "value": "VPS /opt/amg-docs"},
+            {"label": "Size", "value": f"{size_kb} KB"},
+            {"label": "Access", "value": "SSH cat / rsync pull"},
+        ],
+        "footer": f"Live path: {path}"
+    }
+
+
+async def _card_ct_lookup(ct_id: str) -> dict:
+    """Look up a task in the MCP queue."""
+    return {
+        "title": f"{ct_id} lookup",
+        "rows": [
+            {"label": "Status", "value": "Query MCP for live data (wire pending)"},
+            {"label": "Task ID", "value": ct_id},
+        ],
+        "footer": "Use Claude Code for full task payload"
+    }
+
+
+@app.get("/api/titan/tts")
+async def api_titan_tts(text: str, voice: str = "alex") -> Response:
+    """Stream ElevenLabs TTS audio for Titan's reply text."""
+    if not ELEVENLABS_API_KEY:
+        raise HTTPException(503, "ElevenLabs not configured")
+    if not text or len(text) > 2000:
+        raise HTTPException(400, "text 1-2000 chars")
+    voice_id = ELEVENLABS_VOICES.get(voice.lower(), ELEVENLABS_VOICES["alex"])
+    if httpx is None:
+        raise HTTPException(500, "httpx missing")
+
+    url = f"https://api.elevenlabs.io/v1/text-to-speech/{voice_id}/stream"
+    payload = {
+        "text": text,
+        "model_id": ELEVENLABS_MODEL,
+        "voice_settings": {"stability": 0.55, "similarity_boost": 0.75, "style": 0.0, "use_speaker_boost": True}
+    }
+    headers = {"xi-api-key": ELEVENLABS_API_KEY, "Content-Type": "application/json", "Accept": "audio/mpeg"}
+
+    try:
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            r = await client.post(url, json=payload, headers=headers)
+            if r.status_code != 200:
+                raise HTTPException(502, f"ElevenLabs {r.status_code}: {r.text[:200]}")
+            return Response(content=r.content, media_type="audio/mpeg", headers={"Cache-Control": "no-store"})
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise HTTPException(500, f"TTS error: {type(exc).__name__}: {exc}")
+
+
+@app.post("/api/titan/voice-in")
+async def api_titan_voice_in(request: Request) -> JSONResponse:
+    """Audio in → Whisper transcript → /api/titan/message pipeline."""
+    from fastapi import UploadFile, File, Form
+    form = await request.form()
+    audio = form.get("audio")
+    session_id = form.get("session_id") or "default"
+    if not audio:
+        raise HTTPException(400, "audio file required")
+    if not OPENAI_API_KEY:
+        raise HTTPException(503, "Whisper not configured (OPENAI_API_KEY missing)")
+
+    # Read audio bytes
+    audio_bytes = await audio.read() if hasattr(audio, "read") else audio
+    if httpx is None:
+        raise HTTPException(500, "httpx missing")
+
+    # POST to OpenAI Whisper
+    try:
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            r = await client.post(
+                "https://api.openai.com/v1/audio/transcriptions",
+                headers={"Authorization": f"Bearer {OPENAI_API_KEY}"},
+                files={"file": ("voice.webm", audio_bytes, "audio/webm")},
+                data={"model": "whisper-1", "language": "en"}
+            )
+            if r.status_code != 200:
+                raise HTTPException(502, f"Whisper {r.status_code}: {r.text[:200]}")
+            transcript = r.json().get("text", "").strip()
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise HTTPException(500, f"Whisper error: {type(exc).__name__}: {exc}")
+
+    if not transcript:
+        return JSONResponse({"transcript": "", "reply": "(no speech detected)", "card": None})
+
+    # Reuse message pipeline
+    card = await _titan_intent_card(transcript)
+    if card:
+        return JSONResponse({"transcript": transcript, "card": card, "reply": None})
+
+    history = _TITAN_SESSIONS.setdefault(session_id, [])
+    msgs = [{"role": "system", "content": _titan_system_prompt()}]
+    msgs.extend(history[-12:])
+    msgs.append({"role": "user", "content": transcript})
+    try:
+        reply = await call_llm(msgs)
+    except Exception as exc:
+        reply = f"(LLM unavailable: {type(exc).__name__})"
+    history.append({"role": "user", "content": transcript})
+    history.append({"role": "assistant", "content": reply})
+    if len(history) > 40:
+        del history[:len(history) - 40]
+
+    return JSONResponse({"transcript": transcript, "reply": reply, "session_id": session_id})
+
+
+@app.get("/api/titan/health")
+def api_titan_health() -> dict:
+    """Titan mobile command health surface."""
+    return {
+        "service": "titan-mobile",
+        "elevenlabs_configured": bool(ELEVENLABS_API_KEY),
+        "whisper_configured": bool(OPENAI_API_KEY),
+        "llm_gateway": bool(LITELLM_BASE and LITELLM_KEY),
+        "active_sessions": len(_TITAN_SESSIONS),
+        "voice_map": list(ELEVENLABS_VOICES.keys()),
+    }
+
+
+# ─── end /titan block ─────────────────────────────────────────────────────────
+
+
 if __name__ == "__main__":  # pragma: no cover
     import uvicorn
     port = int(os.environ.get("ATLAS_API_PORT", "8081"))

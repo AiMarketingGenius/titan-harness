@@ -1,0 +1,610 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<meta name="theme-color" content="#0a0f1c">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Titan">
+<link rel="apple-touch-icon" href="/atlas/icons/icon-192.png">
+<link rel="manifest" href="/atlas/titan-manifest.json">
+<title>Titan — Mobile Command</title>
+<style>
+  :root {
+    --bg-0: #0a0f1c;
+    --bg-1: #111827;
+    --bg-2: #1f2937;
+    --accent: #38bdf8;
+    --accent-alt: #a78bfa;
+    --success: #22c55e;
+    --warn: #eab308;
+    --err: #ef4444;
+    --text: #e5e7eb;
+    --muted: #94a3b8;
+    --border: rgba(148,163,184,0.12);
+    --shadow: 0 10px 30px rgba(0,0,0,0.45);
+    --radius: 16px;
+    --safe-top: env(safe-area-inset-top, 0px);
+    --safe-bottom: env(safe-area-inset-bottom, 0px);
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body {
+    margin: 0; padding: 0; overflow: hidden;
+    background: var(--bg-0); color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Inter", system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    height: 100dvh; width: 100vw;
+  }
+  .app {
+    display: flex; flex-direction: column;
+    height: 100dvh; width: 100vw;
+    padding-top: var(--safe-top);
+    padding-bottom: var(--safe-bottom);
+  }
+
+  /* Header */
+  .header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 12px 18px 10px;
+    border-bottom: 1px solid var(--border);
+    background: linear-gradient(180deg, rgba(10,15,28,1), rgba(10,15,28,0.92));
+    backdrop-filter: blur(8px);
+  }
+  .header-title {
+    display: flex; align-items: center; gap: 10px;
+    font-size: 17px; font-weight: 700; letter-spacing: -0.01em;
+  }
+  .logo-dot {
+    width: 10px; height: 10px; border-radius: 50%;
+    background: linear-gradient(135deg, var(--accent), var(--accent-alt));
+    box-shadow: 0 0 12px rgba(56,189,248,0.6);
+  }
+  .header-status {
+    display: flex; align-items: center; gap: 6px;
+    font-size: 11px; color: var(--muted); font-weight: 500;
+    letter-spacing: 0.04em; text-transform: uppercase;
+  }
+  .status-dot {
+    width: 8px; height: 8px; border-radius: 50%;
+    background: var(--muted);
+    transition: background 200ms ease, box-shadow 200ms ease;
+  }
+  .status-dot.connected { background: var(--success); box-shadow: 0 0 8px rgba(34,197,94,0.7); }
+  .status-dot.thinking { background: var(--warn); box-shadow: 0 0 8px rgba(234,179,8,0.7); }
+  .status-dot.error { background: var(--err); box-shadow: 0 0 8px rgba(239,68,68,0.7); }
+
+  /* Orb */
+  .orb-container {
+    flex-shrink: 0;
+    display: flex; align-items: center; justify-content: center;
+    padding: 20px 0 12px;
+    position: relative;
+  }
+  #orb-canvas {
+    width: 220px; height: 220px;
+    display: block;
+  }
+
+  /* State label under orb */
+  .orb-state-label {
+    position: absolute; bottom: 0; left: 50%;
+    transform: translateX(-50%);
+    font-size: 11px; color: var(--muted);
+    letter-spacing: 0.08em; text-transform: uppercase;
+    font-weight: 600;
+    transition: color 200ms ease;
+  }
+
+  /* Chat thread */
+  .thread {
+    flex: 1; overflow-y: auto; overflow-x: hidden;
+    padding: 12px 16px 6px;
+    scroll-behavior: smooth;
+    -webkit-overflow-scrolling: touch;
+  }
+  .thread::-webkit-scrollbar { width: 0; }
+
+  .bubble {
+    max-width: 85%; margin: 6px 0;
+    padding: 11px 14px; border-radius: 14px;
+    font-size: 15px; line-height: 1.45;
+    word-wrap: break-word; white-space: pre-wrap;
+    animation: bubble-in 200ms ease-out;
+  }
+  @keyframes bubble-in {
+    from { opacity: 0; transform: translateY(4px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  .bubble.me {
+    margin-left: auto;
+    background: linear-gradient(135deg, #1e40af, #0891b2);
+    color: #fff;
+    border-bottom-right-radius: 4px;
+  }
+  .bubble.titan {
+    margin-right: auto;
+    background: var(--bg-2);
+    color: var(--text);
+    border-bottom-left-radius: 4px;
+    border: 1px solid var(--border);
+  }
+  .bubble.system {
+    margin: 10px auto; max-width: 92%;
+    background: transparent;
+    color: var(--muted);
+    font-size: 12px; text-align: center;
+    padding: 4px 0;
+    font-style: italic;
+  }
+  .bubble.error {
+    background: rgba(239,68,68,0.1);
+    color: #fca5a5;
+    border: 1px solid rgba(239,68,68,0.3);
+  }
+
+  /* Cards (for structured responses) */
+  .card {
+    background: var(--bg-2);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 14px 16px;
+    margin: 8px 0;
+  }
+  .card-title {
+    font-size: 11px; font-weight: 700;
+    color: var(--accent);
+    letter-spacing: 0.08em; text-transform: uppercase;
+    margin-bottom: 10px;
+  }
+  .card-row {
+    display: flex; justify-content: space-between;
+    padding: 6px 0;
+    font-size: 14px;
+    border-bottom: 1px solid rgba(148,163,184,0.06);
+  }
+  .card-row:last-child { border-bottom: 0; }
+  .card-row-label { color: var(--muted); }
+  .card-row-value { color: var(--text); font-weight: 600; }
+
+  /* Composer */
+  .composer {
+    flex-shrink: 0;
+    padding: 10px 12px calc(10px + var(--safe-bottom));
+    background: linear-gradient(0deg, rgba(10,15,28,1), rgba(10,15,28,0.95));
+    border-top: 1px solid var(--border);
+    display: flex; gap: 8px; align-items: flex-end;
+  }
+  .mic-btn, .send-btn {
+    flex-shrink: 0; width: 44px; height: 44px; border-radius: 22px;
+    border: 1px solid var(--border);
+    background: var(--bg-1); color: var(--text);
+    display: flex; align-items: center; justify-content: center;
+    cursor: pointer;
+    transition: all 150ms ease;
+    font-size: 20px;
+  }
+  .mic-btn:active { transform: scale(0.94); }
+  .mic-btn.listening {
+    background: linear-gradient(135deg, var(--err), #dc2626);
+    border-color: var(--err);
+    box-shadow: 0 0 18px rgba(239,68,68,0.5);
+    animation: mic-pulse 1.5s ease-in-out infinite;
+  }
+  @keyframes mic-pulse {
+    0%, 100% { box-shadow: 0 0 14px rgba(239,68,68,0.5); }
+    50% { box-shadow: 0 0 24px rgba(239,68,68,0.8); }
+  }
+  .send-btn {
+    background: linear-gradient(135deg, var(--accent), #0284c7);
+    border-color: var(--accent);
+    color: #fff;
+  }
+  .send-btn:disabled {
+    background: var(--bg-2); border-color: var(--border);
+    color: var(--muted);
+    opacity: 0.5;
+  }
+  .input-wrap {
+    flex: 1;
+    background: var(--bg-1);
+    border: 1px solid var(--border);
+    border-radius: 22px;
+    padding: 0 14px;
+    display: flex; align-items: center;
+    min-height: 44px;
+  }
+  .input-wrap textarea {
+    flex: 1;
+    background: transparent; border: 0; outline: 0; resize: none;
+    color: var(--text); font-size: 16px; /* 16px to prevent iOS zoom */
+    font-family: inherit;
+    line-height: 1.4;
+    padding: 10px 0;
+    max-height: 100px;
+  }
+  .input-wrap textarea::placeholder { color: var(--muted); }
+
+  /* Quick actions (shown above composer when thread is empty) */
+  .quick-actions {
+    flex-shrink: 0;
+    padding: 6px 16px 10px;
+    display: flex; gap: 8px; overflow-x: auto; white-space: nowrap;
+    -webkit-overflow-scrolling: touch;
+  }
+  .quick-actions::-webkit-scrollbar { display: none; }
+  .quick-chip {
+    flex-shrink: 0;
+    padding: 8px 14px;
+    background: var(--bg-1);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    color: var(--text);
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 150ms;
+  }
+  .quick-chip:active { transform: scale(0.96); background: var(--bg-2); }
+
+  /* Typing indicator */
+  .typing {
+    display: inline-flex; align-items: center; gap: 4px;
+    padding: 11px 14px;
+  }
+  .typing-dot {
+    width: 6px; height: 6px; border-radius: 50%;
+    background: var(--muted);
+    animation: typing 1.4s ease-in-out infinite;
+  }
+  .typing-dot:nth-child(2) { animation-delay: 0.2s; }
+  .typing-dot:nth-child(3) { animation-delay: 0.4s; }
+  @keyframes typing {
+    0%, 60%, 100% { opacity: 0.3; transform: translateY(0); }
+    30% { opacity: 1; transform: translateY(-4px); }
+  }
+
+  /* Hide any audio element but keep it functional */
+  #tts-audio { display: none; }
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="header">
+    <div class="header-title">
+      <span class="logo-dot"></span>
+      <span>Titan</span>
+    </div>
+    <div class="header-status">
+      <span id="status-dot" class="status-dot"></span>
+      <span id="status-text">Connecting</span>
+    </div>
+  </div>
+
+  <div class="orb-container">
+    <canvas id="orb-canvas"></canvas>
+    <div class="orb-state-label" id="orb-state-label">idle</div>
+  </div>
+
+  <div class="thread" id="thread"></div>
+
+  <div class="quick-actions" id="quick-actions">
+    <button class="quick-chip" data-prompt="What's your current sprint state?">Sprint state</button>
+    <button class="quick-chip" data-prompt="Show me the Shop UNIS snapshot">Shop UNIS</button>
+    <button class="quick-chip" data-prompt="Send me the Levar kickoff agenda">Levar agenda</button>
+    <button class="quick-chip" data-prompt="What tasks are blocked on me?">My blockers</button>
+    <button class="quick-chip" data-prompt="Status of CT-0416-07">CT-0416-07</button>
+  </div>
+
+  <div class="composer">
+    <button class="mic-btn" id="mic-btn" aria-label="Voice input">🎙</button>
+    <div class="input-wrap">
+      <textarea id="text-input" placeholder="Message Titan…" rows="1"></textarea>
+    </div>
+    <button class="send-btn" id="send-btn" aria-label="Send" disabled>↑</button>
+  </div>
+</div>
+
+<audio id="tts-audio" autoplay></audio>
+
+<script src="https://unpkg.com/three@0.158.0/build/three.min.js"></script>
+<script>
+(function () {
+  'use strict';
+
+  // ─── state ───
+  const SESSION_ID = localStorage.getItem('titan_session_id')
+    || (() => { const s = 'sess_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+                 localStorage.setItem('titan_session_id', s); return s; })();
+  const API = ''; // same-origin
+  let orbState = 'idle';          // idle | listening | thinking | speaking | error
+  let typingBubble = null;
+  let mediaRecorder = null;
+  let recordedChunks = [];
+  let isListening = false;
+
+  // ─── DOM refs ───
+  const threadEl = document.getElementById('thread');
+  const inputEl = document.getElementById('text-input');
+  const sendBtn = document.getElementById('send-btn');
+  const micBtn = document.getElementById('mic-btn');
+  const statusDot = document.getElementById('status-dot');
+  const statusText = document.getElementById('status-text');
+  const stateLabel = document.getElementById('orb-state-label');
+  const ttsAudio = document.getElementById('tts-audio');
+
+  // ─── orb (Three.js) ───
+  const ORB_STATES = {
+    idle:      { color: 0x38bdf8, speed: 0.4, glow: 1.0 },
+    listening: { color: 0xa78bfa, speed: 1.3, glow: 1.7 },
+    thinking:  { color: 0xeab308, speed: 2.0, glow: 1.4 },
+    speaking:  { color: 0x22c55e, speed: 1.6, glow: 1.8 },
+    error:     { color: 0xef4444, speed: 0.3, glow: 0.6 }
+  };
+  let currentOrbState = ORB_STATES.idle;
+
+  function initOrb() {
+    const canvas = document.getElementById('orb-canvas');
+    const size = 220;
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    canvas.width = size * dpr; canvas.height = size * dpr;
+    canvas.style.width = size + 'px'; canvas.style.height = size + 'px';
+
+    const renderer = new THREE.WebGLRenderer({ canvas, alpha: true, antialias: true });
+    renderer.setPixelRatio(dpr);
+    renderer.setSize(size, size, false);
+
+    const scene = new THREE.Scene();
+    const camera = new THREE.PerspectiveCamera(45, 1, 0.1, 100);
+    camera.position.z = 3.2;
+
+    const geo = new THREE.IcosahedronGeometry(1, 4);
+    const mat = new THREE.MeshStandardMaterial({
+      color: currentOrbState.color,
+      emissive: currentOrbState.color,
+      emissiveIntensity: 0.5,
+      roughness: 0.25, metalness: 0.65
+    });
+    const orb = new THREE.Mesh(geo, mat);
+    scene.add(orb);
+
+    const keyLight = new THREE.DirectionalLight(0xffffff, 1.1);
+    keyLight.position.set(2, 2, 4);
+    scene.add(keyLight);
+    scene.add(new THREE.AmbientLight(0x334155, 0.6));
+
+    let t = 0;
+    function tick() {
+      t += 0.016 * currentOrbState.speed;
+      orb.rotation.y = t * 0.7;
+      orb.rotation.x = Math.sin(t * 0.5) * 0.3;
+      const pulse = 1 + Math.sin(t * 2.2) * 0.06 * currentOrbState.glow;
+      orb.scale.setScalar(pulse);
+      mat.emissiveIntensity = 0.3 + 0.35 * currentOrbState.glow * (0.5 + 0.5 * Math.sin(t * 3.1));
+      renderer.render(scene, camera);
+      requestAnimationFrame(tick);
+    }
+    tick();
+
+    window._setOrbState = (next) => {
+      const s = ORB_STATES[next] || ORB_STATES.idle;
+      mat.color.setHex(s.color);
+      mat.emissive.setHex(s.color);
+      currentOrbState = s;
+    };
+  }
+
+  function setOrbState(next) {
+    orbState = next;
+    stateLabel.textContent = next;
+    window._setOrbState && window._setOrbState(next);
+    statusDot.className = 'status-dot ' + (
+      next === 'idle' ? 'connected' :
+      next === 'thinking' ? 'thinking' :
+      next === 'error' ? 'error' :
+      'connected'
+    );
+    if (next === 'idle') statusText.textContent = 'Ready';
+    else if (next === 'listening') statusText.textContent = 'Listening';
+    else if (next === 'thinking') statusText.textContent = 'Thinking';
+    else if (next === 'speaking') statusText.textContent = 'Speaking';
+    else if (next === 'error') statusText.textContent = 'Error';
+  }
+
+  // ─── chat helpers ───
+  function addBubble(role, text, opts = {}) {
+    const div = document.createElement('div');
+    div.className = 'bubble ' + role;
+    if (opts.html) div.innerHTML = text; else div.textContent = text;
+    threadEl.appendChild(div);
+    threadEl.scrollTop = threadEl.scrollHeight;
+    // Hide quick actions after first real message
+    const qa = document.getElementById('quick-actions');
+    if (qa && role !== 'system') qa.style.display = 'none';
+    return div;
+  }
+
+  function showTyping() {
+    if (typingBubble) return;
+    typingBubble = document.createElement('div');
+    typingBubble.className = 'bubble titan typing';
+    typingBubble.innerHTML = '<span class="typing-dot"></span><span class="typing-dot"></span><span class="typing-dot"></span>';
+    threadEl.appendChild(typingBubble);
+    threadEl.scrollTop = threadEl.scrollHeight;
+  }
+
+  function hideTyping() {
+    if (typingBubble) { typingBubble.remove(); typingBubble = null; }
+  }
+
+  // ─── send message ───
+  async function sendMessage(text) {
+    if (!text || !text.trim()) return;
+    addBubble('me', text);
+    inputEl.value = '';
+    adjustInputHeight();
+    updateSendButton();
+    setOrbState('thinking');
+    showTyping();
+
+    try {
+      const res = await fetch('/api/titan/message', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text, session_id: SESSION_ID })
+      });
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      const data = await res.json();
+      hideTyping();
+
+      if (data.card) {
+        renderCard(data.card);
+      } else {
+        addBubble('titan', data.reply || '(no reply)');
+      }
+
+      // Fire TTS playback (if Titan's reply is speakable)
+      if (data.reply && !data.card) {
+        playTTS(data.reply);
+      } else {
+        setOrbState('idle');
+      }
+    } catch (err) {
+      hideTyping();
+      addBubble('error', 'Connection error: ' + err.message);
+      setOrbState('error');
+      setTimeout(() => setOrbState('idle'), 2500);
+    }
+  }
+
+  function renderCard(card) {
+    const div = document.createElement('div');
+    div.className = 'bubble titan';
+    let html = '<div class="card"><div class="card-title">' + (card.title || 'Result') + '</div>';
+    if (card.rows && Array.isArray(card.rows)) {
+      for (const r of card.rows) {
+        html += '<div class="card-row"><span class="card-row-label">' + escape(r.label) + '</span><span class="card-row-value">' + escape(r.value) + '</span></div>';
+      }
+    }
+    if (card.footer) {
+      html += '<div style="margin-top:10px;color:var(--muted);font-size:12px;">' + escape(card.footer) + '</div>';
+    }
+    html += '</div>';
+    div.innerHTML = html;
+    threadEl.appendChild(div);
+    threadEl.scrollTop = threadEl.scrollHeight;
+    setOrbState('idle');
+  }
+
+  function escape(s) {
+    if (s == null) return '';
+    return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  }
+
+  // ─── TTS playback ───
+  async function playTTS(text) {
+    try {
+      setOrbState('speaking');
+      ttsAudio.src = '/api/titan/tts?text=' + encodeURIComponent(text.slice(0, 500));
+      await ttsAudio.play();
+      ttsAudio.onended = () => setOrbState('idle');
+    } catch (e) {
+      console.warn('[titan] TTS failed', e);
+      setOrbState('idle');
+    }
+  }
+
+  // ─── voice input ───
+  async function toggleMic() {
+    if (isListening) {
+      if (mediaRecorder && mediaRecorder.state === 'recording') {
+        mediaRecorder.stop();
+      }
+      return;
+    }
+
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      recordedChunks = [];
+      mediaRecorder = new MediaRecorder(stream, { mimeType: 'audio/webm' });
+
+      mediaRecorder.ondataavailable = (e) => {
+        if (e.data.size > 0) recordedChunks.push(e.data);
+      };
+
+      mediaRecorder.onstop = async () => {
+        stream.getTracks().forEach(t => t.stop());
+        isListening = false;
+        micBtn.classList.remove('listening');
+        setOrbState('thinking');
+        showTyping();
+
+        const blob = new Blob(recordedChunks, { type: 'audio/webm' });
+        const fd = new FormData();
+        fd.append('audio', blob, 'voice.webm');
+        fd.append('session_id', SESSION_ID);
+        try {
+          const res = await fetch('/api/titan/voice-in', { method: 'POST', body: fd });
+          if (!res.ok) throw new Error('HTTP ' + res.status);
+          const data = await res.json();
+          hideTyping();
+          if (data.transcript) addBubble('me', data.transcript);
+          if (data.card) {
+            renderCard(data.card);
+          } else if (data.reply) {
+            addBubble('titan', data.reply);
+            playTTS(data.reply);
+          }
+        } catch (err) {
+          hideTyping();
+          addBubble('error', 'Voice error: ' + err.message);
+          setOrbState('error');
+          setTimeout(() => setOrbState('idle'), 2500);
+        }
+      };
+
+      mediaRecorder.start();
+      isListening = true;
+      micBtn.classList.add('listening');
+      setOrbState('listening');
+    } catch (err) {
+      addBubble('error', 'Microphone access denied');
+    }
+  }
+
+  // ─── UI wiring ───
+  function updateSendButton() { sendBtn.disabled = !inputEl.value.trim(); }
+
+  function adjustInputHeight() {
+    inputEl.style.height = 'auto';
+    inputEl.style.height = Math.min(inputEl.scrollHeight, 100) + 'px';
+  }
+
+  inputEl.addEventListener('input', () => { updateSendButton(); adjustInputHeight(); });
+  inputEl.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      if (inputEl.value.trim()) sendMessage(inputEl.value.trim());
+    }
+  });
+
+  sendBtn.addEventListener('click', () => {
+    if (inputEl.value.trim()) sendMessage(inputEl.value.trim());
+  });
+
+  micBtn.addEventListener('click', toggleMic);
+
+  document.querySelectorAll('.quick-chip').forEach(chip => {
+    chip.addEventListener('click', () => {
+      sendMessage(chip.dataset.prompt);
+    });
+  });
+
+  // ─── boot ───
+  initOrb();
+  setOrbState('idle');
+  addBubble('system', 'Titan ready. Tap the mic or type a message.');
+})();
+</script>
+</body>
+</html>
