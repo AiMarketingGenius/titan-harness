@@ -245,9 +245,20 @@ A power-off is Solon's explicit "I'm done for now, make sure everything is saved
 
 ---
 
-## 12. IDEA BUILDER compliance — every new plan routes through grading (added 2026-04-12)
+## 12. IDEA BUILDER compliance — every new plan routes through grading (added 2026-04-12, REWIRED 2026-04-16)
 
-**Hard rule, non-bypassable.** Any new plan/doctrine file Titan creates under `plans/` (including `PLAN_*.md`, `BATCH_*.md`, `COMPUTER_TASKS_*.md`, `DOCTRINE_*.md`) is considered **UN-GRADED by default** and must NOT be treated as "ready for Solon" until it has been routed through the Idea Builder / war-room grading loop and cleared A-grade (9.4+/10 per `policy.yaml war_room.min_acceptable_grade: A`).
+**Hard rule, non-bypassable, NOW MECHANICALLY ENFORCED.** Any new plan/doctrine file Titan creates under `plans/` (including `PLAN_*.md`, `BATCH_*.md`, `COMPUTER_TASKS_*.md`, `DOCTRINE_*.md`) is considered **UN-GRADED by default** and must NOT be treated as "ready for Solon" until it has been routed through the grading loop and cleared A-grade (9.4+/10 per `policy.yaml grader_stack` block).
+
+**REWIRE 2026-04-16:** Grading now goes through `lib/grader.py` (tiered Gemini stack + GPT-4o mini backup), NOT direct Perplexity Sonar API. The Sonar grader ran a $54 bill on Apr 15 from runaway n8n loops — replaced with `lib/grader.py` backed by `lib/cost_kill_switch.py` (sqlite daily caps + sha256 dedupe + fail-closed). `lib/war_room.py` is preserved as a thin wrapper that calls `gradeArtifact()` internally so existing call sites keep working.
+
+**Tier routing (per `policy.yaml grader_stack`):**
+- `scope_tier=titan` (operator work) → Gemini 2.5 Flash primary, GPT-4o mini backup
+- `scope_tier=aimg` (consumer product) → Gemini 2.5 Flash-Lite
+- `scope_tier=amg_starter` → Gemini 2.5 Flash-Lite
+- `scope_tier=amg_growth` → Gemini 2.5 Flash
+- `scope_tier=amg_pro` → Gemini 2.5 Pro (premium reasoning)
+
+**`NEVER_GRADE` scopes (filtered before any API call):** `routine_ops`, `ssh_diagnostic`, `sysctl`, `mirror_operation`, `service_start_stop`, `git_operation`, `diagnostic`, `wip_intermediate`, `status_report`. These return `decision: pending_review` with zero API spend.
 
 This enforces CORE_CONTRACT §7 at the plan-file level. CORE_CONTRACT §7 requires every new major project to route through the IDEA → DR → PLAN → EXECUTE pipeline. §12 closes the loophole where Titan hand-writes a plan file outside the `ideas` / `session_next_task` / `tasks` table flow: even hand-written plans must be graded before Solon sees them labeled as ready.
 

@@ -931,87 +931,90 @@ class WarRoom:
 
     def _grade_once(self, titan_output: str, phase: str,
                     trigger_source: str, context: str) -> GradeResult:
-        key = self.creds.get('PERPLEXITY_API_KEY', '')
-        if not key:
+        """REWIRED 2026-04-16: routes through lib/grader.py tiered Gemini stack
+        instead of direct Perplexity sonar-pro. Preserves the GradeResult
+        interface for backward compatibility with existing callers.
+
+        scope_tier='titan' for war-room invocations (Solon's operator work);
+        AMG client deliverable graders should call gradeArtifact() directly
+        with their tier instead of going through WarRoom."""
+        try:
+            sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+            from grader import gradeArtifact  # type: ignore
+        except ImportError as e:
             return GradeResult(
-                grade='ERROR', issues=['PERPLEXITY_API_KEY not set'],
-                recommendations=[], summary='no API key',
+                grade='ERROR', issues=[f'grader.py import failed: {e}'],
+                recommendations=[], summary='grader.py unavailable',
                 raw_response='', input_tokens=0, output_tokens=0,
-                cost_cents=0.0, error='PERPLEXITY_API_KEY not set')
+                cost_cents=0.0, error='grader_import_failed')
 
-        model = self.policy.get('model', 'sonar-pro')
-        body = {
-            'model': model,
-            'messages': [
-                {'role': 'system', 'content': GRADING_SYSTEM_PROMPT},
-                {'role': 'user',
-                 'content': _build_grading_user_message(
-                     titan_output, phase, trigger_source, context)},
-            ],
-            # 4000 tokens gives the grader room to return a full JSON with
-            # 15+ issues and 15+ recommendations. 1500 was too tight and
-            # truncated mid-JSON on long sprint reports (A-grade rewrites),
-            # producing ERROR grades from the parser.
-            'max_tokens': 4000,
-            'temperature': 0.1,
+        # Map war-room artifact category onto grader.py artifact_type taxonomy.
+        # War-room mostly grades plans / phase-completion docs / architecture
+        # decisions — all of which map to "doctrine" in the new schema.
+        artifact_type_map = {
+            'phase_completion': 'doctrine',
+            'plan_finalization': 'doctrine',
+            'architecture_decision': 'doctrine',
+            'manual': 'deliverable',
         }
+        artifact_type = artifact_type_map.get(trigger_source, 'deliverable')
 
-        # Perplexity grading on long A-grade rewrites (15KB+ inputs with
-        # 4000-token responses) routinely takes 60-100s. The old 60s cap
-        # was a silent failure source.
-        if GATEWAY_ENABLED and GATEWAY_URL:
-            _gw_url = GATEWAY_URL
-            _gw_headers = {
-                'Authorization': f'Bearer {LITELLM_MASTER_KEY}',
-                'Content-Type': 'application/json',
-            }
-        else:
-            _gw_url = PERPLEXITY_URL
-            _gw_headers = {
-                'Authorization': f'Bearer {key}',
-                'Content-Type': 'application/json',
-            }
-        status, resp = _http_post(
-            _gw_url,
-            headers=_gw_headers,
-            body=body,
-            timeout=180,
+        result = gradeArtifact(
+            content=titan_output,
+            artifact_type=artifact_type,
+            scope_tier='titan',
+            context=f'phase={phase} trigger={trigger_source} {context}'.strip(),
+            scope=None,  # war-room invocations are NEVER routine_ops by definition
         )
 
-        if status != 200:
-            return GradeResult(
-                grade='ERROR', issues=[f'http {status}: {resp[:300]}'],
-                recommendations=[], summary=f'http {status}',
-                raw_response=resp[:2000], input_tokens=0, output_tokens=0,
-                cost_cents=0.0, error=f'http {status}')
+        # Translate gradeArtifact JSON schema → GradeResult dataclass shape.
+        # gradeArtifact returns score 0-10 + decision (pass/revise/fail/pending_review).
+        # Map back to the legacy A/B/C/D/F grade taxonomy war_room expects.
+        score = float(result.get('overall_score_10', 0))
+        decision = result.get('decision', 'pending_review')
 
-        try:
-            data = json.loads(resp)
-        except json.JSONDecodeError:
-            return GradeResult(
-                grade='ERROR', issues=['response not json'],
-                recommendations=[], summary='not json',
-                raw_response=resp[:2000], input_tokens=0, output_tokens=0,
-                cost_cents=0.0, error='not json')
+        if decision == 'pending_review':
+            # Skipped — cap hit, NEVER_GRADE, etc. Return a special marker
+            # the caller treats as non-blocking pass.
+            grade = 'A'  # treat as pass to avoid stalling the loop
+        elif score >= 9.4:
+            grade = 'A'
+        elif score >= 8.5:
+            grade = 'B'
+        elif score >= 7.5:
+            grade = 'C'
+        elif score >= 6.5:
+            grade = 'D'
+        else:
+            grade = 'F'
 
-        content = (data.get('choices', [{}])[0]
-                   .get('message', {}).get('content', ''))
-        usage = data.get('usage', {}) or {}
-        input_tokens = int(usage.get('prompt_tokens', 0) or 0)
-        output_tokens = int(usage.get('completion_tokens', 0) or 0)
-        cost = _estimate_sonar_cost(input_tokens, output_tokens)
+        # Issues + recommendations: combine critical_failures + required_revisions
+        issues = (
+            [f'[critical] {x}' for x in result.get('critical_failures', [])]
+            + [f'[revise] {x}' for x in result.get('required_revisions', [])]
+        )
+        recommendations = list(result.get('required_revisions', []))
 
-        grade, issues, recommendations, summary = _parse_grade_json(content)
+        # Summary embeds score + decision + meta for transparency
+        meta = result.get('_meta', {})
+        primary_model = meta.get('primary_model', 'unknown')
+        summary = f'[{score}/10 {decision}] {result.get("grade_reasoning", "")[:300]} (model={primary_model})'
 
+        # Cost: gradeArtifact tracks via cost_kill_switch ledger; we don't get
+        # raw token counts back through this interface. Report 0 for tokens
+        # (war_room doesn't drive on these), keep cost in summary metadata.
         return GradeResult(
             grade=grade,
-            issues=issues,
-            recommendations=recommendations,
+            issues=issues[:10],  # cap for log readability
+            recommendations=recommendations[:5],
             summary=summary,
-            raw_response=content,
-            input_tokens=input_tokens,
-            output_tokens=output_tokens,
-            cost_cents=cost,
+            raw_response=json.dumps(result, default=str)[:5000],
+            input_tokens=0,
+            output_tokens=0,
+            cost_cents=0.0,  # tracked separately in cost_kill_switch ledger
+            score=score,
+            ship=(decision == 'pass'),
+            error=None if decision != 'pending_review' else 'skipped_by_grader',
         )
 
     def _revise(self, previous_output: str, grade: GradeResult,

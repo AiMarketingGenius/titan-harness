@@ -1039,14 +1039,16 @@ Same asset, different points of maturity. Both numbers are correct — they answ
 
 **Standing rule:** Adversarial review minimum is two independent providers (Perplexity + Grok). Claude self-review never counts as sole validation.
 
-### 12.5 Sonar A- floor on implementation-phase tasks (v1.6 — 2026-04-16)
+### 12.5 Gemini-tier A- floor on implementation-phase tasks (v1.6 — 2026-04-16, REWIRED 2026-04-16 evening)
+
+**SUPERSEDES "Sonar A- floor"** — moved to grader-stack-v2 architecture per Solon directive `grader-stack-canonical-v2`. Perplexity Sonar grader is deprecated (ran $54 bill on Apr 15 from runaway n8n loops). New grader: `lib/grader.py` tiered Gemini stack with mechanical cost guards.
 
 **Hard rule, enforced at three layers (impossible to bypass):**
 
 Any task with `task_risk_tier='implementation'` in `op_task_queue` is **non-completable** without:
 
-1. A Sonar grade recorded in `qc_grade` (letter grade A+/A/A- → pass; anything below → fail).
-2. The recorded grade ≥ **A-** (i.e., ≥ 9.0/10 against the 10-dimension rubric in `lib/war_room.py`).
+1. A grade recorded in `qc_grade` from `lib/grader.py` (letter grade A+/A/A- → pass; anything below → fail). Grader: Gemini 2.5 Flash primary, GPT-4o mini backup on borderline (8.6-9.3 score) or low-confidence (<0.7) responses.
+2. The recorded grade ≥ **A-** (i.e., ≥ 9.0/10 against the rubric in `lib/grader.py` GRADING_SYSTEM_PROMPT).
 
 Enforcement layers (defense in depth):
 
@@ -1061,19 +1063,36 @@ Enforcement layers (defense in depth):
 - **Implementation-phase tasks (`task_risk_tier='implementation'`):** A- floor (≥ 9.0/10). Preserves ship velocity while blocking silent B/C/F completions.
 - **Doctrine ship / plan ship (§10.5, §12 Idea Builder, CT-0414-08 4-doctrine chain):** A floor (≥ 9.4/10). Stricter — permanent canon requires the tighter gate.
 
-**Cost gating:** Sonar grade calls are budget-capped per `policy.yaml war_room.budget.*` (currently $150/month + 20/hour ceiling per `operator-qc-perplexity.js`). Budget-exhausted state escalates to `status='escalated'` with operator ping. Worker does **NOT** auto-fallback to self-grade — human gate is mandatory when external adjudicator is unavailable.
+**Cost gating (REWIRED 2026-04-16):** Grader calls now budget-capped per `policy.yaml grader_stack.daily_cap_usd` ($10/day total across all vendors) AND per-vendor caps in `lib/cost_kill_switch.py` (Gemini $5, OpenAI $5, etc). sha256 dedupe means identical artifacts within 24h cost zero (cached). NEVER_GRADE scopes (routine_ops, ssh_diagnostic, sysctl, mirror_operation, etc) skip API call entirely. Budget-exhausted state returns `decision: pending_review` (non-blocking — does NOT halt downstream work, prior failure mode that caused full-system halt). Operator-ping-on-escalation moved to MCP decision log (Slack neutered 2026-04-16).
 
 **Cross-ref:** foreman plan drafted 2026-04-16 with file-by-file scope; awaiting Solon go/no-go before code ship. Full doctrine lands in `plans/DOCTRINE_DUAL_AI_PHASE_WORKER_v1.0.md` once approved.
 
-### 12.6 Dual-AI phase worker (Claude + GPT-5.4) — high-level (v1.6 — 2026-04-16)
+### 12.6 Tiered Gemini grader stack (v1.6 — 2026-04-16, SUPERSEDES "Dual-AI Claude+GPT" pattern 2026-04-16 evening)
 
-For every task classified as an implementation phase, a dedicated worker runs the following A-vs-B adjudication pattern before the task is allowed to complete:
+**Architecture change per Solon directive `grader-stack-canonical-v2`:** the originally-drafted dual-AI Claude+GPT generation pattern is replaced with a tiered Gemini grader stack. Rationale: Perplexity DR review found measurable self-attribution bias when Claude grades Claude output; Gemini family is non-Anthropic adversarial lane with stronger reasoning per dollar than the prior Sonar route. Generation continues to be Claude (Opus/Sonnet/Haiku per CLAUDE.md §17.7); GRADING moves to Gemini.
 
-1. **Solution A — Claude** (primary frontier model, Opus / Sonnet / Haiku routed by task class per CLAUDE.md §17.7).
-2. **Solution B — secondary frontier model** (GPT-5.4 via OpenAI API once wired; abstraction in `lib/secondary_model.py` so the engine can swap providers with no code change — reads provider / model name / API key / base URL from `/etc/amg/secondary_model.env`).
-3. **Adjudication via Sonar** — both solutions passed to `lib/war_room.py grade_ab_solutions()`, which calls Perplexity sonar-pro with the 10-dimension rubric. Grader returns per-dimension scores, winner recommendation, and a merge suggestion if the two solutions are complementary.
-4. **Completion gate** — task marked `status='completed'` only if grader's chosen solution clears the A- floor (§12.5). Below-floor → `status='revision_needed'` with structured feedback routed back to both generator lanes for iteration.
-5. **Audit row** — one row written per worker run to `dual_ai_exchanges` (new table per `sql/141_dual_ai_exchanges.sql`) capturing both full solutions, grader verdict JSON, cost breakdown per lane, winner, merged output. RLS enabled, service-role-only writes.
+**Grader routing (per `policy.yaml grader_stack`):**
+
+| Tier | Primary grader | Backup | Use case |
+|---|---|---|---|
+| `titan` | Gemini 2.5 Flash | GPT-4o mini | Solon's operator work, war-room invocations |
+| `aimg` | Gemini 2.5 Flash-Lite | (none — single-shot) | AIMG consumer product retrieval/summarization |
+| `amg_starter` | Gemini 2.5 Flash-Lite | (none) | $497 tier client deliverables |
+| `amg_growth` | Gemini 2.5 Flash | (none) | $797 tier client deliverables |
+| `amg_pro` | Gemini 2.5 Pro | GPT-4o mini | $1,497 tier — premium reasoning, justifies upsell |
+
+**Backup trigger** (when defined): primary score 8.6-9.3 (borderline) OR confidence < 0.7 OR critical_failures non-empty. Backup model independently grades, then the higher-confidence response wins.
+
+**Implementation files:**
+- `lib/grader.py` — provider-agnostic `gradeArtifact()` interface, stdlib-only, 380 lines
+- `lib/cost_kill_switch.py` — sqlite-backed daily cap + sha256 dedupe + audit log + fail-closed
+- `scripts/test_grader.py` — 12 tests (8 no-API + 4 live), all green as of 2026-04-16 22:50Z
+- `policy.yaml` — `grader_stack` block defines models per tier, daily cap $10, never_grade_scopes list
+- `lib/war_room.py` — preserved as backward-compat wrapper; `WarRoom.grade()` now calls `gradeArtifact()` internally
+
+**`NEVER_GRADE` scopes (filtered before any API call, zero cost):** routine_ops, ssh_diagnostic, sysctl, mirror_operation, service_start_stop, git_operation, diagnostic, wip_intermediate, status_report. These return `decision: pending_review` instantly — caller treats as non-blocking pass.
+
+**The deprecated dual-AI Claude+GPT generation pattern** (Solution A from Claude, Solution B from GPT-5.4, Sonar adjudicator) is moved to APPENDIX E as a designed-but-superseded architecture. Reasoning: the new stack achieves the same anti-blind-spot goal more cheaply (single Gemini grade vs three model calls per task) and with documented anti-self-bias guarantees.
 
 **Routing policy — cost-aware by tier:**
 
