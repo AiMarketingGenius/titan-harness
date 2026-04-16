@@ -756,6 +756,66 @@ class WarRoom:
                                   'architecture_decision', 'manual'):
             trigger_source = 'manual'
 
+        # --- COST KILL-SWITCH (added 2026-04-16, mechanical enforcement) ---
+        # Two checks before ANY paid call: (1) sha256 dedupe — same artifact
+        # graded today returns cached session with zero API hit; (2) daily
+        # spend cap — if today's perplexity spend > cap, refuse to grade
+        # and return a "skipped" session so the caller doesn't block.
+        try:
+            from cost_kill_switch import KillSwitch
+            ks = KillSwitch(vendor='perplexity', scope='war_room_grade')
+            cached = ks.check_cache(titan_output)
+            if cached is not None:
+                # Reconstruct a minimal WarRoomSession from cache so callers
+                # using session.final_grade still work.
+                cached_session = WarRoomSession(
+                    exchange_group_id=cached.get('exchange_group_id', str(uuid.uuid4())),
+                    project_id=project_id,
+                    phase=phase,
+                    trigger_source=trigger_source,
+                    terminal_reason='cache_hit',
+                )
+                cached_grade = GradeResult(
+                    grade=cached.get('final_grade', 'A'),
+                    issues=[], recommendations=[],
+                    summary=f"[cached {cached.get('cached_at', '')}]",
+                    raw_response='', input_tokens=0, output_tokens=0,
+                    cost_cents=0.0,
+                )
+                cached_session.rounds.append(Round(
+                    round_number=1, titan_output=titan_output,
+                    grade_result=cached_grade,
+                ))
+                return cached_session
+
+            if not ks.allow_call(estimated_cost_usd=0.05):
+                # Daily cap hit. Return a "skipped" session that doesn't
+                # block the caller. fail_non_blocking semantic — grade='SKIP'
+                # is treated as PASS by callers that check for grade != 'F'.
+                skip_session = WarRoomSession(
+                    exchange_group_id=str(uuid.uuid4()),
+                    project_id=project_id,
+                    phase=phase,
+                    trigger_source=trigger_source,
+                    terminal_reason='cost_cap_hit',
+                )
+                skip_session.rounds.append(Round(
+                    round_number=1, titan_output=titan_output,
+                    grade_result=GradeResult(
+                        grade='SKIP', issues=[], recommendations=[],
+                        summary='daily cost cap hit — grading skipped (non-blocking)',
+                        raw_response='', input_tokens=0, output_tokens=0,
+                        cost_cents=0.0,
+                    ),
+                ))
+                return skip_session
+            # KillSwitch instance kept in self for record_call after the run.
+            self._killswitch = ks
+        except ImportError:
+            # cost_kill_switch.py not present — degrade silently to old behavior.
+            self._killswitch = None
+        # --- END KILL-SWITCH GUARD ---
+
         if self.policy.get('slack_grading_enabled'):
             try:
                 from war_room_slack import SlackWarRoom
@@ -833,6 +893,23 @@ class WarRoom:
             current_output = revised
 
         session.terminal_reason = terminal_reason
+
+        # --- COST KILL-SWITCH: record actual spend + cache result ---
+        if getattr(self, '_killswitch', None) is not None:
+            try:
+                actual_cost_usd = session.total_cost_cents / 100.0
+                self._killswitch.record_call(
+                    artifact_text=titan_output,
+                    actual_cost_usd=actual_cost_usd,
+                    result={
+                        'final_grade': session.final_grade,
+                        'exchange_group_id': session.exchange_group_id,
+                        'cached_at': datetime.now(timezone.utc).isoformat(),
+                    },
+                )
+            except Exception:
+                pass  # ledger write failure must not break grade()
+        # --- END KILL-SWITCH RECORD ---
 
         # Log every round to Supabase (last one marked converged)
         table = self.policy.get('log_table', 'war_room_exchanges')

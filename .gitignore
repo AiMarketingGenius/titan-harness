@@ -27,3 +27,6 @@ plans/review_bundles/
 !plans/deployments/**
 var/log/
 var/
+
+# Build artifacts (TTS voice library, generated outputs)
+out/
