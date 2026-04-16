@@ -810,29 +810,83 @@ async def _titan_intent_card(text: str) -> dict | None:
 
 
 async def _card_sprint_state() -> dict:
-    """Pull live sprint state from MCP memory server."""
-    if httpx is None:
-        return {"title": "Sprint state", "rows": [{"label": "Error", "value": "httpx not available"}]}
-    try:
-        async with httpx.AsyncClient(timeout=5.0) as c:
-            r = await c.get("https://memory.aimarketinggenius.io/health")
-            mcp_ok = r.status_code == 200
-    except Exception:
-        mcp_ok = False
+    """Live sprint state pull from op_sprint_state Supabase table (EOM project)."""
+    sprint = await _fetch_sprint_state("EOM")
 
-    # Read locally mirrored sprint state from CLAUDE.md canonical or fallback to short
+    # MCP health side-probe
+    mcp_ok = False
+    if httpx is not None:
+        try:
+            async with httpx.AsyncClient(timeout=3.0) as c:
+                r = await c.get("https://memory.aimarketinggenius.io/health")
+                mcp_ok = r.status_code == 200
+        except Exception:
+            pass
+
+    if sprint:
+        return {
+            "title": f"Sprint — {sprint.get('sprint_name', 'EOM')}",
+            "rows": [
+                {"label": "Completion",  "value": f"{sprint.get('completion_pct', '?')}%"},
+                {"label": "Kill chain",  "value": f"{sprint.get('kc_count', '?')} items"},
+                {"label": "Blockers",    "value": f"{sprint.get('blocker_count', '?')} active"},
+                {"label": "Memory layer", "value": "healthy" if mcp_ok else "unreachable"},
+                {"label": "Last update", "value": sprint.get('last_updated_short', '?')},
+            ],
+            "footer": f"Live from op_sprint_state · ask 'what's blocked' for the full list"
+        }
+
+    # Cached fallback
     return {
         "title": "Sprint state — CT-0415 Levar Day + CT-0416-01 mega-batch",
         "rows": [
             {"label": "Completion", "value": "95%"},
             {"label": "Kill chain items", "value": "20"},
             {"label": "Active blockers", "value": "7"},
-            {"label": "MCP memory layer", "value": "healthy" if mcp_ok else "unreachable"},
-            {"label": "Beast VPS", "value": "primary production"},
-            {"label": "HostHatch", "value": "staging + DR failover"},
+            {"label": "Memory layer", "value": "healthy" if mcp_ok else "unreachable"},
         ],
-        "footer": "Last update 2026-04-16 · ask 'what's blocked' for the full list"
+        "footer": "Cached · live Supabase pull unavailable"
     }
+
+
+async def _fetch_sprint_state(project_id: str) -> dict:
+    """Live pull from op_sprint_state. Returns summary dict, empty on failure."""
+    if httpx is None:
+        return {}
+    url = os.environ.get("SUPABASE_URL", "").strip()
+    key = os.environ.get("SUPABASE_SERVICE_ROLE_KEY", "").strip()
+    if not url or not key:
+        return {}
+    try:
+        async with httpx.AsyncClient(timeout=4.0) as client:
+            r = await client.get(
+                f"{url}/rest/v1/op_sprint_state",
+                params={
+                    "project_id": f"eq.{project_id}",
+                    "select": "sprint_name,completion_pct,kill_chain,blockers,last_updated",
+                    "limit": "1"
+                },
+                headers={"apikey": key, "Authorization": f"Bearer {key}"}
+            )
+            if r.status_code != 200 or not r.json():
+                return {}
+            row = r.json()[0]
+            kc = row.get("kill_chain") or []
+            bl = row.get("blockers") or []
+            last = row.get("last_updated") or ""
+            # Short-form "2026-04-16 15:44 UTC"
+            short = last.replace("T", " ")[:16] + " UTC" if last else ""
+            return {
+                "sprint_name": row.get("sprint_name"),
+                "completion_pct": row.get("completion_pct"),
+                "kc_count": len(kc) if isinstance(kc, list) else 0,
+                "blocker_count": len(bl) if isinstance(bl, list) else 0,
+                "kill_chain": kc,
+                "blockers": bl,
+                "last_updated_short": short,
+            }
+    except Exception:
+        return {}
 
 
 async def _card_client_snapshot(slug: str, name: str) -> dict:
@@ -965,17 +1019,43 @@ def _client_open_items(slug: str) -> str:
 
 
 async def _card_blockers() -> dict:
-    """Pull current hard blockers from sprint state."""
+    """Live blockers pull from op_sprint_state.blockers JSONB."""
+    sprint = await _fetch_sprint_state("EOM")
+    blockers = sprint.get("blockers") if sprint else []
+
+    if blockers and isinstance(blockers, list):
+        rows = []
+        for b in blockers[:6]:
+            # blocker shape: {"text": "...", "severity": "high"}
+            if isinstance(b, dict):
+                txt = b.get("text") or b.get("description") or str(b)
+                sev = (b.get("severity") or "").upper()
+                # Short label from first 3-4 words of blocker text
+                words = txt.split()
+                label = " ".join(words[:3])[:20] if words else f"#{len(rows)+1}"
+                rest = txt[len(" ".join(words[:3])):].strip().lstrip("—").strip()
+                display = rest if len(rest) <= 60 else rest[:57] + "…"
+                if sev:
+                    display = f"[{sev[:1]}] {display}"
+                rows.append({"label": label, "value": display})
+        if rows:
+            return {
+                "title": "Blockers — live",
+                "rows": rows,
+                "footer": f"{len(blockers)} total · live from op_sprint_state"
+            }
+
+    # Cached fallback
     return {
         "title": "Blocked on Solon",
         "rows": [
             {"label": "Anthropic 401", "value": "Diagnose cap vs rotate"},
             {"label": "Restic R2 token", "value": "Cloudflare bucket + write token"},
             {"label": "sql/007 CRM", "value": "Paste into Supabase"},
-            {"label": "Telnyx upgrade", "value": "Free-tier still pending"},
+            {"label": "Telnyx upgrade", "value": "Free-tier pending"},
             {"label": "Hetzner quota", "value": "Dedicated cores pending"},
         ],
-        "footer": "5 active · full list in MCP sprint state"
+        "footer": "Cached · live pull unavailable"
     }
 
 
