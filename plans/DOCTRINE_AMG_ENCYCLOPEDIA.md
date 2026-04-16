@@ -1,10 +1,11 @@
 # AMG ENCYCLOPEDIA — FULL SYSTEM INVENTORY
 
 **Prepared for:** Solon Zafiropoulos, Founder & Sole Operator
-**Version:** v1.5 (living document — surgical updates only)
-**Updated:** 2026-04-15 (post 4-doctrine canonical ship + Perplexity DR valuation integration. v1.5 deltas vs v1.4: §17 + §16 + §11A.11 cross-ref to §19; renumbered prior §18-EXTERNAL-VALUATION duplicate to §19; v1.4 prior-state preserved as `git show v1.4-anchor:plans/DOCTRINE_AMG_ENCYCLOPEDIA.md`. v1.4 was: post overnight Titan queue burndown + pre-Hetzner doctrine chain — AIMG live, SECRETS-01 Phase A done, CT-0415-05 P1 hardened LIVE + P3 staged + P2 smoke-tested, Layer-4 v2 staged for sudo install, 4-doctrine adjudication chain specced with grok_review tool + Approval Broker + #titan-nudge queued, Hetzner 2× CX32 hard-gated on chain completion)
+**Version:** v1.6 (living document — surgical updates only)
+**Updated:** 2026-04-16 (beast VPS commissioned as primary production + 140-lane n8n parallelism + Sonar A- floor on implementation phases + dual-AI phase worker doctrine drafted). v1.6 deltas vs v1.5: §3.1 rewritten for beast-primary + HostHatch-staging/failover; §3.2.1 n8n lanes 60→140; new §3.2.2 140-lane allocation map; §11.2 infrastructure row updated; new §12.5 Sonar A- floor enforcement; new §12.6 dual-AI phase worker (Claude + GPT-5.4) high-level; new APPENDIX E CHANGELOG / ARCHIVE holding superseded HostHatch-as-primary + 60-lane content. v1.5 prior-state preserved in APPENDIX E and in git at the v1.5 commit sha.
 **Purpose:** Investor-grade comprehensive documentation of everything built, in queue, and on roadmap under the AMG umbrella
 **Classification:** INTERNAL — contains trade secret tool names not authorized for client-facing use
+**Maintenance rule (Solon directive 2026-04-16):** update this doc at least every other day when infra / quality gates / dual-AI behavior changes materially. Keep body = current state; move superseded content to APPENDIX E (CHANGELOG / ARCHIVE). Generate short change summary after every update so Solon can share with Perplexity.
 **Instructions to reviewer (Perplexity):** Analyze this document to assess (a) total build cost if commissioned to a consultancy, (b) replacement cost of rebuilding from scratch, (c) Solon's market value as a Senior AI Engineer / AI Systems Architect / Visionary Founder
 
 ## LIVING DOCUMENT METADATA
@@ -15,8 +16,8 @@
 | Update cadence | After every major ship; at every sprint rollover; ad hoc when inventory changes |
 | Source-of-truth precedence | MCP decisions > this doc > past thread context > memory |
 | Patch style | Surgical str_replace only — no full rewrites unless explicitly approved |
-| Version history | v1.0 2026-04-14 (initial) → v1.1 2026-04-14 late (+ Titan canonical specs, + Solon OS/Atlas layers, + MP-1→MP-4 mega prompts, + CORDCUT phases, + AHA moment, + 2-week ship horizon, + CT-ID inventory) → v1.2 2026-04-15 (+ AIMG LIVE in prod, + SECRETS-01 Phase A done, + CT-0415-05 P1 hardened LIVE + P3 staged + P2 smoke-tested, + Layer-4 v2 staged, + payment doctrine PaymentCloud/Durango primary — Paddle REJECTED, + sprint 88%→95%, + 8 new commits in Appendix B+D) |
-| Next scheduled update | After CT-0415-05 Phase 2 (Channels) verified post-restart + PaymentCloud merchant approval clears |
+| Version history | v1.0 2026-04-14 (initial) → v1.1 2026-04-14 late (+ Titan canonical specs, + Solon OS/Atlas layers, + MP-1→MP-4 mega prompts, + CORDCUT phases, + AHA moment, + 2-week ship horizon, + CT-ID inventory) → v1.2 2026-04-15 (+ AIMG LIVE in prod, + SECRETS-01 Phase A done, + CT-0415-05 P1 hardened LIVE + P3 staged + P2 smoke-tested, + Layer-4 v2 staged, + payment doctrine PaymentCloud/Durango primary — Paddle REJECTED, + sprint 88%→95%, + 8 new commits in Appendix B+D) → v1.3/1.4/1.5 2026-04-15 late (+ Perplexity DR external-valuation integration — §19) → **v1.6 2026-04-16 (+ beast VPS primary, + HostHatch demoted to staging/failover, + 140-lane n8n + allocation map, + Sonar A- floor on implementation phases, + dual-AI phase worker high-level, + APPENDIX E CHANGELOG)** |
+| Next scheduled update | Within 48h (per maintenance rule) or immediately on any further infra / quality-gate / dual-AI behavior change. Expected triggers: beast VPS specs finalized, dual-AI phase worker code shipped + DB trigger live, first implementation-phase task to complete under A- floor. |
 
 ---
 
@@ -144,7 +145,30 @@ Cross-platform Chrome extension providing persistent memory + quality enforcemen
 
 ## 3. FOUNDATIONAL INFRASTRUCTURE LAYER
 
-### 3.1 Primary Production VPS
+### 3.1 Infrastructure topology (v1.6 — beast-primary + HostHatch-staging/failover)
+
+AMG now runs a **two-tier VPS topology** with a planned EU-region tertiary lane. Primary production and staging are both fully operational; the tertiary lane is gated on the 4-doctrine adjudication chain.
+
+| Tier | Role | Provider / host | Status |
+|---|---|---|---|
+| **Primary production** | All client-facing traffic, 140-lane n8n parallelism, dual-AI phase worker, Atlas pillars A–G live service | **Beast VPS** | **ACTIVE as of 2026-04-16** |
+| **Staging + DR failover** | Pre-prod canary, DR failover target, mirror of prod config | **HostHatch VPS** | ACTIVE (demoted from primary 2026-04-16) |
+| **Tertiary (planned)** | EU-region active/active redundancy, gated on 4-doctrine chain (§10.5) | Hetzner 2× CX32 | UNDER RE-EVALUATION given beast-primary topology change |
+
+#### 3.1.1 Beast VPS — primary production (commissioned 2026-04-16)
+
+| Field | Value |
+|---|---|
+| Codename | **beast** |
+| Provider | *[pending Solon confirmation — updated next edit]* |
+| IP / hostname | *[pending Solon confirmation]* |
+| Specs | *[pending Solon confirmation — provisioned to support 140-lane n8n + dual-AI phase worker concurrent footprint]* |
+| OS | *[pending Solon confirmation — expected Ubuntu 22.04 LTS or 24.04 LTS]* |
+| Monthly cost | *[pending Solon confirmation]* |
+| Uptime target | 99.95% |
+| Role | Primary prod — all client-facing traffic, n8n queue mode (140-lane), dual-AI phase worker, MCP memory server, Atlas API, Kokoro/Hermes voice stack, LiteLLM gateway, Stagehand persistent browser, Caddy reverse proxy, security stack (Suricata + Wazuh + fail2ban) |
+
+#### 3.1.2 HostHatch VPS — staging + DR failover (demoted from primary 2026-04-16)
 
 | Field | Value |
 |---|---|
@@ -154,6 +178,9 @@ Cross-platform Chrome extension providing persistent memory + quality enforcemen
 | OS | Ubuntu 22.04 |
 | Monthly cost | ~$60 |
 | Uptime target | 99.9% |
+| Role | **Staging / pre-prod canary** for new doctrine ships + dual-AI worker code + n8n workflow changes; **DR failover** target if beast becomes unavailable (cold-standby → warm-standby transition planned post-tertiary-lane decision) |
+
+**Role-transition history:** HostHatch served as sole primary production from ~2025-04 through 2026-04-15. Beast VPS commissioned as primary 2026-04-16 to support 140-lane n8n parallelism + dual-AI phase worker headroom. Services mirror-deploy to both VPS via the post-receive hook chain (§3.7) — no data loss or credential rotation required for the topology move; full HostHatch history preserved. See APPENDIX E for pre-2026-04-16 "HostHatch as sole primary" body content.
 
 ### 3.2 Services Running on VPS
 
@@ -187,9 +214,9 @@ Authoritative parallelism and capacity ceilings on VPS (12-core, 64GB RAM), enfo
 | Concurrent heavy tasks | **8** | Aggregated across all lanes |
 | Concurrent general workers/sub-agents | **10** | Task-tool sub-agents |
 | Concurrent CPU-heavy workers | **4** | Dedicated CPU-bound lane |
-| n8n branches per workflow | **20** | Queue-mode concurrency |
-| Concurrent heavy n8n workflows | **3** | Policy-capped |
-| **Total parallel n8n lanes** | **60** | = 20 × 3 |
+| n8n branches per workflow | **20** | Queue-mode `QUEUE_WORKER_CONCURRENCY=20` (per worker) |
+| Concurrent heavy n8n workflows | **7** | **UPGRADED 2026-04-16** (was 3 on HostHatch-primary — see APPENDIX E) |
+| **Total parallel n8n lanes** | **140** | **= 20 × 7 on beast VPS (2026-04-16 →). Allocation map §3.2.2.** |
 | Concurrent LLM batches | **8** | Parallel batch pipeline |
 | Max LLM batch size | **15 items** | Per batch |
 | **Theoretical max concurrent LLM calls** | **120** | = 8 × 15 |
@@ -201,7 +228,25 @@ Authoritative parallelism and capacity ceilings on VPS (12-core, 64GB RAM), enfo
 | Model router | Haiku routine / Sonnet analysis / Opus synthesis | Per CLAUDE.md §17.7 |
 | Streaming | default ON | First-token latency prioritized |
 
-**n8n queue mode proof (2026-04-12):** `EXECUTIONS_MODE=queue`, `QUEUE_WORKER_CONCURRENCY=20`, `QUEUE_HEALTH_CHECK_ACTIVE=true`, `QUEUE_BULL_REDIS_HOST=n8n-redis`, `/healthz=200`, Redis PONG healthy.
+**n8n queue mode proof (2026-04-12 on HostHatch-primary, carried forward to beast):** `EXECUTIONS_MODE=queue`, `QUEUE_WORKER_CONCURRENCY=20`, `QUEUE_HEALTH_CHECK_ACTIVE=true`, `QUEUE_BULL_REDIS_HOST=n8n-redis`, `/healthz=200`, Redis PONG healthy. Beast-primary verification re-run scheduled at post-cutover (see §14.2).
+
+### 3.2.2 140-lane n8n allocation (how the lanes are used)
+
+The 140 parallel workflow lanes on beast VPS map to the seven Atlas pillars + internal ops with burst headroom. Allocation is a target informed by the expected commercial workload mix; actual per-consumer concurrency is enforced at runtime by `bin/check-capacity.sh` against `policy.yaml capacity.*` caps, so a pillar can overflow into burst headroom transiently.
+
+| Consumer | Target lanes | Primary workload |
+|---|---|---|
+| Pillar A — Acquisition | ~30 | Sustained outbound email + LinkedIn + SMS + voice sequences; real-time inbound chat/orb qualification; first-touch prospect intake |
+| Pillar C — Nurture & Conversion | ~30 | Multi-channel 1hr → daily×7 → weekly → biweekly cadence across active clients + proposal pipeline |
+| Pillar E — Delivery & Customer Service | ~28 | 7 WoZ agents (Alex/Maya/Jordan/Sam/Riley/Nadia/Lumina) executing content/SEO/reputation/onboarding/CRO work — ~4 concurrent lanes per agent |
+| Pillar F — Client Portal + reporting | ~20 | GA4/GSC pull, heatmap ingest, monthly report generation, live portal backfill |
+| Internal ops (Pillar G escalation support + self-heal) | ~20 | Health checks, backup chains, log processors, cost-ledger reconciliation, governance drift scoring, CORE_CONTRACT enforcement watchdogs |
+| Burst headroom | ~12 | Held free for peak spikes — outbound blast days, end-of-month report generation, deployment canary flood, dual-AI phase worker surges |
+| **Total** | **140** | |
+
+**Policy hard caps still bound the worst case:** CPU hard limit 90%, RAM hard limit 56 GiB. Exceeding hard limits triggers `bin/check-capacity.sh` to reject new heavy work (fail-closed), not crash. This is the third layer of the harness doctrine per §11 and is what makes the 140 lane headroom safe.
+
+**Re-balancing cadence:** allocation reviewed monthly against the prior month's actual utilization curves from the Governance Health Score drift scoring. Drift ≥ 2σ from the target allocation triggers a re-balance proposal through the dual-AI phase worker (§12.6) before any lane reassignment ships.
 
 ### 3.3 Database Layer
 
@@ -776,7 +821,7 @@ Each category assigned L1–L4 defense mechanisms with independent failure modes
 Every operational category must maintain active/active redundancy:
 - **LLM:** Anthropic + OpenAI (via LiteLLM gateway)
 - **Database:** Supabase + VPS PostgreSQL read-only failover
-- **Infrastructure:** HostHatch VPS (primary, 12c/64G) + **Hetzner 2× CX32 lane** (2× 4 vCPU / 8GB / 80GB NVMe each, active/active secondary, EU-region). Provisioning gated on CT-0414-08 4-doctrine adjudication A-grade ship.
+- **Infrastructure (v1.6 — 2026-04-16):** **Beast VPS primary** (specs pending, commissioned 2026-04-16) + **HostHatch VPS staging + DR failover** (170.205.37.148, 12c/64G, demoted from primary) + Hetzner 2× CX32 EU-region tertiary lane (originally gated on CT-0414-08 4-doctrine adjudication A-grade ship; status UNDER RE-EVALUATION given beast-primary topology change — open question whether Hetzner stays as true third lane or gets absorbed into HostHatch-as-failover). See §3.1 for the full topology table.
 - **Payment:** PaymentCloud primary + Durango secondary (dual-MID redundancy, applications pending Solon submission). Paddle REJECTED 2026-04-15. Stripe dead. PayPal Levar-blocked.
 - **Deployment:** Mac local + VPS mirror + GitHub
 - **Credential storage:** Infisical + R2 + `/etc/amg/` env files
@@ -994,6 +1039,60 @@ Same asset, different points of maturity. Both numbers are correct — they answ
 
 **Standing rule:** Adversarial review minimum is two independent providers (Perplexity + Grok). Claude self-review never counts as sole validation.
 
+### 12.5 Sonar A- floor on implementation-phase tasks (v1.6 — 2026-04-16)
+
+**Hard rule, enforced at three layers (impossible to bypass):**
+
+Any task with `task_risk_tier='implementation'` in `op_task_queue` is **non-completable** without:
+
+1. A Sonar grade recorded in `qc_grade` (letter grade A+/A/A- → pass; anything below → fail).
+2. The recorded grade ≥ **A-** (i.e., ≥ 9.0/10 against the 10-dimension rubric in `lib/war_room.py`).
+
+Enforcement layers (defense in depth):
+
+| Layer | Location | Mechanism |
+|---|---|---|
+| Worker refusal | `lib/dual_ai_phase_worker.py` | Worker refuses to call `update_task(status='completed')` if the adjudicator's chosen solution graded below A-; instead transitions to `revision_needed` with structured remediation feedback |
+| MCP application gate | `/opt/amg-mcp-server/src/tools/task-queue.js` (~line 209) | `update_task(status='completed')` call on an `implementation`-tier task returns `QC_GRADE_REQUIRED` or `QC_GRADE_BELOW_FLOOR` error if no A-/better grade is attached |
+| DB trigger (last-line guard) | `sql/140_implementation_qc_gate.sql` | `BEFORE UPDATE ON op_task_queue` raises `IMPLEMENTATION_QC_GATE_VIOLATION` on any completion attempt that bypasses the MCP layer (e.g., direct Supabase REST call) |
+
+**Two-tier grade floor (coexisting):**
+
+- **Implementation-phase tasks (`task_risk_tier='implementation'`):** A- floor (≥ 9.0/10). Preserves ship velocity while blocking silent B/C/F completions.
+- **Doctrine ship / plan ship (§10.5, §12 Idea Builder, CT-0414-08 4-doctrine chain):** A floor (≥ 9.4/10). Stricter — permanent canon requires the tighter gate.
+
+**Cost gating:** Sonar grade calls are budget-capped per `policy.yaml war_room.budget.*` (currently $150/month + 20/hour ceiling per `operator-qc-perplexity.js`). Budget-exhausted state escalates to `status='escalated'` with operator ping. Worker does **NOT** auto-fallback to self-grade — human gate is mandatory when external adjudicator is unavailable.
+
+**Cross-ref:** foreman plan drafted 2026-04-16 with file-by-file scope; awaiting Solon go/no-go before code ship. Full doctrine lands in `plans/DOCTRINE_DUAL_AI_PHASE_WORKER_v1.0.md` once approved.
+
+### 12.6 Dual-AI phase worker (Claude + GPT-5.4) — high-level (v1.6 — 2026-04-16)
+
+For every task classified as an implementation phase, a dedicated worker runs the following A-vs-B adjudication pattern before the task is allowed to complete:
+
+1. **Solution A — Claude** (primary frontier model, Opus / Sonnet / Haiku routed by task class per CLAUDE.md §17.7).
+2. **Solution B — secondary frontier model** (GPT-5.4 via OpenAI API once wired; abstraction in `lib/secondary_model.py` so the engine can swap providers with no code change — reads provider / model name / API key / base URL from `/etc/amg/secondary_model.env`).
+3. **Adjudication via Sonar** — both solutions passed to `lib/war_room.py grade_ab_solutions()`, which calls Perplexity sonar-pro with the 10-dimension rubric. Grader returns per-dimension scores, winner recommendation, and a merge suggestion if the two solutions are complementary.
+4. **Completion gate** — task marked `status='completed'` only if grader's chosen solution clears the A- floor (§12.5). Below-floor → `status='revision_needed'` with structured feedback routed back to both generator lanes for iteration.
+5. **Audit row** — one row written per worker run to `dual_ai_exchanges` (new table per `sql/141_dual_ai_exchanges.sql`) capturing both full solutions, grader verdict JSON, cost breakdown per lane, winner, merged output. RLS enabled, service-role-only writes.
+
+**Routing policy — cost-aware by tier:**
+
+| Tier | Worker path | Rationale |
+|---|---|---|
+| `exempt` (ops tasks) | `titan_queue_watcher.py` (single-model Claude path) | Internal, non-client-facing; single model sufficient |
+| `low` / `standard` / `critical` | `titan_queue_watcher.py` (single-model + 4-layer QES) | Existing QES is sufficient; dual-AI overhead not cost-justified |
+| **`implementation`** | **`dual_ai_phase_worker.py` (dual-AI + A- floor)** | **High-stakes, durable canon; worth the 2× inference cost** |
+
+Flag per tier in `policy.yaml dual_ai_phase_worker.mandatory_for_tiers` — list can be tightened/loosened without code changes.
+
+**Why this pattern matters:**
+
+- **No single-vendor blind spot.** If Claude and GPT-5.4 both hallucinate the same bug, Sonar's independent rubric catches it. If they diverge, the grader sees the divergence and usually picks the correct lane.
+- **Audit trail is durable.** Every implementation-phase task leaves a structured record showing what two AIs generated + what the third AI said about it. Forensic-grade traceability for clients and for internal governance.
+- **Cost is bounded.** Per-task / daily / monthly caps in `policy.yaml dual_ai_phase_worker.budget.*`. Budget-exhausted state escalates, does not silently degrade.
+
+**Status:** doctrine drafted, file-by-file implementation plan reviewed with Solon 2026-04-16. Code ship pending Solon approval. Until ship, implementation-phase tasks continue through the existing single-model path; when ship lands, `task_risk_tier='implementation'` tasks re-route automatically per the flag.
+
 ---
 
 ## 13. TRADE SECRET COMPLIANCE
@@ -1035,8 +1134,9 @@ Never expose the following in client-facing content:
 | Gross margin (project) | >80% |
 | Target MRR 6-month | $15,000–$25,000 |
 
-### 14.2 Sprint Status (as of 2026-04-15 overnight)
+### 14.2 Sprint Status (as of 2026-04-16 v1.6 edit)
 
+- **2026-04-16 infrastructure cutover:** beast VPS commissioned as primary production; HostHatch demoted to staging + DR failover (both operational, zero data loss, services mirror-deployed). 140-lane n8n parallelism activated (was 60 on HostHatch-primary). Dual-AI phase worker doctrine drafted with A- floor on implementation phases; file-by-file foreman plan reviewed with Solon; code ship pending go/no-go.
 - **Sprint:** Post-Lockout Recovery + Enforcement (overnight queue burndown — final pass) → transitioning to Autonomy Expansion + Outbound Activation
 - **Completion:** **95%** (was 88% at 2026-04-14 EOD; +7% from overnight burndown)
 - **ITEM 4 DR-AMG-ENFORCEMENT-01 v1.4:** audit-mode shipped, enforce flip pending Solon attestations
@@ -1517,7 +1617,7 @@ Consumer: aimemoryguard.com
 |---|---|---|
 | AIMG edge fn (`gaybcxzrzfgvcqpkbeiq`) | ✅ LIVE — HTTP 200 | 2026-04-15 03:01 UTC |
 | MCP server (memory.aimarketinggenius.io) | ✅ LIVE — legacy JWT (Phase B pending) | continuous |
-| n8n queue mode (60 lanes capacity) | ✅ active/active | 2026-04-12 |
+| n8n queue mode (140 lanes capacity on beast VPS) | ✅ active/active — upgraded 2026-04-16 (was 60 on HostHatch-primary, see APPENDIX E) | 2026-04-16 |
 | systemd `titan-restart-watcher.service` | ✅ active + enabled | 2026-04-15 03:13 UTC |
 | Mac launchd `com.amg.titan-autorestart` | ⚠️ unloaded for night safety (smoke-tested PASS) | 2026-04-15 02:45 UTC |
 | `titan-channel.ts` Bun MCP server | ✅ smoke-tested PASS, ready for production restart | 2026-04-15 03:30 UTC |
@@ -1530,7 +1630,63 @@ Consumer: aimemoryguard.com
 
 ---
 
-*End of AMG Encyclopedia — 2026-04-15 compiled state.*
-*Document version 1.2.*
+---
+
+## APPENDIX E — CHANGELOG / ARCHIVE
+
+Per the v1.6 maintenance rule (Solon directive 2026-04-16), things that used to be the "current state" in the body of this doctrine and have since been superseded by a later-dated fact live here. Kept so the body can always read as **current state only**, without losing the prior-state audit trail.
+
+### 2026-04-16 — beast VPS commissioned as primary; HostHatch demoted
+
+**Superseded §3.1 body (was current v1.0 → v1.5):**
+
+> ### 3.1 Primary Production VPS
+>
+> | Field | Value |
+> |---|---|
+> | Provider | HostHatch |
+> | IP | 170.205.37.148 |
+> | Specs | 12-core, 64GB RAM, 200GB NVMe |
+> | OS | Ubuntu 22.04 |
+> | Monthly cost | ~$60 |
+> | Uptime target | 99.9% |
+
+**Current state:** HostHatch retains the same hardware specs and monthly cost and runs as **staging + DR failover mirror**. Beast VPS (specs pending confirmation) is the new primary. See §3.1 current body.
+
+### 2026-04-16 — 140-lane n8n parallelism (was 60)
+
+**Superseded §3.2.1 row (was current v1.0 → v1.5):**
+
+> | n8n branches per workflow | **20** | Queue-mode concurrency |
+> | Concurrent heavy n8n workflows | **3** | Policy-capped |
+> | **Total parallel n8n lanes** | **60** | = 20 × 3 |
+
+**Current state:** 20 × 7 = 140 on beast (§3.2.1). Per-pillar allocation now specified in §3.2.2.
+
+### 2026-04-16 — new: Sonar A- floor on implementation phases + dual-AI phase worker
+
+This is an **addition**, not a supersession. New §12.5 (A- floor enforcement at 3 layers) + §12.6 (Claude + GPT-5.4 A-vs-B adjudication pattern). Doctrine drafted; code ship pending Solon approval of the 2026-04-16 foreman plan. Once shipped:
+
+- New `task_risk_tier='implementation'` classification routes to `lib/dual_ai_phase_worker.py` instead of `titan_queue_watcher.py`.
+- New `sql/140_implementation_qc_gate.sql` DB trigger + new `sql/141_dual_ai_exchanges.sql` audit table.
+- New `lib/secondary_model.py` abstraction around OpenAI-compatible APIs (reads `/etc/amg/secondary_model.env`).
+- New `policy.yaml dual_ai_phase_worker.*` section for per-tier flags + cost caps.
+- Fourteen-line guard in `/opt/amg-mcp-server/src/tools/task-queue.js` for application-layer enforcement.
+
+### 2026-04-15 — prior living-document changelog
+
+See "Version history" row in LIVING DOCUMENT METADATA at top of file for prior v1.0 → v1.5 history (initial doc ship → Titan canonical specs → Solon OS/Atlas framing → MP chain → AHA moment → AIMG live → SECRETS-01 Phase A → CT-0415-05 multi-phase → Perplexity DR external-valuation integration).
+
+### Maintenance discipline (standing, v1.6 →)
+
+- Every material infra / quality-gate / dual-AI change → update body AND add CHANGELOG entry within 48h.
+- Body reads as current state, always.
+- Short change summary generated after each update for Solon to share with Perplexity.
+- Revisions land by `str_replace` surgical patches only; no full rewrites unless Solon explicitly approves.
+
+---
+
+*End of AMG Encyclopedia — 2026-04-16 compiled state.*
+*Document version 1.6.*
 *Classification: INTERNAL.*
-*Patch authority: Solon + EOM. Last edit by Titan overnight 2026-04-15 per Solon directive.*
+*Patch authority: Solon + EOM. Last edit by Titan 2026-04-16 per Solon doctrine-maintenance-rule directive.*

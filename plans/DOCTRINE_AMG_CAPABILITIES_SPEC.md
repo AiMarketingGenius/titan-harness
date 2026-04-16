@@ -1,9 +1,10 @@
 # AMG CAPABILITIES SPEC SHEET — REDUNDANCY + VALUATION VERSION
 
 **Prepared for:** External adversarial-review (build-cost estimation) + secondary AI platform onboarding (failover-readiness brief)
-**Version:** v1.1 (2026-04-15) — derived from internal AMG Encyclopedia v1.3; adds operator process auto-restart, personality synthesis pipeline, secondary-AI adjudication protocol, mobile operator approval broker, conversational governance nudge channel, 4-doctrine adjudication chain, and secondary-provider active/active lane status
-**Classification:** SHAREABLE — trade-secret-scrubbed, no proprietary tool names, no internal codenames, no infrastructure identifiers
+**Version:** v1.2 (2026-04-16) — derived from internal AMG Encyclopedia v1.6. v1.2 deltas vs v1.1: §5 infrastructure envelope updated to 140 parallel workflow lanes (was 60) with primary + staging/failover topology; §2.3 quality-enforcement table adds implementation-phase A-minus floor + two-frontier-model adjudication pattern (high-level); §7 adds the same; new §16 CHANGELOG holding superseded v1.0–v1.1 content.
+**Classification:** SHAREABLE — trade-secret-scrubbed, no proprietary tool names, no vendor identifiers, no infrastructure hostnames/IPs, no specific model names
 **Status:** Production-deployed, revenue-generating, ~12 months old
+**Maintenance rule (internal, standing):** update this scrubbed spec in lockstep with the internal Encyclopedia when infra / quality gates / dual-AI behavior changes materially. Move superseded content to §16 CHANGELOG. Keep main body = current state. This is the external-shareable counterpart of the internal Encyclopedia's APPENDIX E.
 
 ---
 
@@ -71,6 +72,8 @@ The platform performs the following classes of work simultaneously, on productio
 | Trade-secret compliance | A standing rule auto-injected into every operator session prevents specific vendor and tool names from appearing in client-facing output. |
 | 4-gate lockout-prevention doctrine | Hash-pinned pre-proposal gate + cryptographically-signed audit chain + read-only forensic template + policy-as-code with timed auto-revert. Tightened gate-policy version adds deny-by-default on all mutating privileged scopes and wires preflight attestations into the structural-write hook. |
 | Secondary-AI adjudication protocol | Every A-grade-required artifact routes through a second, independent AI provider via a durable mailbox pattern with hybrid retrieval (semantic knowledge-base snippets + structural code context + doctrine-freshness pointers). Reviewer returns a structured grade, per-dimension scores, risk tags, and remediation. No artifact ships canonical without passing this gate or being explicitly marked as pending secondary review. |
+| **Implementation-phase A-minus floor (v1.2 — 2026-04-16)** | Tasks classified as *implementation phases* are **non-completable** without a web-grounded adjudicator grade of A- or better (≥ 9.0 / 10 against a 10-dimension rubric). Enforced at three layers: worker refuses completion, application-layer task-queue tool rejects completion transitions that lack the grade, and a database trigger raises a gate-violation error on any bypass attempt (impossible to skip even via direct REST call). Doctrine-ship artifacts retain the stricter A floor (≥ 9.4 / 10). |
+| **Dual-AI phase-worker pattern (v1.2 — 2026-04-16, doctrine drafted)** | For every implementation-phase task, two independent frontier AI providers each generate a candidate solution (Solution A + Solution B). A third, web-grounded adjudicator grades both against the 10-dimension rubric and returns a winner or a merge recommendation. Only the winning solution, if it clears the A-minus floor, completes the task. A durable audit row captures both full solutions + grader verdict + per-lane cost — forensic-grade traceability. Cost bounded by per-task / daily / monthly caps; budget-exhausted state escalates to the operator rather than silently degrading. Tier-gated: only high-stakes implementation work takes the dual-AI path; low- and standard-risk work continues via the single-model + 4-layer defense. |
 | Mobile operator approval broker | Phone-resident approval channel for Hard-Limit operations. Escalations push to operator's mobile device via signed payload (HMAC-SHA256); operator taps Approve / Deny / Hold from lock screen; decision returns via signed write-back with auto-expiry. Implicit timeout is never implicit approval. | 
 | Anti-hallucination disclosure phrases | Mandatory tags on uncertain output: insufficient-data / proxy-data / single-source / inference / uncertain. |
 
@@ -151,7 +154,17 @@ The unified AI fulfillment platform is structured as 7 interlocking subsystems. 
 
 ## 5. INFRASTRUCTURE ENVELOPE (SCALE + CAPACITY)
 
-The platform runs on a single primary 12-core / 64GB-RAM Linux server, with a **secondary-provider active/active failover lane being provisioned** (2× 4-vCPU / 8GB nodes in a separate region, gated on completion of the 4-doctrine adjudication chain described in Section 6). Operational ceilings under the primary hardware envelope:
+### 5.1 Topology (v1.2 — 2026-04-16)
+
+The platform now runs a **two-tier VPS topology** with a planned tertiary EU-region lane:
+
+| Tier | Role | Status |
+|---|---|---|
+| **Primary production** | All client-facing traffic, 140-lane workflow parallelism, dual-AI phase worker, live service delivery across the 7 pillars | **ACTIVE as of 2026-04-16** |
+| **Staging + DR failover** | Pre-prod canary for new doctrine / worker-code / workflow changes; DR failover target if primary becomes unavailable. Mirror-deployed from the same source-of-truth repo; zero-data-loss cutover path. | ACTIVE |
+| **Tertiary (planned)** | EU-region active/active redundancy. Under re-evaluation following the primary-tier commissioning; may be absorbed into the staging/failover role. | Gated on the 4-doctrine adjudication chain (§6) |
+
+### 5.2 Capacity ceilings (under the primary hardware envelope)
 
 | Metric | Ceiling |
 |---|---|
@@ -160,15 +173,33 @@ The platform runs on a single primary 12-core / 64GB-RAM Linux server, with a **
 | Concurrent general workers / sub-agents | 10 |
 | Concurrent CPU-heavy workers | 4 |
 | Workflow orchestration parallel branches per workflow | 20 |
-| Concurrent heavy workflows | 3 |
-| **Total parallel workflow lanes** | **60** |
+| Concurrent heavy workflows | **7** (upgraded 2026-04-16 from 3 on prior-primary — see §16 CHANGELOG) |
+| **Total parallel workflow lanes** | **140** (was 60 on prior-primary) |
 | Concurrent batched LLM call lanes | 8 |
 | Maximum batch size per lane | 15 |
 | **Theoretical maximum concurrent LLM calls** | **120** |
 
 Soft + hard CPU + RAM throttle thresholds are enforced via policy-as-code; the system rejects new heavy work above hard limits rather than failing under load.
 
-Monthly infrastructure cost: approximately $360 (server + AI inference + supporting services).
+### 5.3 140-lane allocation (how parallelism is deployed)
+
+The 140 parallel workflow lanes are allocated across the seven platform pillars + internal ops + burst headroom:
+
+| Consumer | Target lanes | Primary workload |
+|---|---|---|
+| Pillar A — Acquisition | ~30 | Sustained outbound multi-channel sequences + real-time inbound qualification |
+| Pillar C — Nurture & Conversion | ~30 | Multi-channel cadenced sequences across active clients + proposal pipeline |
+| Pillar E — Delivery & Customer Service | ~28 | ~4 concurrent lanes per agent persona across the 7-persona team |
+| Pillar F — Client Portal + reporting | ~20 | Analytics pulls, report generation, live portal backfill |
+| Internal ops (health + self-heal + governance drift + cost reconciliation) | ~20 | Self-healing layer |
+| Burst headroom | ~12 | Peak spikes — outbound blast days, report end-of-month, dual-AI phase worker surges |
+| **Total** | **140** | |
+
+Allocation is a target informed by expected commercial workload mix; actual per-consumer concurrency is enforced at runtime by a policy-as-code check. A pillar can overflow into burst headroom transiently.
+
+### 5.4 Operating cost
+
+Monthly infrastructure cost: approximately **$360–$500** (primary server + staging/failover server + AI inference + supporting services). Exact figure updates post-primary-tier bill cycle.
 
 ---
 
@@ -201,6 +232,41 @@ The platform ships with multiple cross-validated operational doctrines. Each is 
 | L4 — Tiered web-grounded verification | Premium adversarial review for high-stakes investor or contract artifacts. |
 
 Standing rule: adversarial review minimum is two independent providers. Self-review never counts as sole validation.
+
+### 7.1 Implementation-phase A-minus floor (v1.2 — 2026-04-16)
+
+In addition to the 4-layer defense above, tasks classified as **implementation phases** are subject to a stricter completion gate. An implementation-phase task is **non-completable** without a web-grounded adjudicator grade of **A-minus or better** (≥ 9.0 / 10 against a 10-dimension rubric). Enforcement operates at three independent layers so no single code path can bypass it:
+
+1. **Worker-layer refusal.** The dedicated implementation-phase worker will not emit a completion transition if the adjudicator's chosen solution graded below A-minus.
+2. **Application-layer gate.** The task-queue tool rejects any completion transition on an implementation-phase task that lacks an attached A-minus-or-better grade.
+3. **Database-layer trigger.** A trigger on the task-queue table raises a gate-violation error on any completion attempt that bypasses the application layer (direct REST call, manual SQL, etc.).
+
+**Two-tier grade floor (coexisting):**
+
+- **Implementation-phase tasks** — A-minus floor (≥ 9.0 / 10). Preserves ship velocity while blocking silent completion of B / C / F grades.
+- **Doctrine ship / permanent canon** — A floor (≥ 9.4 / 10). Stricter gate for anything that becomes durable system-of-record.
+
+Cost caps (per-task / daily / monthly) bound the adjudicator spend; budget exhaustion escalates to the operator rather than silently falling back to self-grade. Self-grade is never an acceptable substitute for the external adjudicator on implementation-phase work.
+
+### 7.2 Dual-AI phase-worker pattern — high-level (v1.2 — 2026-04-16, doctrine drafted)
+
+For every implementation-phase task, a dedicated worker runs the following A-vs-B adjudication pattern before the task is allowed to complete:
+
+1. **Solution A** — generated by the primary frontier AI provider (tiered model routing: light / medium / heavy class per task complexity).
+2. **Solution B** — generated by a second, independent frontier AI provider. The secondary provider is abstracted behind a single integration point, allowing the specific secondary-provider choice to change without code modifications.
+3. **Adjudication** — both solutions are submitted to a third, independent web-grounded adjudicator that applies the 10-dimension rubric, returns per-dimension scores, and recommends a winner (or a merge if the two solutions are complementary).
+4. **Completion gate** — the task is marked complete only if the adjudicator's chosen solution clears the A-minus floor. Below-floor outcomes transition to a revision state with structured remediation feedback routed back to both generator lanes.
+5. **Audit row** — a durable audit row is written per worker run, capturing both full solutions + adjudicator verdict + winner + cost breakdown per provider lane. Forensic-grade traceability is preserved for internal governance and for clients under appropriate access.
+
+**Tier-gated cost awareness:** dual-AI phase work is applied only where the doctrine requires it. Low-, standard-, and critical-risk tasks continue via the existing single-model path plus the 4-layer defense. Implementation-phase tasks take the dual-AI path. A per-tier flag controls application without code changes.
+
+**Why this pattern exists:**
+
+- **No single-vendor blind spot.** If the two generator providers share a hallucination, the independent adjudicator catches it.
+- **Durable audit trail.** Every implementation-phase task leaves a structured record of what two AIs generated + what the third AI said about it — enough detail for forensic traceability.
+- **Bounded cost.** Per-task / daily / monthly caps prevent runaway spend; budget exhaustion routes to the operator.
+
+**Status:** doctrine drafted, file-by-file implementation plan staged for founder approval. Until the code ships, implementation-phase tasks continue to be routed through the existing single-model path; when the code ships, the tier flag activates automatic re-routing.
 
 ---
 
@@ -433,6 +499,47 @@ For Perplexity's response in Part A, the most useful term to anchor pricing benc
 
 ---
 
-*End of capabilities spec sheet — version 1.0 (2026-04-15).*
-*Internal reference: derived from AMG Encyclopedia v1.2.*
+---
+
+## 16. CHANGELOG / ARCHIVE
+
+Per the v1.2 maintenance rule, content that was current-state in earlier versions of this spec and has been superseded by a later-dated fact lives here. Keeps the main body reading as **current state only** while preserving the audit trail. This is the external-shareable counterpart of the internal Encyclopedia's APPENDIX E.
+
+### 2026-04-16 — v1.2: primary production tier commissioned; topology is now two-tier
+
+**Superseded §5 narrative (was current v1.0 → v1.1):**
+
+> The platform runs on a single primary 12-core / 64GB-RAM Linux server, with a secondary-provider active/active failover lane being provisioned (2× 4-vCPU / 8GB nodes in a separate region, gated on completion of the 4-doctrine adjudication chain described in Section 6).
+
+**Current state:** two-tier topology — a higher-capacity primary commissioned 2026-04-16, with the previous primary demoted to staging + DR failover role (same hardware specs, same monthly cost, same operational role — just no longer the hot-path for client traffic). Tertiary EU-region lane is under re-evaluation now that the primary tier is stronger. See §5.1 current body.
+
+### 2026-04-16 — v1.2: 140 parallel workflow lanes (was 60)
+
+**Superseded §5 row (was current v1.0 → v1.1):**
+
+> | Concurrent heavy workflows | 3 |
+> | **Total parallel workflow lanes** | **60** |
+
+**Current state:** 20 × 7 = 140 on the new primary. Per-pillar allocation specified in §5.3.
+
+### 2026-04-16 — v1.2: new — implementation-phase A-minus floor + dual-AI pattern
+
+**Addition, not supersession.** New §2.3 rows + new §7.1 + new §7.2. Doctrine drafted; code ship pending founder sign-off.
+
+### v1.0 → v1.1 (prior history)
+
+- **v1.0 (2026-04-15 early):** initial external-shareable spec sheet derived from internal AMG Encyclopedia v1.2.
+- **v1.1 (2026-04-15 late):** added operator process auto-restart, personality synthesis pipeline, secondary-AI adjudication protocol, mobile operator approval broker, conversational governance nudge channel, 4-doctrine adjudication chain, secondary-provider active/active lane status. Cross-referenced from Encyclopedia v1.3.
+
+### Maintenance discipline (standing, v1.2 →)
+
+- External-safe wording is **strict** in the main body: no vendor names, no model names, no hostnames / IPs, no commit hashes, no internal codenames, no client names.
+- Every update to the internal Encyclopedia that affects infra / quality gates / dual-AI behavior triggers a matching (scrubbed) update here within 48h.
+- Supersessions go to this §16. Main body reads as current state only.
+- Short change summary generated after every update for the founder to share with external reviewers.
+
+---
+
+*End of capabilities spec sheet — version 1.2 (2026-04-16).*
+*Internal reference: derived from AMG Encyclopedia v1.6.*
 *Patch authority: founder + EOM. Editing protocol: surgical updates only.*
