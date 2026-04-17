@@ -1,0 +1,496 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<meta name="robots" content="noindex, nofollow" />
+<title>Revere AI Advantage — Powered by Atlas</title>
+<link rel="stylesheet" href="style.css" />
+<link rel="icon" type="image/svg+xml" href="logo.svg" />
+</head>
+<body>
+
+<!-- ============ PASSWORD GATE ============ -->
+<div id="gate" class="gate">
+  <div class="gate-card">
+    <img src="logo.svg" alt="Revere Chamber" class="gate-logo" />
+    <div class="gate-kicker">Revere Chamber of Commerce · Board Preview</div>
+    <h1 class="gate-title">Revere AI Advantage</h1>
+    <div class="gate-sub">Powered by <span class="atlas">Atlas</span></div>
+    <form id="gate-form" class="gate-form" autocomplete="off">
+      <label for="gate-pw">Access code</label>
+      <input type="password" id="gate-pw" placeholder="Enter access code" autofocus />
+      <button type="submit">Enter Preview</button>
+      <div id="gate-err" class="gate-err" hidden>Incorrect access code.</div>
+    </form>
+    <div class="gate-foot">Private preview for Revere Chamber Board leadership. Do not distribute.</div>
+  </div>
+</div>
+
+<!-- ============ APP SHELL ============ -->
+<div id="app" class="app" hidden>
+
+  <header class="topbar">
+    <div class="brand">
+      <img src="logo.svg" alt="" class="brand-logo" />
+      <div class="brand-txt">
+        <div class="brand-line1">Revere AI Advantage</div>
+        <div class="brand-line2">Powered by <span class="atlas">Atlas</span></div>
+      </div>
+    </div>
+    <nav class="navbar">
+      <button class="nav-btn active" data-view="dashboard">Agent Command</button>
+      <button class="nav-btn" data-view="member">Member Portal</button>
+      <button class="nav-btn" data-view="admin">Chamber Admin</button>
+      <button class="nav-btn" data-view="chamberos">Chamber OS</button>
+    </nav>
+    <div class="topbar-right">
+      <div class="status-dot"></div><span class="status-txt">Live · production Atlas</span>
+    </div>
+  </header>
+
+  <!-- ============ VIEW 1: Agent Command Dashboard ============ -->
+  <section class="view active" data-view="dashboard">
+    <div class="view-head">
+      <div>
+        <div class="view-kicker">Seven agents, one Chamber</div>
+        <h2>Agent Command</h2>
+        <p class="view-sub">Every Revere Chamber member gets a private AI team trained on Revere demographics, local business rhythm, and the Chamber's member directory.</p>
+      </div>
+      <div class="view-head-right">
+        <div class="pill-live">Live on beast + HostHatch · 140-lane queue</div>
+      </div>
+    </div>
+
+    <div class="agent-grid">
+      <article class="agent-card" data-agent="coach">
+        <div class="agent-ico">RC</div>
+        <h3>Revere Business Coach</h3>
+        <div class="agent-sub">Weekly strategy · growth blockers · GTM plays</div>
+        <ul class="agent-metrics">
+          <li><span>Sessions this month</span><b>47</b></li>
+          <li><span>Members helped</span><b>18</b></li>
+          <li><span>Avg. grade</span><b>9.2</b></li>
+        </ul>
+        <button class="btn-primary" onclick="openChat('coach')">Open chat</button>
+      </article>
+
+      <article class="agent-card" data-agent="content">
+        <div class="agent-ico">RC</div>
+        <h3>Revere Content Strategist</h3>
+        <div class="agent-sub">Blog · email · GBP posts · brand voice</div>
+        <ul class="agent-metrics">
+          <li><span>Posts drafted</span><b>214</b></li>
+          <li><span>Members published</span><b>14</b></li>
+          <li><span>Engagement lift</span><b>+38%</b></li>
+        </ul>
+        <button class="btn-primary" onclick="openChat('content')">Open chat</button>
+      </article>
+
+      <article class="agent-card" data-agent="seo">
+        <div class="agent-ico">RC</div>
+        <h3>Revere SEO Specialist</h3>
+        <div class="agent-sub">Local rankings · GBP · technical SEO</div>
+        <ul class="agent-metrics">
+          <li><span>Member sites monitored</span><b>18</b></li>
+          <li><span>Keywords on page 1</span><b>126</b></li>
+          <li><span>Local pack wins</span><b>31</b></li>
+        </ul>
+        <button class="btn-primary" onclick="openChat('seo')">Open chat</button>
+      </article>
+
+      <article class="agent-card" data-agent="social">
+        <div class="agent-ico">RC</div>
+        <h3>Revere Social Media Manager</h3>
+        <div class="agent-sub">Instagram · Facebook · LinkedIn scheduling</div>
+        <ul class="agent-metrics">
+          <li><span>Posts queued</span><b>62</b></li>
+          <li><span>Members active</span><b>15</b></li>
+          <li><span>Follower growth</span><b>+12%</b></li>
+        </ul>
+        <button class="btn-primary" onclick="openChat('social')">Open chat</button>
+      </article>
+
+      <article class="agent-card" data-agent="reviews">
+        <div class="agent-ico">RC</div>
+        <h3>Revere Reviews Manager</h3>
+        <div class="agent-sub">Google · Yelp · Tripadvisor monitoring + response</div>
+        <ul class="agent-metrics">
+          <li><span>Reviews handled</span><b>89</b></li>
+          <li><span>Avg. response time</span><b>14 min</b></li>
+          <li><span>Avg. star rating lift</span><b>+0.4</b></li>
+        </ul>
+        <button class="btn-primary" onclick="openChat('reviews')">Open chat</button>
+      </article>
+
+      <article class="agent-card" data-agent="outbound">
+        <div class="agent-ico">RC</div>
+        <h3>Revere Outbound Coordinator</h3>
+        <div class="agent-sub">New-business outreach · sponsor prospecting</div>
+        <ul class="agent-metrics">
+          <li><span>Prospects contacted</span><b>412</b></li>
+          <li><span>Replies this month</span><b>47</b></li>
+          <li><span>Sponsors landed</span><b>3</b></li>
+        </ul>
+        <button class="btn-primary" onclick="openChat('outbound')">Open chat</button>
+      </article>
+
+      <article class="agent-card" data-agent="cro">
+        <div class="agent-ico">RC</div>
+        <h3>Revere Conversion Optimizer</h3>
+        <div class="agent-sub">Website CRO · funnel diagnosis · A/B tests</div>
+        <ul class="agent-metrics">
+          <li><span>Audits completed</span><b>22</b></li>
+          <li><span>Avg. conv-rate lift</span><b>+27%</b></li>
+          <li><span>Tests running</span><b>9</b></li>
+        </ul>
+        <button class="btn-primary" onclick="openChat('cro')">Open chat</button>
+      </article>
+    </div>
+
+    <div class="atlas-banner">
+      <div>
+        <div class="atlas-banner-kicker">Every agent above runs on the Atlas engine</div>
+        <div class="atlas-banner-main">Same infrastructure that handles 140 concurrent AI workflows per second across AMG's production cluster — now private-labeled for Revere.</div>
+      </div>
+      <div class="atlas-stats">
+        <div><b>140</b><span>concurrent lanes</span></div>
+        <div><b>2</b><span>production VPS</span></div>
+        <div><b>&lt;200ms</b><span>median response</span></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ VIEW 2: Chamber Member Portal ============ -->
+  <section class="view" data-view="member">
+    <div class="view-head">
+      <div>
+        <div class="view-kicker">What a Revere Chamber member sees</div>
+        <h2>Member Portal — Joe's Pizza of Revere</h2>
+        <p class="view-sub">A signed-in member views their live marketing queue, SEO health, and review pipeline. Everything here is generated, scheduled, and audited by the seven agents.</p>
+      </div>
+      <div class="view-head-right">
+        <div class="badge badge-gold">Member since 2024</div>
+        <div class="badge badge-navy">Founding cohort</div>
+      </div>
+    </div>
+
+    <div class="member-grid">
+      <div class="card card-lg">
+        <div class="card-head">
+          <h3>GBP Optimization Score</h3>
+          <div class="tag">updated 14 min ago</div>
+        </div>
+        <div class="score-ring">
+          <div class="score-num">92</div>
+          <div class="score-label">out of 100</div>
+        </div>
+        <ul class="score-breakdown">
+          <li><span>NAP consistency</span><b>100</b></li>
+          <li><span>Photos (weekly)</span><b>96</b></li>
+          <li><span>Posts (weekly)</span><b>88</b></li>
+          <li><span>Q&amp;A completeness</span><b>94</b></li>
+          <li><span>Review response rate</span><b>84</b></li>
+        </ul>
+      </div>
+
+      <div class="card card-lg">
+        <div class="card-head">
+          <h3>Social Posts Queue</h3>
+          <div class="tag tag-gold">12 scheduled</div>
+        </div>
+        <div class="queue">
+          <div class="queue-item">
+            <div class="q-when">Today · 4:30 PM</div>
+            <div class="q-what">IG · Instagram</div>
+            <div class="q-body">Friday slice night. $3 slices, $4 Peronis, live from the Pioli brothers' oven. Pre-game the Revere Beach lights at Joe's.</div>
+            <div class="q-agent">drafted by Revere Content Strategist · scheduled by Revere Social Media Manager</div>
+          </div>
+          <div class="queue-item">
+            <div class="q-when">Tomorrow · 11:00 AM</div>
+            <div class="q-what">GBP post · Offer</div>
+            <div class="q-body">Saturday family deal: large cheese + 2L soda, $18 all Saturday. Pick up or order via DoorDash. Mention "Revere Advantage" in-store for a garlic knot on us.</div>
+            <div class="q-agent">drafted by Revere Content Strategist</div>
+          </div>
+          <div class="queue-item">
+            <div class="q-when">Sun · 2:00 PM</div>
+            <div class="q-what">FB · Long-form</div>
+            <div class="q-body">Profile of Nonna Pioli — the original Joe's Pizza recipe card from 1978. Story, photos, free slice when a customer brings in their own pizza memory.</div>
+            <div class="q-agent">drafted by Revere Content Strategist · pending owner approval</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-head">
+          <h3>Review Pipeline</h3>
+          <div class="tag">live</div>
+        </div>
+        <ul class="reviews">
+          <li class="rv rv-5">
+            <div class="rv-head"><b>5.0 ★</b> · Google · 22 min ago</div>
+            <div class="rv-body">"Best slice in Revere, by a mile. The Pioli brothers actually came out and talked to us."</div>
+            <div class="rv-ack">responded by Revere Reviews Manager in 8 min</div>
+          </li>
+          <li class="rv rv-3">
+            <div class="rv-head"><b>3.0 ★</b> · Yelp · 2 hours ago</div>
+            <div class="rv-body">"Crust was over-done. Service friendly though."</div>
+            <div class="rv-ack">drafted apology + discount comp, held for owner review · 1 hour left</div>
+          </li>
+          <li class="rv rv-5">
+            <div class="rv-head"><b>5.0 ★</b> · Google · 6 hours ago</div>
+            <div class="rv-body">"Ordered the chicken parm sub. Perfect 10."</div>
+            <div class="rv-ack">responded by Revere Reviews Manager in 11 min</div>
+          </li>
+        </ul>
+      </div>
+
+      <div class="card">
+        <div class="card-head">
+          <h3>Outreach Pipeline</h3>
+          <div class="tag">7 warm leads</div>
+        </div>
+        <ul class="reviews">
+          <li class="rv">
+            <div class="rv-head"><b>Revere Youth Soccer League</b> · Sponsor</div>
+            <div class="rv-body">Opened 3 emails · ready for Pioli to close. Pitch: $500 jersey patch sponsor, team pizza party at Joe's after championship game.</div>
+            <div class="rv-ack">drafted by Revere Outbound Coordinator · ready to send</div>
+          </li>
+          <li class="rv">
+            <div class="rv-head"><b>Winthrop Cares Foundation</b> · Corporate catering</div>
+            <div class="rv-body">Replied "tell me more" · next step: pricing PDF + sample tray.</div>
+            <div class="rv-ack">follow-up scheduled by Revere Outbound Coordinator · 9 AM Mon</div>
+          </li>
+          <li class="rv">
+            <div class="rv-head"><b>Revere High Baseball</b> · Team partner</div>
+            <div class="rv-body">Coach requesting: pregame slice deal + social shoutouts.</div>
+            <div class="rv-ack">handoff to Revere Business Coach for pricing guidance</div>
+          </li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ VIEW 3: Chamber Admin Dashboard ============ -->
+  <section class="view" data-view="admin">
+    <div class="view-head">
+      <div>
+        <div class="view-kicker">What the Chamber Board sees</div>
+        <h2>Chamber Admin Dashboard</h2>
+        <p class="view-sub">Revenue, member success, and AI activity in one view — so the Chamber office always knows what's happening without logging into seven tools.</p>
+      </div>
+      <div class="view-head-right">
+        <div class="badge badge-gold">Month-to-date · April 2026</div>
+      </div>
+    </div>
+
+    <div class="kpi-row">
+      <div class="kpi">
+        <div class="kpi-label">Active member subscriptions</div>
+        <div class="kpi-num">18</div>
+        <div class="kpi-delta up">+6 vs. March</div>
+      </div>
+      <div class="kpi">
+        <div class="kpi-label">Chamber rev-share this month</div>
+        <div class="kpi-num">$1,847</div>
+        <div class="kpi-delta up">+$612 vs. March</div>
+      </div>
+      <div class="kpi">
+        <div class="kpi-label">AI actions executed</div>
+        <div class="kpi-num">3,412</div>
+        <div class="kpi-delta up">+41% vs. March</div>
+      </div>
+      <div class="kpi">
+        <div class="kpi-label">New sponsors landed (for members)</div>
+        <div class="kpi-num">3</div>
+        <div class="kpi-delta up">vs. 0 in March</div>
+      </div>
+    </div>
+
+    <div class="admin-grid">
+      <div class="card card-lg">
+        <div class="card-head">
+          <h3>Recent AI actions</h3>
+          <div class="tag">last 24 hours</div>
+        </div>
+        <table class="data-tbl">
+          <thead><tr><th>Time</th><th>Member</th><th>Agent</th><th>Action</th><th>Outcome</th></tr></thead>
+          <tbody>
+            <tr><td>14 min ago</td><td>Joe's Pizza</td><td>Reviews Mgr</td><td>Replied to Google 5★</td><td class="ok">Sent · 8 min</td></tr>
+            <tr><td>47 min ago</td><td>North Shore Auto Body</td><td>Content Strategist</td><td>Drafted 3 GBP posts</td><td class="pend">Pending approval</td></tr>
+            <tr><td>1h 02m</td><td>Revere Beach Realty</td><td>SEO Specialist</td><td>NAP audit · 14 citations fixed</td><td class="ok">Complete</td></tr>
+            <tr><td>1h 48m</td><td>Pacini Tile &amp; Stone</td><td>Outbound Coord.</td><td>Cold-pitched 42 GC prospects</td><td class="ok">Sent · 3 replies</td></tr>
+            <tr><td>2h 31m</td><td>Revere Dental Group</td><td>Social Media Mgr</td><td>Scheduled IG reel</td><td class="ok">Queued · Sat 9 AM</td></tr>
+            <tr><td>3h 12m</td><td>Kelly's Roast Beef</td><td>Business Coach</td><td>Weekly strategy session</td><td class="ok">Grade 9.4</td></tr>
+            <tr><td>4h 09m</td><td>Mario's Tailor Shop</td><td>Conversion Optimizer</td><td>Homepage audit</td><td class="ok">17 recs · 4 P0</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="card">
+        <div class="card-head">
+          <h3>Member health</h3>
+          <div class="tag tag-gold">18 / 18 healthy</div>
+        </div>
+        <ul class="member-health">
+          <li><span class="mh-dot ok"></span><span class="mh-name">Joe's Pizza of Revere</span><span class="mh-score">92</span></li>
+          <li><span class="mh-dot ok"></span><span class="mh-name">Kelly's Roast Beef</span><span class="mh-score">94</span></li>
+          <li><span class="mh-dot ok"></span><span class="mh-name">North Shore Auto Body</span><span class="mh-score">88</span></li>
+          <li><span class="mh-dot ok"></span><span class="mh-name">Pacini Tile &amp; Stone</span><span class="mh-score">86</span></li>
+          <li><span class="mh-dot ok"></span><span class="mh-name">Revere Beach Realty</span><span class="mh-score">91</span></li>
+          <li><span class="mh-dot ok"></span><span class="mh-name">Revere Dental Group</span><span class="mh-score">89</span></li>
+          <li><span class="mh-dot ok"></span><span class="mh-name">Mario's Tailor Shop</span><span class="mh-score">82</span></li>
+          <li><span class="mh-dot warn"></span><span class="mh-name">Winthrop Ave Cafe</span><span class="mh-score">74</span></li>
+          <li><span class="mh-dot ok"></span><span class="mh-name">Broadway Barbers</span><span class="mh-score">85</span></li>
+          <li><span class="mh-dot ok"></span><span class="mh-name">Pioli Insurance Grp.</span><span class="mh-score">93</span></li>
+        </ul>
+      </div>
+
+      <div class="card card-lg">
+        <div class="card-head">
+          <h3>Rev-share breakdown</h3>
+          <div class="tag">$1,847 · April MTD</div>
+        </div>
+        <div class="rev-grid">
+          <div class="rev-card">
+            <div class="rev-label">Subscription share (25%)</div>
+            <div class="rev-num">$1,122</div>
+            <div class="rev-sub">18 members × avg $249 × 25% = $1,120.50</div>
+          </div>
+          <div class="rev-card">
+            <div class="rev-label">Sponsor finder's fee</div>
+            <div class="rev-num">$450</div>
+            <div class="rev-sub">3 sponsors landed × $150 flat</div>
+          </div>
+          <div class="rev-card">
+            <div class="rev-label">Chamber OS upgrades</div>
+            <div class="rev-num">$275</div>
+            <div class="rev-sub">Meeting Intelligence Pro · Chamber admin seat × 1</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-head">
+          <h3>Member inquiries handled</h3>
+          <div class="tag">62 this month</div>
+        </div>
+        <ul class="inquiry-list">
+          <li><b>23</b><span>"How do I claim my Chamber discount on X?"</span></li>
+          <li><b>14</b><span>"Can you help me update my GBP?"</span></li>
+          <li><b>11</b><span>"Who is the best local vendor for Y?"</span></li>
+          <li><b>9</b><span>"How do I get featured in the Chamber newsletter?"</span></li>
+          <li><b>5</b><span>Other</span></li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ VIEW 4: Chamber OS Preview ============ -->
+  <section class="view" data-view="chamberos">
+    <div class="view-head">
+      <div>
+        <div class="view-kicker">Pro-tier add-on · included for Founding Partner</div>
+        <h2>Chamber OS</h2>
+        <p class="view-sub">Three modules that run in parallel with the seven agents — the operating system the Chamber office uses to run the program day-to-day.</p>
+      </div>
+      <div class="view-head-right">
+        <div class="badge badge-gold">Included · Founding Partner tier</div>
+      </div>
+    </div>
+
+    <div class="chamberos-grid">
+      <div class="co-card">
+        <div class="co-kicker">Module 1</div>
+        <h3>Meeting Intelligence</h3>
+        <p>Every Chamber meeting and member 1-1 is transcribed, summarized, and turned into assigned tasks — automatically.</p>
+        <div class="co-mock">
+          <div class="co-mock-head">▸ Apr 10 · Board strategy call · 47 min</div>
+          <ul class="co-mock-list">
+            <li><b>Decision</b> — Revere AI Advantage approved for Founding Partner launch</li>
+            <li><b>Action · Sarah</b> — confirm Infinite Views quote by EOW</li>
+            <li><b>Action · Ops</b> — draft Founding Member welcome kit</li>
+            <li><b>Follow-up</b> — Revere High baseball sponsor pitch next meeting</li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="co-card">
+        <div class="co-kicker">Module 2</div>
+        <h3>AI Project Manager</h3>
+        <p>All Chamber initiatives as a single board — with an AI PM that nudges owners, flags blockers, and drafts status notes for the Board weekly.</p>
+        <div class="co-mock">
+          <div class="co-board">
+            <div class="co-col"><div class="co-col-head">To do · 7</div>
+              <div class="co-tile">Founding Member welcome kit</div>
+              <div class="co-tile">Member directory QR codes</div>
+              <div class="co-tile">Fall festival sponsor outreach</div>
+            </div>
+            <div class="co-col"><div class="co-col-head">In flight · 4</div>
+              <div class="co-tile on">Board pitch deck · due Fri</div>
+              <div class="co-tile">Portal launch copy review</div>
+            </div>
+            <div class="co-col"><div class="co-col-head">Done · 14 MTD</div>
+              <div class="co-tile ok">Annual dinner planning</div>
+              <div class="co-tile ok">Member survey 2026</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="co-card">
+        <div class="co-kicker">Module 3</div>
+        <h3>Mobile Command</h3>
+        <p>Chamber admins have the whole dashboard on iPhone · approve posts, close tickets, read board-prep notes — anywhere, anytime.</p>
+        <div class="co-phone">
+          <div class="co-phone-screen">
+            <div class="co-ph-head">
+              <div class="co-ph-logo"><img src="logo.svg" alt=""/></div>
+              <div class="co-ph-title">Revere AI · Mobile</div>
+            </div>
+            <div class="co-ph-row"><b>3</b><span>drafts awaiting approval</span></div>
+            <div class="co-ph-row"><b>7</b><span>member inquiries in queue</span></div>
+            <div class="co-ph-row"><b>1</b><span>sponsor follow-up due Mon</span></div>
+            <div class="co-ph-row gold"><b>$1,847</b><span>MTD rev-share</span></div>
+            <div class="co-ph-btn">Approve all safe posts</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="atlas-banner">
+      <div>
+        <div class="atlas-banner-kicker">All three modules share the Atlas substrate</div>
+        <div class="atlas-banner-main">Same Postgres, same shared job queue, same operator grading stack. Chamber OS isn't a separate product — it's what happens when the Atlas agents get Chamber-specific surfaces.</div>
+      </div>
+      <button class="btn-gold" onclick="switchView('dashboard')">Back to Agent Command</button>
+    </div>
+  </section>
+</div>
+
+<!-- ============ CHAT MODAL ============ -->
+<div id="chat-modal" class="modal" hidden>
+  <div class="modal-inner">
+    <div class="modal-head">
+      <div>
+        <div class="modal-kicker" id="chat-kicker">Revere Business Coach</div>
+        <div class="modal-sub">Private to: Joe's Pizza of Revere · signed in as Joe Pioli</div>
+      </div>
+      <button class="modal-x" onclick="closeChat()">✕</button>
+    </div>
+    <div id="chat-log" class="chat-log"></div>
+    <form id="chat-form" class="chat-form">
+      <input id="chat-input" type="text" placeholder="Ask your Chamber agent…" autocomplete="off" />
+      <button type="submit">Send</button>
+    </form>
+  </div>
+</div>
+
+<footer class="footer" id="footer" hidden>
+  <div>Revere AI Advantage · Powered by the Atlas engine from AI Marketing Genius</div>
+  <div class="footer-right">Private Board preview · AIMG · 2026</div>
+</footer>
+
+<script src="app.js"></script>
+</body>
+</html>
