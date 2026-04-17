@@ -1,6 +1,6 @@
 # MIRROR_STATUS
 
-> Last updated: 2026-04-17T01:15:01Z
+> Last updated: 2026-04-17T19:15:02Z
 > Last event: DRIFT_CHECK → OK
 > Branch: master
 
@@ -8,8 +8,8 @@
 
 | Leg | Last check | SHA | Status |
 |---|---|---|---|
-| Mac working tree | 2026-04-17T01:15:01Z | 2e7f34b | OK |
-| VPS bare (origin) | 2026-04-16T23:56:26Z | 2e7f34bf3e84007f318fc195785b66782eba9a5f | OK |
+| Mac working tree | 2026-04-17T19:15:02Z | 56dc2a7 | OK |
+| VPS bare (origin) | 2026-04-17T18:56:46Z | 56dc2a78efd542cad9cd00e0730dcb8457feb998 | OK |
 | GitHub (AiMarketingGenius/titan-harness) | unknown | unknown | unknown |
 | MCP export | unknown | — | unknown |
 
@@ -37,13 +37,14 @@
 - [DRIFT_DETECTED] Drift found between mirror legs — see /Users/solonzafiropoulos1/titan-harness/logs/drift-20260416.log (2026-04-16T20:30:02Z, id=c6e9fb96)
 - [DRIFT_DETECTED] Drift found between mirror legs — see /Users/solonzafiropoulos1/titan-harness/logs/drift-20260416.log (2026-04-16T20:45:02Z, id=fb640441)
 - [DRIFT_DETECTED] Drift found between mirror legs — see /Users/solonzafiropoulos1/titan-harness/logs/drift-20260416.log (2026-04-16T21:00:02Z, id=5a4efa6e)
+- [DRIFT_DETECTED] Drift found between mirror legs — see /Users/solonzafiropoulos1/titan-harness/logs/drift-20260417.log (2026-04-17T14:45:01Z, id=33dd9c34)
 
 ## Last 5 mirror events
 
 ```
-[POST-COMMIT] Auto-Mirror at 2026-04-16T23:56:24Z branch=master
+[POST-COMMIT] Auto-Mirror at 2026-04-17T18:56:43Z branch=master
 To ssh://170.205.37.148/opt/titan-harness.git
-   34d8ac7..2e7f34b  master -> master
+   c28a2cc..56dc2a7  master -> master
 [MIRROR:MAC→VPS] OK
 [POST-COMMIT] Done.
 ```

@@ -45,7 +45,12 @@
       "mcp__0f44c9ec-a530-47dc-a8b8-4db51c221197__flag_blocker",
       "mcp__0f44c9ec-a530-47dc-a8b8-4db51c221197__resolve_blocker",
       "mcp__Claude_in_Chrome__read_page",
-      "mcp__Claude_in_Chrome__read_console_messages"
+      "mcp__Claude_in_Chrome__read_console_messages",
+      "mcp__Claude_in_Chrome__read_network_requests",
+      "mcp__Claude_in_Chrome__tabs_create_mcp",
+      "mcp__Claude_Preview__preview_start",
+      "mcp__0f44c9ec-a530-47dc-a8b8-4db51c221197__agent_context_loader",
+      "mcp__0f44c9ec-a530-47dc-a8b8-4db51c221197__generate_carryover"
     ]
   }
 }

@@ -307,7 +307,8 @@ def _is_approved_doctrine_path(rel_path: str) -> bool:
             return True
     # Top-level Python/shell code lives in lib/ + scripts/ + bin/ — not doctrine
     if rel_path.startswith(("lib/", "scripts/", "bin/", "sql/", "hooks/",
-                             "services/", "templates/", ".claude/", ".git/")):
+                             "services/", "templates/", "deploy/",
+                             ".claude/", ".git/")):
         return True
     # dotfiles + config at root
     if rel_path in {".gitignore", ".editorconfig", "policy.yaml", "install.sh"}:
@@ -320,7 +321,7 @@ def _is_doctrine_file(path: Path) -> bool:
     if path.suffix.lower() != ".md":
         return False
     rel = str(path.relative_to(REPO_ROOT))
-    if rel.startswith(("lib/", "scripts/", "bin/", "sql/", "hooks/")):
+    if rel.startswith(("lib/", "scripts/", "bin/", "sql/", "hooks/", "deploy/")):
         return False
     return True
 
