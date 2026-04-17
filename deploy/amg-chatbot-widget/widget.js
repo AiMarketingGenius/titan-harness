@@ -1,12 +1,15 @@
 /**
  * AMG Alex Chatbot Widget — aimarketinggenius.io embedded chatbot
- * CT-0417-01 staging build (text-only; voice layer deferred to next phase)
+ * CT-0417-01 staging build + CT-0417-24 rebrand (text-only; voice layer spec in CT-0417-24_VOICE_PIPELINE_SPEC.md)
  *
  * Integration: <script src="https://amg-cdn.example.com/widget.js" data-mode="auto"></script>
  * Backend: /api/alex/message on atlas-api (project-backed Alex via agent_context_loader)
  *
- * Design tokens match Revere brand audit style (navy + gold) with AMG-specific shifts.
- * Trade-secret compliant per plans/agents/kb/titan/01_trade_secrets.md.
+ * Design tokens match AMG live-site tokens (library_of_alexandria/brand/amg-brand-tokens-v1.md):
+ *   dark navy #131825 base + #1A2033 card + cyan #00A6FF accent + green #10B77F CTA + DM Sans.
+ *   NOT Revere navy+gold — that was the prior (incorrect) styling corrected per CT-0417-24 Addendum #5.
+ * Trade-secret compliant per plans/agents/kb/titan/01_trade_secrets.md + extended scrub list in
+ * library_of_alexandria/sprints/CT-0417-24_CORRECTIONS_LOG.md §7.
  */
 (function () {
   'use strict';
@@ -21,24 +24,25 @@
     .amg-widget-fab {
       position: fixed; right: 24px; bottom: 24px; z-index: 9999;
       width: 64px; height: 64px; border-radius: 50%;
-      background: linear-gradient(135deg, #0B2572 0%, #1a3a94 100%);
-      box-shadow: 0 8px 24px rgba(11,37,114,.3);
+      background: linear-gradient(135deg, #131825 0%, #1A2033 100%);
+      box-shadow: 0 8px 24px rgba(0,0,0,.45);
       display: flex; align-items: center; justify-content: center;
-      cursor: pointer; border: none; color: #d4a627;
+      cursor: pointer; border: none; color: #00A6FF;
       transition: transform .2s cubic-bezier(.22,1,.36,1), box-shadow .2s;
-      font-family: 'Montserrat', -apple-system, BlinkMacSystemFont, sans-serif;
+      font-family: "DM Sans", -apple-system, BlinkMacSystemFont, sans-serif;
     }
-    .amg-widget-fab:hover { transform: translateY(-2px); box-shadow: 0 12px 32px rgba(11,37,114,.4); }
-    .amg-widget-fab:focus-visible { outline: 3px solid #d4a627; outline-offset: 3px; }
+    .amg-widget-fab:hover { transform: translateY(-2px); box-shadow: 0 12px 32px rgba(0,166,255,.35); }
+    .amg-widget-fab:focus-visible { outline: 3px solid #00A6FF; outline-offset: 3px; }
     .amg-widget-fab svg { width: 28px; height: 28px; fill: currentColor; }
 
     .amg-widget-panel {
       position: fixed; right: 24px; bottom: 100px; z-index: 9999;
       width: 380px; max-width: calc(100vw - 32px); height: 560px; max-height: calc(100vh - 140px);
-      background: #ffffff; border-radius: 16px;
-      box-shadow: 0 16px 48px rgba(11,37,114,.18);
+      background: #131825; border-radius: 16px;
+      box-shadow: 0 16px 48px rgba(0,0,0,.55);
       display: none; flex-direction: column; overflow: hidden;
-      font-family: 'Montserrat', -apple-system, BlinkMacSystemFont, sans-serif;
+      font-family: "DM Sans", -apple-system, BlinkMacSystemFont, sans-serif;
+      color: #FFFFFF;
     }
     .amg-widget-panel.open { display: flex; }
     @media (max-width: 560px) {
@@ -46,54 +50,56 @@
     }
 
     .amg-widget-header {
-      background: linear-gradient(135deg, #0B2572 0%, #1a3a94 100%);
+      background: linear-gradient(135deg, #131825 0%, #1A2033 100%);
       color: #fff; padding: 20px 20px 16px;
+      border-bottom: 1px solid #465467;
     }
-    .amg-widget-title { font-size: 17px; font-weight: 600; line-height: 1.2; }
-    .amg-widget-subtitle { font-size: 13px; color: rgba(255,255,255,.78); margin-top: 3px; font-weight: 500; }
+    .amg-widget-title { font-size: 17px; font-weight: 600; line-height: 1.2; color: #FFFFFF; }
+    .amg-widget-subtitle { font-size: 13px; color: #C5CDD8; margin-top: 3px; font-weight: 500; }
     .amg-widget-close {
       position: absolute; top: 14px; right: 14px; width: 32px; height: 32px;
-      border: 0; background: transparent; color: #fff; cursor: pointer; border-radius: 8px;
+      border: 0; background: transparent; color: #C5CDD8; cursor: pointer; border-radius: 8px;
       display: flex; align-items: center; justify-content: center;
     }
-    .amg-widget-close:hover { background: rgba(255,255,255,.12); }
+    .amg-widget-close:hover { background: rgba(255,255,255,.08); color: #FFFFFF; }
 
     .amg-widget-messages {
       flex: 1; overflow-y: auto; padding: 16px 20px;
-      display: flex; flex-direction: column; gap: 12px; background: #fbf9f3;
+      display: flex; flex-direction: column; gap: 12px; background: #0F172A;
     }
     .amg-msg { max-width: 84%; padding: 10px 14px; border-radius: 14px; font-size: 14px; line-height: 1.45; }
     .amg-msg.user {
-      align-self: flex-end; background: #0B2572; color: #fff;
+      align-self: flex-end; background: #00A6FF; color: #FFFFFF;
       border-bottom-right-radius: 4px;
     }
     .amg-msg.agent {
-      align-self: flex-start; background: #fff; color: #1c2433;
-      border: 1px solid #e6e2d4; border-bottom-left-radius: 4px;
+      align-self: flex-start; background: #1A2033; color: #FFFFFF;
+      border: 1px solid #465467; border-bottom-left-radius: 4px;
     }
-    .amg-msg.typing { color: #6c7687; font-style: italic; }
+    .amg-msg.typing { color: #8796A8; font-style: italic; }
 
     .amg-widget-form {
-      border-top: 1px solid #e6e2d4; padding: 14px 16px; background: #fff;
+      border-top: 1px solid #465467; padding: 14px 16px; background: #131825;
       display: flex; gap: 8px;
     }
     .amg-widget-input {
-      flex: 1; border: 1px solid #e6e2d4; border-radius: 10px;
+      flex: 1; border: 1px solid #465467; border-radius: 10px;
       padding: 10px 14px; font-size: 14px; font-family: inherit;
-      background: #fbf9f3; color: #1c2433;
+      background: #0F172A; color: #FFFFFF;
     }
-    .amg-widget-input:focus { outline: none; border-color: #0B2572; box-shadow: 0 0 0 3px rgba(11,37,114,.08); }
+    .amg-widget-input::placeholder { color: #8796A8; }
+    .amg-widget-input:focus { outline: none; border-color: #00A6FF; box-shadow: 0 0 0 3px rgba(0,166,255,.15); }
     .amg-widget-send {
-      background: #d4a627; color: #0B2572; border: 0; border-radius: 10px;
+      background: #10B77F; color: #FFFFFF; border: 0; border-radius: 10px;
       padding: 0 16px; font-weight: 600; font-size: 14px; cursor: pointer;
       font-family: inherit;
     }
-    .amg-widget-send:hover { background: #e3b838; }
+    .amg-widget-send:hover { background: #0EA572; }
     .amg-widget-send:disabled { opacity: .5; cursor: not-allowed; }
 
     .amg-widget-footer {
-      padding: 8px 16px; background: #fff; border-top: 1px solid #f0ecda;
-      font-size: 11px; color: #6c7687; text-align: center;
+      padding: 8px 16px; background: #131825; border-top: 1px solid #465467;
+      font-size: 11px; color: #8796A8; text-align: center;
     }
 
     @media (prefers-reduced-motion: reduce) {
