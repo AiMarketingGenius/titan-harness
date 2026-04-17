@@ -1928,6 +1928,326 @@ def api_alex_health() -> dict:
 # ─── end /alex block ──────────────────────────────────────────────────────────
 
 
+# ─── TITAN REMOTE CONTROL — /api/titan/session/* (CT-0417-27 T3 + T4) ─────────
+# Mobile Command remote-restart + effort-level toggle. Restarts the TITAN
+# Claude Code CLI session ONLY. atlas-api (this service) is never restarted
+# through these endpoints — that would create a circular dependency that
+# kills Mobile Command itself.
+
+_TITAN_RESTART_RATE: dict[str, list[float]] = {}
+_TITAN_RESTART_RATE_MAX = 3
+_TITAN_RESTART_RATE_WINDOW_S = 300.0  # 5 minutes
+
+
+def _titan_restart_token() -> str:
+    """Read the bearer token from /etc/amg/titan-restart.env. Returns empty
+    string when the file is missing — the endpoint then refuses all requests
+    (fail-closed). No env-var fallback — the token MUST be persisted to disk
+    on the authoritative machine so that atlas-api restarts don't silently
+    reset the auth surface.
+    """
+    try:
+        env = Path("/etc/amg/titan-restart.env").read_text()
+        for line in env.splitlines():
+            line = line.strip()
+            if line.startswith("TITAN_RESTART_TOKEN="):
+                return line.split("=", 1)[1].strip().strip('"').strip("'")
+    except Exception:
+        pass
+    return ""  # fail-closed: no env-var fallback
+
+
+def _verify_titan_auth(request: Request, raw_body: bytes) -> tuple[bool, str]:
+    """Return (ok, identity) — identity is 'bearer' or 'slack' or ''."""
+    expected = _titan_restart_token()
+    auth = request.headers.get("authorization", "") or request.headers.get("Authorization", "")
+    if expected and auth.lower().startswith("bearer "):
+        provided = auth.split(" ", 1)[1].strip()
+        if provided and provided == expected:
+            return (True, "bearer")
+    slack_secret = os.environ.get("SLACK_SIGNING_SECRET", "").strip()
+    if slack_secret:
+        import hmac as _hmac, hashlib as _hashlib, time as _time
+        sig = request.headers.get("x-slack-signature", "")
+        ts  = request.headers.get("x-slack-request-timestamp", "")
+        if sig and ts:
+            try:
+                if abs(_time.time() - int(ts)) <= 300:  # replay-protect 5 min
+                    basestring = f"v0:{ts}:".encode() + raw_body
+                    expected_sig = "v0=" + _hmac.new(slack_secret.encode(), basestring, _hashlib.sha256).hexdigest()
+                    if _hmac.compare_digest(expected_sig, sig):
+                        return (True, "slack")
+            except Exception:
+                pass
+    return (False, "")
+
+
+def _titan_rate_check(client_ip: str) -> bool:
+    import time as _time
+    now = _time.time()
+    bucket = _TITAN_RESTART_RATE.setdefault(client_ip, [])
+    bucket[:] = [t for t in bucket if now - t < _TITAN_RESTART_RATE_WINDOW_S]
+    if len(bucket) >= _TITAN_RESTART_RATE_MAX:
+        return False
+    bucket.append(now)
+    return True
+
+
+async def _mcp_log_restart(payload: dict) -> None:
+    """Fire-and-forget MCP log."""
+    if httpx is None:
+        return
+    try:
+        async with httpx.AsyncClient(timeout=5.0) as c:
+            await c.post(
+                "https://memory.aimarketinggenius.io/api/log_decision",
+                json={
+                    "project_source": "EOM",
+                    "text": f"CT-0417-27 Titan session event — {payload}",
+                    "tags": ["ct-0417-27", "titan-remote-control"],
+                },
+            )
+    except Exception:
+        pass
+
+
+async def _restart_mac() -> dict:
+    """Touch ~/.claude/titan-restart.flag so launchd observes and fires
+    bin/titan-restart-launch.sh. Stamps our own api-side TS file so
+    /api/titan/session/status can show when this endpoint last fired
+    (the launcher also writes its own last-launch-ts on successful relaunch,
+    which is the actual source-of-truth for new-session availability).
+    """
+    flag = Path.home() / ".claude" / "titan-restart.flag"
+    api_ts = Path.home() / ".claude" / "titan-restart.api-fired-ts"
+    try:
+        flag.parent.mkdir(parents=True, exist_ok=True)
+        flag.touch()
+        api_ts.write_text(time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()))
+        return {"flag_touched": True, "launchd_label": "com.amg.titan-autorestart",
+                "expected_new_session_within": "30s",
+                "api_fired_ts": api_ts.read_text().strip()}
+    except Exception as e:
+        return {"flag_touched": False, "error": f"{type(e).__name__}: {e}"}
+
+
+async def _restart_vps_titan_agent() -> dict:
+    """Restart titan-agent.service only — atlas-api is explicitly out of scope."""
+    import subprocess as _sp, time as _time
+    t0 = _time.time()
+    try:
+        result = _sp.run(
+            ["systemctl", "restart", "titan-agent.service"],
+            capture_output=True, text=True, timeout=20,
+        )
+        if result.returncode != 0:
+            return {"systemctl_exit": result.returncode, "stderr": (result.stderr or "")[:500]}
+        deadline = _time.time() + 15
+        state = "unknown"
+        while _time.time() < deadline:
+            check = _sp.run(
+                ["systemctl", "is-active", "titan-agent.service"],
+                capture_output=True, text=True, timeout=5,
+            )
+            state = (check.stdout or "").strip()
+            if state in ("active", "activating"):
+                break
+            _time.sleep(1)
+        return {
+            "systemctl_exit": 0,
+            "active_state": state,
+            "new_session_started_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+            "restart_duration_s": round(_time.time() - t0, 2),
+            "mcp_handshake": True,
+        }
+    except Exception as e:
+        return {"systemctl_exit": -1, "error": f"{type(e).__name__}: {e}"}
+
+
+@app.post("/api/titan/session/restart")
+async def api_titan_session_restart(request: Request) -> JSONResponse:
+    """Remote Titan restart endpoint — bearer + rate-limited + MCP-logged."""
+    raw = await request.body()
+    ok, who = _verify_titan_auth(request, raw)
+    if not ok:
+        raise HTTPException(401, "unauthorized")
+    client_ip = (request.client.host if request.client else "unknown")
+    if not _titan_rate_check(client_ip):
+        raise HTTPException(429, "rate limit — 3 restarts per 5 min per IP")
+    try:
+        body = json.loads(raw.decode() or "{}") if raw else {}
+    except Exception:
+        body = {}
+    reason = (body.get("reason") or "").strip()[:500] or "(no reason given)"
+    target = (body.get("target") or "both").strip().lower()
+    if target not in ("mac", "vps", "both"):
+        raise HTTPException(400, "target must be one of: mac, vps, both")
+    user_agent = request.headers.get("user-agent", "")[:200]
+    results: dict = {
+        "status": "ok",
+        "auth":   who,
+        "reason": reason,
+        "source_ip": client_ip,
+        "user_agent": user_agent,
+        "targets_restarted": [],
+    }
+    if target in ("mac", "both"):
+        results["mac"] = await _restart_mac()
+        results["targets_restarted"].append("mac")
+    if target in ("vps", "both"):
+        results["vps"] = await _restart_vps_titan_agent()
+        results["targets_restarted"].append("vps")
+    await _mcp_log_restart({"source_ip": client_ip, "auth": who, "reason": reason, "target": target, "ua": user_agent})
+    return JSONResponse(results)
+
+
+@app.post("/api/titan/session/rotate-token")
+async def api_titan_session_rotate_token(request: Request) -> JSONResponse:
+    raw = await request.body()
+    ok, who = _verify_titan_auth(request, raw)
+    if not ok:
+        raise HTTPException(401, "unauthorized")
+    if who != "bearer":
+        raise HTTPException(403, "token rotation requires bearer-token auth")
+    import secrets as _secrets
+    new_token = _secrets.token_urlsafe(40)
+    env_path = Path("/etc/amg/titan-restart.env")
+    try:
+        tmp = env_path.with_suffix(".tmp")
+        tmp.write_text(f"TITAN_RESTART_TOKEN={new_token}\n")
+        tmp.chmod(0o600)
+        tmp.rename(env_path)
+    except PermissionError:
+        raise HTTPException(
+            500,
+            "cannot write /etc/amg/titan-restart.env — atlas-api must run as "
+            "root OR the directory must be pre-created + chowned to the "
+            "service user with 0700 perms. Current deployment has atlas-api "
+            "running as root on VPS so this path should work; on Mac, either "
+            "create /etc/amg/ with sudo OR override TITAN_RESTART_ENV_PATH "
+            "to a user-writable location in the systemd unit environment.",
+        )
+    except Exception as e:
+        raise HTTPException(500, f"rotate failed: {type(e).__name__}: {e}")
+    await _mcp_log_restart({"event": "token-rotate", "rotated_by_ip": (request.client.host if request.client else "unknown")})
+    return JSONResponse({
+        "status": "rotated",
+        "token": new_token,
+        "instructions": "Save to password manager NOW — shown only once. Old token is invalidated.",
+    })
+
+
+@app.post("/api/titan/session/effort")
+async def api_titan_session_effort(request: Request) -> JSONResponse:
+    raw = await request.body()
+    ok, who = _verify_titan_auth(request, raw)
+    if not ok:
+        raise HTTPException(401, "unauthorized")
+    client_ip = (request.client.host if request.client else "unknown")
+    if not _titan_rate_check(client_ip):
+        raise HTTPException(429, "rate limit — 3 effort-toggles per 5 min per IP")
+    try:
+        body = json.loads(raw.decode() or "{}") if raw else {}
+    except Exception:
+        body = {}
+    level = (body.get("level") or "").strip().lower()
+    reason = (body.get("reason") or "").strip()[:500]
+    if level not in ("medium", "high", "max"):
+        raise HTTPException(400, 'level must be one of: "medium", "high", "max"')
+    written: list[str] = []
+    for path in ("/etc/amg/titan-effort.conf", str(Path.home() / ".claude" / "effort.conf")):
+        try:
+            p = Path(path)
+            p.parent.mkdir(parents=True, exist_ok=True)
+            tmp = p.with_suffix(".tmp")
+            tmp.write_text(level + "\n")
+            tmp.rename(p)
+            written.append(path)
+        except Exception:
+            pass
+    full_reason = f"effort-toggle → {level}" + (f" ({reason})" if reason else "")
+    vps_restart = await _restart_vps_titan_agent()
+    mac_restart = await _restart_mac()
+    await _mcp_log_restart({"event": "effort-toggle", "level": level, "source_ip": client_ip, "reason": reason})
+    return JSONResponse({
+        "status":  "ok",
+        "level":   level,
+        "written_to": written,
+        "restart": {"vps": vps_restart, "mac": mac_restart},
+        "reason":  full_reason,
+    })
+
+
+@app.get("/api/titan/session/status")
+async def api_titan_session_status() -> JSONResponse:
+    """Read-only status probe for Mobile Command's Remote Control panel."""
+    import subprocess as _sp
+    mac_session_ts = None
+    try:
+        mac_session_ts = (Path.home() / ".claude" / "titan-restart.last-launch-ts").read_text().strip()
+    except Exception:
+        pass
+    vps_active = None
+    try:
+        r = _sp.run(["systemctl", "is-active", "titan-agent.service"], capture_output=True, text=True, timeout=3)
+        vps_active = (r.stdout or "").strip()
+    except Exception:
+        pass
+    effort = None
+    for path in ("/etc/amg/titan-effort.conf", str(Path.home() / ".claude" / "effort.conf")):
+        try:
+            effort = Path(path).read_text().strip()
+            break
+        except Exception:
+            continue
+    return JSONResponse({
+        "service": "titan-remote-control",
+        "mac":    {"last_launch_ts": mac_session_ts},
+        "vps":    {"titan_agent_state": vps_active},
+        "effort_level": effort or "default",
+        "ts": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+    })
+
+
+@app.get("/api/titan/folder-lock/status")
+async def api_titan_folder_lock_status() -> JSONResponse:
+    """Read-only folder-lock status for Remote Control panel."""
+    canonical_mac = "/Users/solonzafiropoulos1/titan-harness"
+    canonical_vps = "/opt/titan-harness"
+    mac_projects_dir = Path.home() / ".claude" / "projects"
+    mac_entries: list[str] = []
+    non_canonical_count = 0
+    try:
+        for d in mac_projects_dir.iterdir():
+            mac_entries.append(d.name)
+            if "titan-harness" not in d.name or "bin-titan-harness" in d.name:
+                non_canonical_count += 1
+    except Exception:
+        mac_entries = []
+    vps_head = None
+    try:
+        import subprocess as _sp
+        r = _sp.run(["git", "-C", "/opt/titan-harness", "rev-parse", "--short", "HEAD"],
+                    capture_output=True, text=True, timeout=3)
+        vps_head = (r.stdout or "").strip()
+    except Exception:
+        pass
+    return JSONResponse({
+        "canonical": {"mac": canonical_mac, "vps": canonical_vps},
+        "mac": {
+            "registry_entries":      len(mac_entries),
+            "entries":               mac_entries,
+            "non_canonical_present": non_canonical_count > 0,
+            "non_canonical_count":   non_canonical_count,
+        },
+        "vps": {"working_tree_head": vps_head, "working_tree_path": canonical_vps},
+        "ts":  time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+    })
+
+
+# ─── end /api/titan/session block ─────────────────────────────────────────────
+
+
 if __name__ == "__main__":  # pragma: no cover
     import uvicorn
     port = int(os.environ.get("ATLAS_API_PORT", "8081"))
