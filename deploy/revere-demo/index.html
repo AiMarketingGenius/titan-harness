@@ -56,108 +56,167 @@
   <section class="view active" data-view="dashboard">
     <div class="view-head">
       <div>
-        <div class="view-kicker">Seven agents, one Chamber</div>
-        <h2>Agent Command</h2>
-        <p class="view-sub">Every Revere Chamber member gets a private AI team trained on Revere demographics, local business rhythm, and the Chamber's member directory.</p>
+        <div class="view-kicker">Your Chamber's ten-agent operating team</div>
+        <h2>Chamber Agent Command</h2>
+        <p class="view-sub">Atlas orchestrates nine named specialists who run Revere Chamber's day-to-day operations — member success, events, communications, outbound, reputation, creative, and Board ops. Each agent is Chamber-branded, Chamber-scoped, Chamber-owned.</p>
       </div>
       <div class="view-head-right">
-        <div class="pill-live">Live · production-grade infrastructure</div>
+        <div class="pill-live">Live · Chamber OS · production-grade</div>
       </div>
     </div>
 
-    <div class="agent-grid">
-      <article class="agent-card" data-agent="coach">
-        <div class="agent-ico agent-ico--coach">A</div>
-        <h3>Revere Business Coach</h3>
-        <div class="agent-sub">Weekly strategy · growth blockers · GTM plays</div>
-        <ul class="agent-metrics">
-          <li><span>Sessions this month</span><b>47</b></li>
-          <li><span>Members helped</span><b>18</b></li>
-          <li><span>Avg. grade</span><b>9.2</b></li>
+    <!-- Atlas — primary orchestrator card, spans two columns on desktop -->
+    <div class="agent-grid agent-grid--v5">
+      <article class="agent-card agent-card--hero" data-agent="atlas">
+        <div class="agent-hero-left">
+          <div class="agent-ico agent-ico--atlas">⟡</div>
+          <div class="agent-hero-meta">
+            <div class="agent-tag">Orchestrator</div>
+            <h3>Atlas</h3>
+            <div class="agent-sub">Chamber OS brain · project manager · delegation engine</div>
+          </div>
+        </div>
+        <ul class="agent-metrics agent-metrics--hero">
+          <li><span>Active delegations</span><b>12</b></li>
+          <li><span>Tasks this month</span><b>347</b></li>
+          <li><span>Board decisions routed</span><b>18</b></li>
+          <li><span>System uptime</span><b>99.97%</b></li>
         </ul>
-        <button class="btn-primary" onclick="openChat('coach')">Open chat</button>
+        <button class="btn-primary" onclick="openChat('atlas')">Ask Atlas</button>
       </article>
 
-      <article class="agent-card" data-agent="content">
-        <div class="agent-ico agent-ico--content">M</div>
-        <h3>Revere Content Strategist</h3>
-        <div class="agent-sub">Blog · email · GBP posts · brand voice</div>
+      <article class="agent-card" data-agent="hermes">
+        <div class="agent-ico agent-ico--hermes">H</div>
+        <div class="agent-tag">Voice Concierge</div>
+        <h3>Hermes</h3>
+        <div class="agent-sub">Inbound reception · chat responder · ticket intake</div>
         <ul class="agent-metrics">
-          <li><span>Posts drafted</span><b>214</b></li>
-          <li><span>Members published</span><b>14</b></li>
-          <li><span>Engagement lift</span><b>+38%</b></li>
+          <li><span>Calls answered</span><b>214</b></li>
+          <li><span>Avg. pickup</span><b>&lt; 2 rings</b></li>
+          <li><span>Resolved tier-1</span><b>73%</b></li>
         </ul>
-        <button class="btn-primary" onclick="openChat('content')">Open chat</button>
+        <button class="btn-primary" onclick="openChat('hermes')">Ask Hermes</button>
       </article>
 
-      <article class="agent-card" data-agent="seo">
-        <div class="agent-ico agent-ico--seo">J</div>
-        <h3>Revere SEO Specialist</h3>
-        <div class="agent-sub">Local rankings · GBP · technical SEO</div>
+      <article class="agent-card" data-agent="artemis">
+        <div class="agent-ico agent-ico--artemis">A</div>
+        <div class="agent-tag">Outbound Voice</div>
+        <h3>Artemis</h3>
+        <div class="agent-sub">Prospecting · renewals · sponsor follow-up</div>
         <ul class="agent-metrics">
-          <li><span>Member sites monitored</span><b>18</b></li>
-          <li><span>Keywords on page 1</span><b>126</b></li>
-          <li><span>Local pack wins</span><b>31</b></li>
+          <li><span>Renewal calls</span><b>96</b></li>
+          <li><span>Sponsors re-engaged</span><b>11</b></li>
+          <li><span>New-member calls</span><b>47</b></li>
         </ul>
-        <button class="btn-primary" onclick="openChat('seo')">Open chat</button>
+        <button class="btn-primary" onclick="openChat('artemis')">Ask Artemis</button>
       </article>
 
-      <article class="agent-card" data-agent="social">
-        <div class="agent-ico agent-ico--social">S</div>
-        <h3>Revere Social Media Manager</h3>
-        <div class="agent-sub">Instagram · Facebook · LinkedIn scheduling</div>
+      <article class="agent-card" data-agent="penelope">
+        <div class="agent-ico agent-ico--penelope">P</div>
+        <div class="agent-tag">Events Engine</div>
+        <h3>Penelope</h3>
+        <div class="agent-sub">Flyers · RSVPs · event follow-up</div>
         <ul class="agent-metrics">
-          <li><span>Posts queued</span><b>62</b></li>
-          <li><span>Members active</span><b>15</b></li>
-          <li><span>Follower growth</span><b>+12%</b></li>
+          <li><span>Events live</span><b>4</b></li>
+          <li><span>RSVPs tracked</span><b>182</b></li>
+          <li><span>Avg. show rate</span><b>81%</b></li>
         </ul>
-        <button class="btn-primary" onclick="openChat('social')">Open chat</button>
+        <button class="btn-primary" onclick="openChat('penelope')">Ask Penelope</button>
       </article>
 
-      <article class="agent-card" data-agent="reviews">
-        <div class="agent-ico agent-ico--reviews">R</div>
-        <h3>Revere Reviews Manager</h3>
-        <div class="agent-sub">Google · Yelp · Tripadvisor monitoring + response</div>
+      <article class="agent-card" data-agent="sophia">
+        <div class="agent-ico agent-ico--sophia">S</div>
+        <div class="agent-tag">Member Success</div>
+        <h3>Sophia</h3>
+        <div class="agent-sub">Onboarding · engagement · renewal lifecycle</div>
         <ul class="agent-metrics">
-          <li><span>Reviews handled</span><b>89</b></li>
+          <li><span>Members onboarded</span><b>9</b></li>
+          <li><span>Renewal rate (12-mo)</span><b>92%</b></li>
+          <li><span>Lapsed re-engaged</span><b>4</b></li>
+        </ul>
+        <button class="btn-primary" onclick="openChat('sophia')">Ask Sophia</button>
+      </article>
+
+      <article class="agent-card" data-agent="iris">
+        <div class="agent-ico agent-ico--iris">I</div>
+        <div class="agent-tag">Communications</div>
+        <h3>Iris</h3>
+        <div class="agent-sub">Newsletter · drip email · announcements</div>
+        <ul class="agent-metrics">
+          <li><span>Newsletters sent</span><b>3</b></li>
+          <li><span>Avg. open rate</span><b>42%</b></li>
+          <li><span>Click-through</span><b>11%</b></li>
+        </ul>
+        <button class="btn-primary" onclick="openChat('iris')">Ask Iris</button>
+      </article>
+
+      <article class="agent-card" data-agent="athena">
+        <div class="agent-ico agent-ico--athena">Θ</div>
+        <div class="agent-tag">Board Ops</div>
+        <h3>Athena</h3>
+        <div class="agent-sub">Meeting intelligence · minutes · action tracking</div>
+        <ul class="agent-metrics">
+          <li><span>Meetings joined</span><b>6</b></li>
+          <li><span>Action items tracked</span><b>34</b></li>
+          <li><span>Motions + votes logged</span><b>12</b></li>
+        </ul>
+        <button class="btn-primary" onclick="openChat('athena')">Ask Athena</button>
+      </article>
+
+      <article class="agent-card" data-agent="echo">
+        <div class="agent-ico agent-ico--echo">E</div>
+        <div class="agent-tag">Reputation Monitor</div>
+        <h3>Echo</h3>
+        <div class="agent-sub">Reviews · sentiment · response coordination</div>
+        <ul class="agent-metrics">
+          <li><span>Reviews watched</span><b>127</b></li>
           <li><span>Avg. response time</span><b>14 min</b></li>
-          <li><span>Avg. star rating lift</span><b>+0.4</b></li>
+          <li><span>Net sentiment score</span><b>+78</b></li>
         </ul>
-        <button class="btn-primary" onclick="openChat('reviews')">Open chat</button>
+        <button class="btn-primary" onclick="openChat('echo')">Ask Echo</button>
       </article>
 
-      <article class="agent-card" data-agent="outbound">
-        <div class="agent-ico agent-ico--outbound">N</div>
-        <h3>Revere Outbound Coordinator</h3>
-        <div class="agent-sub">New-business outreach · sponsor prospecting</div>
+      <article class="agent-card" data-agent="cleopatra">
+        <div class="agent-ico agent-ico--cleopatra">◆</div>
+        <div class="agent-tag">Creative Engine</div>
+        <h3>Cleopatra</h3>
+        <div class="agent-sub">Flyers · hero images · video · brand-locked visuals</div>
         <ul class="agent-metrics">
-          <li><span>Prospects contacted</span><b>412</b></li>
-          <li><span>Replies this month</span><b>47</b></li>
-          <li><span>Sponsors landed</span><b>3</b></li>
+          <li><span>Creative assets shipped</span><b>68</b></li>
+          <li><span>Avg. Lumina score</span><b>9.4</b></li>
+          <li><span>Brand-consistency rate</span><b>100%</b></li>
         </ul>
-        <button class="btn-primary" onclick="openChat('outbound')">Open chat</button>
+        <button class="btn-primary" onclick="openChat('cleopatra')">Ask Cleopatra</button>
       </article>
+    </div>
 
-      <article class="agent-card" data-agent="cro">
-        <div class="agent-ico agent-ico--cro">L</div>
-        <h3>Revere Conversion Optimizer</h3>
-        <div class="agent-sub">Website CRO · funnel diagnosis · A/B tests</div>
-        <ul class="agent-metrics">
-          <li><span>Audits completed</span><b>22</b></li>
-          <li><span>Avg. conv-rate lift</span><b>+27%</b></li>
-          <li><span>Tests running</span><b>9</b></li>
-        </ul>
-        <button class="btn-primary" onclick="openChat('cro')">Open chat</button>
-      </article>
+    <!-- Aria — orb, not card — per §10.5.4 -->
+    <div class="aria-wrap">
+      <div class="aria-orb" role="button" tabindex="0" aria-label="Activate Aria Voice Orb" onclick="openChat('aria')" onkeypress="if(event.key==='Enter')openChat('aria')">
+        <div class="aria-core"></div>
+        <div class="aria-ring aria-ring--1"></div>
+        <div class="aria-ring aria-ring--2"></div>
+        <div class="aria-ring aria-ring--3"></div>
+      </div>
+      <div class="aria-meta">
+        <div class="agent-tag">Voice Orb · Mobile Command</div>
+        <h3 class="aria-title">Aria</h3>
+        <p class="aria-sub">"Aria, how many new members this month?" — Don speaks into his phone; Aria answers out loud and routes follow-up to the right specialist. Orb pulses on listen, speak, and think.</p>
+        <div class="aria-prompts">
+          <button class="aria-chip" onclick="openChat('aria','members')">How many new members this month?</button>
+          <button class="aria-chip" onclick="openChat('aria','sponsor')">Draft a sponsor thank-you.</button>
+          <button class="aria-chip" onclick="openChat('aria','board')">Schedule the next Board meeting.</button>
+        </div>
+      </div>
     </div>
 
     <div class="amg-banner">
       <div>
-        <div class="amg-banner-kicker">Every agent above runs on AMG's production platform</div>
-        <div class="amg-banner-main">Private-labeled for Revere Chamber members. Each business gets its own seven-agent team, trained on local Revere demographics + the Chamber's member directory.</div>
+        <div class="amg-banner-kicker">Ten Chamber agents — Chamber-branded, Chamber-scoped, Chamber-owned</div>
+        <div class="amg-banner-main">Atlas plus nine specialists, all running on production infrastructure under Revere Chamber's own subdomain. Agents activate by bundle — Essentials turns on four to five, Full Operational seven to eight, Maximum all ten.</div>
       </div>
       <div class="amg-stats">
-        <div><b>7</b><span>private agents</span></div>
+        <div><b>10</b><span>Chamber agents</span></div>
         <div><b>24/7</b><span>always on</span></div>
         <div><b>&lt;2s</b><span>typical response</span></div>
       </div>
@@ -170,7 +229,7 @@
       <div>
         <div class="view-kicker">What a Revere Chamber member sees</div>
         <h2>Member Portal — Joe's Pizza of Revere</h2>
-        <p class="view-sub">A signed-in member views their live marketing queue, SEO health, and review pipeline. Everything here is generated, scheduled, and audited by the seven agents.</p>
+        <p class="view-sub">A signed-in member views their live marketing queue, SEO health, and review pipeline. Everything here is generated by the Chamber's agent team — Iris drafts, Penelope schedules, Echo watches the reviews, Cleopatra produces the creative.</p>
       </div>
       <div class="view-head-right">
         <div class="badge badge-gold">Member since 2024</div>
@@ -207,19 +266,19 @@
             <div class="q-when">Today · 4:30 PM</div>
             <div class="q-what">IG · Instagram</div>
             <div class="q-body">Friday slice night. $3 slices, $4 Peronis, live from the Pioli brothers' oven. Pre-game the Revere Beach lights at Joe's.</div>
-            <div class="q-agent">drafted by Revere Content Strategist · scheduled by Revere Social Media Manager</div>
+            <div class="q-agent">drafted by Cleopatra · scheduled by Penelope</div>
           </div>
           <div class="queue-item">
             <div class="q-when">Tomorrow · 11:00 AM</div>
             <div class="q-what">GBP post · Offer</div>
             <div class="q-body">Saturday family deal: large cheese + 2L soda, $18 all Saturday. Pick up or order via DoorDash. Mention "Revere Advantage" in-store for a garlic knot on us.</div>
-            <div class="q-agent">drafted by Revere Content Strategist</div>
+            <div class="q-agent">drafted by Cleopatra · approved by Iris</div>
           </div>
           <div class="queue-item">
             <div class="q-when">Sun · 2:00 PM</div>
             <div class="q-what">FB · Long-form</div>
             <div class="q-body">Profile of Nonna Pioli — the original Joe's Pizza recipe card from 1978. Story, photos, free slice when a customer brings in their own pizza memory.</div>
-            <div class="q-agent">drafted by Revere Content Strategist · pending owner approval</div>
+            <div class="q-agent">drafted by Cleopatra · pending owner approval</div>
           </div>
         </div>
       </div>
@@ -233,7 +292,7 @@
           <li class="rv rv-5">
             <div class="rv-head"><b>5.0 ★</b> · Google · 22 min ago</div>
             <div class="rv-body">"Best slice in Revere, by a mile. The Pioli brothers actually came out and talked to us."</div>
-            <div class="rv-ack">responded by Revere Reviews Manager in 8 min</div>
+            <div class="rv-ack">responded by Echo in 8 min</div>
           </li>
           <li class="rv rv-3">
             <div class="rv-head"><b>3.0 ★</b> · Yelp · 2 hours ago</div>
@@ -243,7 +302,7 @@
           <li class="rv rv-5">
             <div class="rv-head"><b>5.0 ★</b> · Google · 6 hours ago</div>
             <div class="rv-body">"Ordered the chicken parm sub. Perfect 10."</div>
-            <div class="rv-ack">responded by Revere Reviews Manager in 11 min</div>
+            <div class="rv-ack">responded by Echo in 11 min</div>
           </li>
         </ul>
       </div>
@@ -257,17 +316,17 @@
           <li class="rv">
             <div class="rv-head"><b>Revere Youth Soccer League</b> · Sponsor</div>
             <div class="rv-body">Opened 3 emails · ready for Pioli to close. Pitch: $500 jersey patch sponsor, team pizza party at Joe's after championship game.</div>
-            <div class="rv-ack">drafted by Revere Outbound Coordinator · ready to send</div>
+            <div class="rv-ack">drafted by Artemis · ready to send</div>
           </li>
           <li class="rv">
             <div class="rv-head"><b>Winthrop Cares Foundation</b> · Corporate catering</div>
             <div class="rv-body">Replied "tell me more" · next step: pricing PDF + sample tray.</div>
-            <div class="rv-ack">follow-up scheduled by Revere Outbound Coordinator · 9 AM Mon</div>
+            <div class="rv-ack">follow-up scheduled by Artemis · 9 AM Mon</div>
           </li>
           <li class="rv">
             <div class="rv-head"><b>Revere High Baseball</b> · Team partner</div>
             <div class="rv-body">Coach requesting: pregame slice deal + social shoutouts.</div>
-            <div class="rv-ack">handoff to Revere Business Coach for pricing guidance</div>
+            <div class="rv-ack">handed off to Sophia for member pricing guidance</div>
           </li>
         </ul>
       </div>
@@ -319,13 +378,13 @@
         <table class="data-tbl">
           <thead><tr><th>Time</th><th>Member</th><th>Agent</th><th>Action</th><th>Outcome</th></tr></thead>
           <tbody>
-            <tr><td>14 min ago</td><td>Joe's Pizza</td><td>Reviews Mgr</td><td>Replied to Google 5★</td><td class="ok">Sent · 8 min</td></tr>
-            <tr><td>47 min ago</td><td>North Shore Auto Body</td><td>Content Strategist</td><td>Drafted 3 GBP posts</td><td class="pend">Pending approval</td></tr>
-            <tr><td>1h 02m</td><td>Revere Beach Realty</td><td>SEO Specialist</td><td>NAP audit · 14 citations fixed</td><td class="ok">Complete</td></tr>
-            <tr><td>1h 48m</td><td>Pacini Tile &amp; Stone</td><td>Outbound Coord.</td><td>Cold-pitched 42 GC prospects</td><td class="ok">Sent · 3 replies</td></tr>
-            <tr><td>2h 31m</td><td>Revere Dental Group</td><td>Social Media Mgr</td><td>Scheduled IG reel</td><td class="ok">Queued · Sat 9 AM</td></tr>
-            <tr><td>3h 12m</td><td>Kelly's Roast Beef</td><td>Business Coach</td><td>Weekly strategy session</td><td class="ok">Grade 9.4</td></tr>
-            <tr><td>4h 09m</td><td>Mario's Tailor Shop</td><td>Conversion Optimizer</td><td>Homepage audit</td><td class="ok">17 recs · 4 P0</td></tr>
+            <tr><td>14 min ago</td><td>Joe's Pizza</td><td>Echo</td><td>Replied to Google 5★</td><td class="ok">Sent · 8 min</td></tr>
+            <tr><td>47 min ago</td><td>North Shore Auto Body</td><td>Cleopatra</td><td>Drafted 3 GBP flyers</td><td class="pend">Pending approval</td></tr>
+            <tr><td>1h 02m</td><td>Chamber HQ</td><td>Iris</td><td>Monthly newsletter sent · 914 members</td><td class="ok">42% open rate</td></tr>
+            <tr><td>1h 48m</td><td>Chamber HQ</td><td>Artemis</td><td>Called 42 lapsed-member prospects</td><td class="ok">3 renewals booked</td></tr>
+            <tr><td>2h 31m</td><td>Chamber Gala 2026</td><td>Penelope</td><td>Event RSVP reminders sent</td><td class="ok">27 RSVPs today</td></tr>
+            <tr><td>3h 12m</td><td>Kelly's Roast Beef</td><td>Sophia</td><td>New-member onboarding · week-1 check-in</td><td class="ok">Grade 9.4</td></tr>
+            <tr><td>4h 09m</td><td>Board Ops</td><td>Athena</td><td>April Board meeting minutes + action items</td><td class="ok">12 motions logged</td></tr>
           </tbody>
         </table>
       </div>
@@ -395,7 +454,7 @@
       <div>
         <div class="view-kicker">Pro-tier add-on · included for Founding Partner</div>
         <h2>Chamber OS</h2>
-        <p class="view-sub">Three modules that run in parallel with the seven agents — the operating system the Chamber office uses to run the program day-to-day.</p>
+        <p class="view-sub">Three modules that ride on top of the ten-agent roster — the operating system the Chamber office uses to run the program day-to-day, coordinated by Atlas and delivered on the phone by Aria.</p>
       </div>
       <div class="view-head-right">
         <div class="badge badge-gold">Included · Founding Partner tier</div>
@@ -464,7 +523,7 @@
     <div class="amg-banner">
       <div>
         <div class="amg-banner-kicker">One unified platform, Chamber-specific surfaces</div>
-        <div class="amg-banner-main">Chamber OS isn't a separate product — it's what happens when your seven agents get Chamber-specific surfaces for Meeting Intelligence, project management, and mobile admin.</div>
+        <div class="amg-banner-main">Chamber OS isn't a separate product — it's what happens when all ten agents get Chamber-specific surfaces: Athena for Meeting Intelligence, Atlas for project management, Aria for mobile admin.</div>
       </div>
       <button class="btn-gold" onclick="switchView('dashboard')">Back to Agent Command</button>
     </div>
@@ -476,7 +535,7 @@
   <div class="modal-inner">
     <div class="modal-head">
       <div>
-        <div class="modal-kicker" id="chat-kicker">Revere Business Coach</div>
+        <div class="modal-kicker" id="chat-kicker">Chamber Agent</div>
         <div class="modal-sub">Private to: Joe's Pizza of Revere · signed in as Joe Pioli</div>
       </div>
       <button class="modal-x" onclick="closeChat()">✕</button>

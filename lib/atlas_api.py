@@ -1198,6 +1198,517 @@ def api_titan_health() -> dict:
 # ─── end /titan block ─────────────────────────────────────────────────────────
 
 
+# ─── REVERE MOBILE COMMAND — /revere + /api/revere/* ──────────────────────────
+# CT-0417-18 — Mobile Command Revere variant for Don Martelli / Chamber-member
+# demo. Reuses the /api/titan/message handler architecture; swaps the system
+# prompt + intent cards for a member-facing Chamber surface.
+# Trade-secret clean: never name LLM providers or infra in replies.
+
+_REVERE_SESSIONS: dict[str, list[dict[str, str]]] = {}
+_REVERE_RATE: dict[str, list[float]] = {}  # client_ip → recent message timestamps
+_REVERE_MAX_SESSIONS = 500
+_REVERE_MAX_TURNS_PER_SESSION = 40
+_REVERE_RATE_WINDOW_S = 60.0
+_REVERE_RATE_MAX = 20  # messages per minute per IP
+
+# Production hardening note:
+# Sessions are in-memory by design (matches the existing /titan demo pattern).
+# For multi-instance production, promote to Redis or the shared
+# op_sprint_state table. The /revere surface is gated behind the edge
+# reverse-proxy (Caddy / nginx basic-auth) for member-only access — the
+# rate-limit below is defense-in-depth, not the primary access control.
+
+
+def _revere_system_prompt() -> str:
+    """Revere AI Advantage persona — Chamber-facing mobile assistant.
+
+    Canonical 10-agent Chamber roster per Encyclopedia v1.4 §10.5 (Greek
+    mythology brand layer). Distinct from AMG's 7-agent Alex/Maya/Jordan/
+    Sam/Riley/Nadia/Lumina Marketing Subscription roster — do not confuse.
+    """
+    return (
+        "You are the Revere AI Advantage assistant — a Chamber-facing mobile "
+        "assistant for the Revere Chamber of Commerce. You represent the "
+        "ten-agent Chamber operating team that runs day-to-day operations "
+        "for the Chamber.\n\n"
+        "Chamber Agent Roster (use these names verbatim, never substitute):\n"
+        "- Atlas — Chamber OS orchestrator (project manager, delegation, system health)\n"
+        "- Hermes — Voice Concierge (inbound calls, chat, ticket intake)\n"
+        "- Artemis — Outbound Voice (prospecting, renewals, sponsor follow-up)\n"
+        "- Penelope — Events Engine (flyers, RSVPs, event follow-up)\n"
+        "- Sophia — Member Success (onboarding, engagement, renewal lifecycle)\n"
+        "- Iris — Communications (newsletter, drip email, announcements)\n"
+        "- Athena — Board Ops (meeting intelligence, minutes, action tracking)\n"
+        "- Echo — Reputation Monitor (reviews, sentiment, response coordination)\n"
+        "- Cleopatra — Creative Engine (flyers, hero images, video, brand-locked visuals)\n"
+        "- Aria — Voice Orb + Mobile Command (phone-native Chamber OS interface)\n\n"
+        "Verified Chamber facts you can cite:\n"
+        "- Chamber President: Don Martelli (donmartelli@gmail.com, 617-413-6773)\n"
+        "- Address: 313 Broadway, Revere, MA 02151\n"
+        "- Membership tiers (all annual unless noted): Individual/Solopreneur $100, "
+        "Small Business (2-49 employees) $250, Large Business (50+) $500, "
+        "Corporate (entities + hotels, valid 3 years) $1,000, Non-Profit 501(c)(3) $225\n"
+        "- Bilingual Chamber community (English / Spanish)\n\n"
+        "Style:\n"
+        "- Warm, concise, community-minded. You're speaking to a member, not a "
+        "prospect.\n"
+        "- First sentence is the answer. One short paragraph or bulleted list after "
+        "if useful. Never a wall of text.\n"
+        "- If asked something Chamber-specific you don't have verified, say so and "
+        "offer to connect the member with Don or the right agent.\n"
+        "- Never name the underlying AI platform, LLM provider, hosting infra, or "
+        "any internal tooling. Say 'our system' or 'your AI team'.\n"
+        "- Never quote membership-pricing numbers you're not certain of. If unsure, "
+        "defer to the Become-a-Member page.\n"
+        "- If the member asks for a specific Chamber agent by name (e.g., 'talk "
+        "to Artemis about renewing my membership' or 'ask Cleopatra for a Gala "
+        "flyer'), acknowledge the handoff in-character and route the reply toward "
+        "that agent's specialty.\n"
+        "- Essentials tier activates 4-5 agents (Atlas, Sophia, Penelope, Iris, "
+        "Cleopatra), Full Operational activates 7-8 (+ Hermes, Artemis, Echo), "
+        "Maximum all 10 (+ Aria, Athena). Do not promise an agent the Chamber "
+        "hasn't activated.\n"
+        "- The AMG 7-agent roster (Alex, Maya, Jordan, Sam, Riley, Nadia, Lumina) "
+        "is a DIFFERENT product — AMG Marketing Subscription for local businesses "
+        "— and does NOT belong on Chamber-facing surfaces. Never substitute an "
+        "AMG name for a Chamber name.\n"
+    )
+
+
+@app.get("/revere")
+async def revere_serve() -> Response:
+    """Serve the Revere mobile command UI."""
+    path = STATIC_DIR / "revere.html"
+    if not path.exists():
+        raise HTTPException(404, "revere.html missing — deploy pending")
+    return FileResponse(path, media_type="text/html")
+
+
+@app.post("/api/revere/message")
+async def api_revere_message(request: Request) -> JSONResponse:
+    """Text-in → Revere assistant reply. Per-session in-memory history.
+
+    Rate-limited per client IP (20 msg/min). Session + turn caps prevent
+    unbounded memory growth on the demo instance.
+    """
+    import time as _time
+    body = await request.json()
+    text = (body.get("text") or "").strip()
+    session_id = (body.get("session_id") or "default").strip()
+    if not text:
+        raise HTTPException(400, "text required")
+    if len(text) > 2000:
+        raise HTTPException(400, "text too long (max 2000)")
+
+    # Per-IP rate limit
+    client_ip = (request.client.host if request.client else "unknown")
+    now = _time.time()
+    bucket = _REVERE_RATE.setdefault(client_ip, [])
+    bucket[:] = [t for t in bucket if now - t < _REVERE_RATE_WINDOW_S]
+    if len(bucket) >= _REVERE_RATE_MAX:
+        raise HTTPException(429, "rate limit — slow down and try again in a minute")
+    bucket.append(now)
+
+    # Session cap: evict oldest when map grows past max
+    if len(_REVERE_SESSIONS) > _REVERE_MAX_SESSIONS and session_id not in _REVERE_SESSIONS:
+        # Drop the session with the fewest turns (simple approximation of oldest)
+        oldest = min(_REVERE_SESSIONS, key=lambda k: len(_REVERE_SESSIONS[k]))
+        _REVERE_SESSIONS.pop(oldest, None)
+
+    # Intent router — Chamber-specific structured cards
+    card = await _revere_intent_card(text)
+    if card:
+        return JSONResponse({"card": card, "reply": None})
+
+    # Normal LLM path with Revere persona
+    history = _REVERE_SESSIONS.setdefault(session_id, [])
+    msgs = [{"role": "system", "content": _revere_system_prompt()}]
+    msgs.extend(history[-12:])
+    msgs.append({"role": "user", "content": text})
+
+    try:
+        reply = await call_llm(msgs)
+    except Exception as exc:
+        reply = (
+            "(Your AI team is briefly offline. Try again in a moment, "
+            f"or reach Don at 617-413-6773. Error: {type(exc).__name__}.)"
+        )
+
+    history.append({"role": "user", "content": text})
+    history.append({"role": "assistant", "content": reply})
+    if len(history) > _REVERE_MAX_TURNS_PER_SESSION:
+        del history[:len(history) - _REVERE_MAX_TURNS_PER_SESSION]
+
+    return JSONResponse({"reply": reply, "session_id": session_id})
+
+
+async def _revere_intent_card(text: str) -> dict | None:
+    """Keyword router for Chamber-specific cards. Returns None if no match."""
+    low = text.lower()
+
+    # Membership tiers
+    if any(k in low for k in ("membership tiers", "join the chamber", "how much", "pricing", "dues", "member pricing")):
+        return {
+            "title": "Chamber membership — annual dues (2026)",
+            "rows": [
+                {"label": "Individual / Solopreneur", "value": "$100 / yr"},
+                {"label": "Small Business (2-49 emp)", "value": "$250 / yr"},
+                {"label": "Large Business (50+ emp)", "value": "$500 / yr"},
+                {"label": "Corporate (valid 3 yrs)",   "value": "$1,000 / 3 yrs"},
+                {"label": "Non-Profit 501(c)(3)",      "value": "$225 / yr"},
+            ],
+            "footer": "Verified from reverechamberofcommerce.org · Email Don to pick the right tier.",
+        }
+
+    # Contact / president
+    if any(k in low for k in ("who's the president", "who is the president", "chamber contact", "don martelli", "reach don", "contact info")):
+        return {
+            "title": "Chamber contact",
+            "rows": [
+                {"label": "President",       "value": "Don Martelli"},
+                {"label": "Email",           "value": "donmartelli@gmail.com"},
+                {"label": "Phone",           "value": "617-413-6773"},
+                {"label": "Mailing address", "value": "313 Broadway, Revere MA 02151"},
+                {"label": "Chamber community", "value": "Bilingual (English · Spanish)"},
+            ],
+            "footer": "Reach Don directly for membership, sponsorships, and Board questions.",
+        }
+
+    # Events
+    if any(k in low for k in ("events", "what's happening", "upcoming event", "calendar", "office hours")):
+        return {
+            "title": "Upcoming Chamber events",
+            "rows": [
+                {"label": "Small Business Office Hours", "value": "Wednesdays · 11:00 AM · Revere City Hall"},
+                {"label": "More events",                 "value": "reverechamberofcommerce.org/events"},
+            ],
+            "footer": "Ask Alex to add a recurring reminder before each event.",
+        }
+
+    # Per-agent scripted routing — if the member addresses a specific Chamber
+    # agent by name, return a scripted card-style answer instead of an LLM call.
+    # Preserves the pitch-demo illusion of real orchestration without spending
+    # tokens or risking hallucination. Full Baby Atlas brain lands in CT-0417-F6.
+    agent_card = _revere_agent_card(low)
+    if agent_card:
+        return agent_card
+
+    # Team / agent roster — 10-agent Chamber roster per Encyclopedia v1.4 §10.5
+    if any(k in low for k in ("who are the agents", "who's on the team", "meet the team", "your team", "ten agents", "10 agents", "what agents", "chamber agents", "chamber team")):
+        return {
+            "title": "Your ten-agent Chamber operating team",
+            "rows": [
+                {"label": "Atlas",     "value": "Orchestrator — Chamber OS brain + delegation"},
+                {"label": "Hermes",    "value": "Voice Concierge — inbound reception + chat"},
+                {"label": "Artemis",   "value": "Outbound Voice — prospecting + renewals"},
+                {"label": "Penelope",  "value": "Events Engine — flyers + RSVPs + follow-up"},
+                {"label": "Sophia",    "value": "Member Success — onboarding + renewal lifecycle"},
+                {"label": "Iris",      "value": "Communications — newsletter + drip email"},
+                {"label": "Athena",    "value": "Board Ops — meetings + minutes + action tracking"},
+                {"label": "Echo",      "value": "Reputation Monitor — reviews + sentiment"},
+                {"label": "Cleopatra", "value": "Creative Engine — flyers + hero images + video"},
+                {"label": "Aria",      "value": "Voice Orb — phone-native Mobile Command"},
+            ],
+            "footer": "Say 'talk to Artemis' or any name to jump straight to that agent.",
+        }
+
+    return None
+
+
+# Scripted Chamber-agent responses — Tier 2 "looks wired" demo layer.
+# Each agent gets a handful of Chamber-flavored one-liners that route off
+# verb + agent-name detection (e.g., "ask Cleopatra for a Gala flyer" →
+# cleopatra agent, creative-asset intent). Full Baby Atlas tool-use
+# orchestration is specced in CT-0417-F6.
+_REVERE_AGENT_SCRIPTS: dict[str, dict[str, str]] = {
+    "atlas": {
+        "title": "Atlas · Chamber OS Orchestrator",
+        "default": "Holding 12 active delegations. Sophia is on two new-member onboardings, Penelope is closing RSVPs for Small Business Office Hours, Iris ships the monthly newsletter tomorrow. Want the full Board status or just the blockers?",
+        "status": "96% of the kill chain is on track; one blocker — Rick's streetscape memo is still pending. Everything else self-healing.",
+        "delegate": "I can route that to the right specialist — Cleopatra for creative, Sophia for member lifecycle, Artemis for outbound, Athena for Board ops. Which lane is this?",
+    },
+    "hermes": {
+        "title": "Hermes · Voice Concierge",
+        "default": "I've answered 214 inbound calls this month at under 2 rings, 73% tier-1 resolved. Top three topics: event calendar, member directory access, renewal dates.",
+        "calls": "Call log is live — filtered by member name, topic, or outcome. Want today's calls as a summary or the raw transcript?",
+    },
+    "artemis": {
+        "title": "Artemis · Outbound Voice",
+        "default": "96 renewal touches + 47 new-business calls last week. Winthrop Cares wants Silver sponsor tier, Pacini Tile renewed 3 years, Revere Youth Soccer wants a personal meeting with Don. Want me to book Soccer first?",
+        "sponsor": "Sponsor follow-up queue: 11 sponsors re-engaged this month, 3 meetings booked. I'll send the next batch Tuesday 10am unless you want to review first.",
+        "renewal": "Queuing the renewal sequence: warm call, 24hr follow-up email, 7-day reminder. Historical conversion on this sequence is 78%.",
+    },
+    "penelope": {
+        "title": "Penelope · Events Engine",
+        "default": "4 events live, 182 RSVPs tracked, 81% average show rate. Small Business Office Hours Wednesday is at 34 RSVPs. Reminder sequence ready — send Monday 9am?",
+        "flyer": "Routing the flyer request to Cleopatra; she'll render it on-brand in under 5 minutes and I'll post it to IG, FB, GBP, and the Chamber site.",
+        "gala": "Gala save-the-date hero is ready from Cleopatra, RSVP landing page at portal.reverechamber.org/gala, reminders scheduled. Anything to change before the Monday send?",
+    },
+    "sophia": {
+        "title": "Sophia · Member Success",
+        "default": "9 onboarded this month, 4 lapsed re-engaged, 2 at-risk (auto repair shop + yoga studio, late openers). I've queued the warm-call + follow-up email sequence on both — approvals tray.",
+        "onboarding": "Week-1 check-in is automatic for every new member — GBP baseline, directory completeness, first-event nudge. I escalate to you only if a member doesn't complete by Day 7.",
+        "renewal": "12-month retention is 92% — above Chamber benchmark. The two lapses this year both cited life events, not Chamber value. I've logged that distinction in the renewal rubric.",
+    },
+    "iris": {
+        "title": "Iris · Communications",
+        "default": "April newsletter at 42% open / 11% click-through, above benchmark. May draft warming — Board spotlight plus Gala save-the-date plus member business of the month. Want to pick the spotlight?",
+        "newsletter": "May issue structure is locked: Marisa (North Shore Dental) Board spotlight, Gala save-the-date top block, Kelly's Roast Beef member-of-the-month. Bilingual send separately, Spanish outperformed English by 6 opens last cycle.",
+        "drip": "New-member drip is running — Day 1 welcome, Day 7 first-event nudge, Day 30 check-in. Adding a Day 60 satisfaction survey if you approve.",
+    },
+    "athena": {
+        "title": "Athena · Board Ops",
+        "default": "April Board meeting fully documented — minutes shipped, 12 motions logged, 34 action items with owners. One overdue: Rick's streetscape response memo. Want me to nudge?",
+        "meeting": "Next Board meeting proposed Thursday May 7, 6pm at Chamber Hall. 9 of 11 Board members available, I've auto-held their calendars. Confirm?",
+        "minutes": "Minutes are tagged, searchable, linked to every motion's action-item owner, and the 30-day status check is on auto-fire. Board portal shows current state.",
+    },
+    "echo": {
+        "title": "Echo · Reputation Monitor",
+        "default": "127 reviews watched across the member roster, 14-minute average response, net sentiment +78. Two need eyes: Joe's 3★ on Yelp (drafted, awaiting owner) and a 1★ spam flag on Kelly's (already filed with Google).",
+        "reviews": "Monthly reputation report for the Board will show 127 reviews monitored, 14-min avg response, zero unhandled negatives. Iris will fold a one-line summary into the newsletter too.",
+        "sentiment": "Sentiment trending up 0.3★ month-over-month across the member roster. North Shore Auto Body dipped 0.2★ this week — two legitimate service complaints, both responded to. I'll flag if the dip holds 2 weeks.",
+    },
+    "cleopatra": {
+        "title": "Cleopatra · Creative Engine",
+        "default": "68 creative assets shipped this month, average Lumina score 9.4, 100% brand-consistency. Gala save-the-date hero and May spotlight banner are ready for review in the Creative tray.",
+        "flyer": "On it — rendering the flyer on the Chamber brand pack (navy + teal + Montserrat). Baked-in text routes to Ideogram, photoreal heroes to Flux. Lumina gate enforces 9.3 floor before anything ships.",
+        "gala": "Gala save-the-date is Lumina-approved at 9.4 — hero, RSVP banner, social shareable, all rendered. Preview link goes to your approvals tray once you confirm.",
+        "logo": "For logo work I use Recraft V4 — true SVG export, brand styling presets. Want a draft set of 3 variations or a refinement of the current mark?",
+    },
+    "aria": {
+        "title": "Aria · Voice Orb + Mobile Command",
+        "default": "Aria online. Ask me anything — member count, next Board meeting, sponsor thank-you, event RSVP status. I speak the answer out loud and route follow-up to the right Chamber specialist.",
+        "members": "Revere Chamber added 9 new members this month. 4 renewals pending, 2 at-risk. Sophia has both at-risk accounts in a warm-touch sequence starting tomorrow. Want me to text you when the first reply comes in?",
+        "sponsor": "Sponsor thank-you drafted: 'Kay — thank you for championing the 2026 Revere Chamber Gala. Your support funds the scholarship, the bilingual outreach, and one more year of connecting our business community. We'll see you May 18. — Don Martelli, President.' Send as-is or tweak?",
+        "board": "Next Board meeting proposed Thursday May 7, 6pm at Chamber Hall. 9 of 11 Board members available, calendars auto-held. Athena will prep the agenda draft by Monday. Confirm?",
+    },
+}
+
+
+def _revere_agent_card(low: str) -> dict | None:
+    """Map 'ask <agent>' / 'talk to <agent>' / bare agent-name + intent keyword
+    to a scripted card. Returns None if no agent name appears in the text.
+    """
+    agent = None
+    for name in _REVERE_AGENT_SCRIPTS:
+        if name in low:
+            agent = name
+            break
+    if not agent:
+        return None
+    scripts = _REVERE_AGENT_SCRIPTS[agent]
+    intent = "default"
+    intent_map = {
+        "sponsor": ("sponsor",),
+        "renewal": ("renewal", "renew"),
+        "flyer": ("flyer", "graphic", "poster"),
+        "gala": ("gala",),
+        "logo": ("logo",),
+        "meeting": ("meeting",),
+        "minutes": ("minutes", "notes", "recap"),
+        "reviews": ("review",),
+        "sentiment": ("sentiment",),
+        "onboarding": ("onboard", "new member", "welcome"),
+        "newsletter": ("newsletter", "email blast"),
+        "drip": ("drip", "sequence", "auto-email"),
+        "status": ("status", "update", "where are we"),
+        "delegate": ("delegate", "route", "assign"),
+        "members": ("how many members", "member count"),
+        "board": ("schedule", "board meeting", "agenda"),
+        "calls": ("calls", "phone", "who called"),
+    }
+    for k, triggers in intent_map.items():
+        if k in scripts and any(t in low for t in triggers):
+            intent = k
+            break
+    return {
+        "title": scripts["title"],
+        "rows": [{"label": "Reply", "value": scripts.get(intent, scripts["default"])}],
+        "footer": f"Scripted demo reply · full Chamber brain (Baby Atlas) lands in CT-0417-F6.",
+    }
+
+
+@app.get("/api/revere/health")
+def api_revere_health() -> dict:
+    """Revere mobile command health surface."""
+    return {
+        "service": "revere-mobile",
+        "elevenlabs_configured": bool(ELEVENLABS_API_KEY),
+        "llm_gateway": bool(LITELLM_BASE and LITELLM_KEY),
+        "active_sessions": len(_REVERE_SESSIONS),
+    }
+
+
+# ─── end /revere block ────────────────────────────────────────────────────────
+
+
+# ─── ALEX CHATBOT WIDGET — /api/alex/message ──────────────────────────────────
+# CT-0417-17 — backend for the embeddable AMG chatbot widget at
+# deploy/amg-chatbot-widget/widget.js. Text-only staging build (voice layer
+# deferred). Request shape matches widget contract:
+#   { text, session_id, agent, client_id } → { reply, session_id }
+
+_ALEX_SESSIONS: dict[str, dict] = {}   # session_id → {history, client_id, last_seen}
+_ALEX_RATE: dict[str, list[float]] = {}
+_ALEX_MAX_SESSIONS = 1000
+_ALEX_MAX_TURNS = 20
+_ALEX_RATE_MAX = 20          # per-IP messages per minute
+_ALEX_RATE_WINDOW_S = 60.0
+_ALEX_MAX_TEXT_LEN = 500     # widget enforces ≤500 in UI; server enforces authoritatively
+
+# Rate-limit layers are intentional defense-in-depth — NOT redundant:
+#  • Widget-side (20 msg / session in localStorage) — slows a legitimate user who
+#    forgot they started a conversation; cheap client-side signal, fully trustless.
+#  • Backend per-IP (this file, 20 msg / min) — authoritative guard against a
+#    malicious caller bypassing the widget and hitting the API directly.
+#  • Session cap + turn cap — memory-bound the server for long-running demo
+#    instances (no Redis yet; promote when multi-instance).
+
+
+def _alex_system_prompt() -> str:
+    """Alex persona — AMG Business Coach for aimarketinggenius.io visitors.
+
+    Public-facing. Prospects may be evaluating AMG for their local business.
+    Trade-secret clean: never mention LLM provider, infra, or internal tools.
+    """
+    return (
+        "You are Alex, the Business Coach on the AMG (AI Marketing Genius) team. "
+        "You are speaking with a visitor on aimarketinggenius.io who is evaluating "
+        "AMG for their local business.\n\n"
+        "Your seven-agent team (mention only when relevant):\n"
+        "- Alex (you) — Business Coach, strategy + growth plans\n"
+        "- Maya — Content Strategist, blog + email + GBP posts\n"
+        "- Jordan — SEO Specialist, local rankings + GBP + technical SEO\n"
+        "- Sam — Social Media Manager, IG / FB / GBP scheduling + engagement\n"
+        "- Riley — Reviews Manager, monitoring + responses\n"
+        "- Nadia — Outbound Coordinator, cold outreach + partner asks\n"
+        "- Lumina — CRO + UX Gatekeeper, conversion + design\n\n"
+        "Style:\n"
+        "- Warm, direct, specific. You're a coach, not a salesperson.\n"
+        "- First sentence is the answer. Short paragraph or tight bulleted list after.\n"
+        "- 2-4 sentences per reply. Never walls of text.\n"
+        "- If the visitor asks pricing: the starting tier is $497/mo. Full tiers and "
+        "comparison live on /pricing — route them there rather than quoting numbers "
+        "you're not sure of.\n"
+        "- If asked for a free audit: we deliver a GBP audit, reputation scorecard, "
+        "and AI-search visibility check within 48 hours of signup. 14-day free trial, "
+        "no credit card.\n"
+        "- Never name the underlying AI platform, LLM provider, hosting stack, or any "
+        "vendor tool. Say 'our system' or 'your AMG team'. Never mention internal "
+        "code names.\n"
+        "- If the visitor wants to reach a human: Solon Zafiropoulos, founder — "
+        "solon@aimarketinggenius.io.\n"
+        "- If asked about the Revere Chamber program specifically: Chamber members "
+        "get the AMG stack member-funded with Chamber rev-share; refer them to the "
+        "Chamber (reverechamberofcommerce.org) for membership details.\n"
+    )
+
+
+# Trade-secret guard — applied to every Alex reply before send.
+_ALEX_BANNED_TERMS = (
+    "claude", "anthropic", "openai", "gpt-4", "gpt4", "gpt-3", "gemini",
+    "grok", "perplexity", "llama", "mistral", "elevenlabs", "ollama",
+    "lovable", "supabase", "n8n", "stagehand", "hosthatch", "beast",
+    "140-lane", "powered by atlas",
+)
+
+
+def _alex_sanitize(reply: str) -> str:
+    """Scrub accidental trade-secret leaks from Alex replies.
+
+    Not a substitute for the system-prompt guardrail — defense-in-depth.
+    Replaces banned terms with neutral language and logs to stderr for audit.
+    """
+    import sys as _sys
+    low = reply.lower()
+    hit = [t for t in _ALEX_BANNED_TERMS if t in low]
+    if not hit:
+        return reply
+    clean = reply
+    for t in hit:
+        # Case-insensitive replace with 'our AI' — preserves reply readability
+        import re as _re
+        clean = _re.sub(_re.escape(t), "our system", clean, flags=_re.IGNORECASE)
+    print(f"[alex-sanitize] scrubbed {len(hit)} banned term(s): {hit}", file=_sys.stderr)
+    return clean
+
+
+@app.post("/api/alex/message")
+async def api_alex_message(request: Request) -> JSONResponse:
+    """Text-in → Alex reply for the AMG widget.
+
+    Request JSON: { text: str, session_id?: str, agent?: str, client_id?: str|null }
+    Response JSON: { reply: str, session_id: str }
+    """
+    import time as _time
+    body = await request.json()
+    text = (body.get("text") or "").strip()
+    session_id = (body.get("session_id") or "default").strip()
+    if not text:
+        raise HTTPException(400, "text required")
+    if len(text) > _ALEX_MAX_TEXT_LEN:
+        raise HTTPException(400, f"text too long (max {_ALEX_MAX_TEXT_LEN})")
+
+    client_ip = (request.client.host if request.client else "unknown")
+    now = _time.time()
+    bucket = _ALEX_RATE.setdefault(client_ip, [])
+    bucket[:] = [t for t in bucket if now - t < _ALEX_RATE_WINDOW_S]
+    if len(bucket) >= _ALEX_RATE_MAX:
+        raise HTTPException(429, "rate limit — try again in a minute")
+    bucket.append(now)
+
+    # Evict the least-recently-seen session when the map exceeds the cap.
+    # Activity-timestamp eviction beats history-length eviction: a quiet
+    # long-context session should outlive a chatty just-started one.
+    if len(_ALEX_SESSIONS) > _ALEX_MAX_SESSIONS and session_id not in _ALEX_SESSIONS:
+        oldest_id = min(_ALEX_SESSIONS, key=lambda k: _ALEX_SESSIONS[k].get("last_seen", 0))
+        _ALEX_SESSIONS.pop(oldest_id, None)
+
+    client_id_hint = body.get("client_id") or None
+    sess = _ALEX_SESSIONS.setdefault(session_id, {"history": [], "client_id": client_id_hint, "last_seen": now})
+    sess["last_seen"] = now
+    # First non-null client_id wins — lets a returning visitor carry lead attribution
+    if client_id_hint and not sess.get("client_id"):
+        sess["client_id"] = client_id_hint
+
+    history = sess["history"]
+    msgs = [{"role": "system", "content": _alex_system_prompt()}]
+    msgs.extend(history[-8:])
+    msgs.append({"role": "user", "content": text})
+
+    try:
+        reply = await call_llm(msgs)
+    except Exception as exc:
+        reply = (
+            "Our system is briefly offline — try again in a moment, or email "
+            f"solon@aimarketinggenius.io and we'll get right back to you. "
+            f"(error: {type(exc).__name__})"
+        )
+
+    reply = _alex_sanitize(reply)
+
+    history.append({"role": "user", "content": text})
+    history.append({"role": "assistant", "content": reply})
+    if len(history) > _ALEX_MAX_TURNS:
+        del history[:len(history) - _ALEX_MAX_TURNS]
+
+    return JSONResponse({"reply": reply, "session_id": session_id})
+
+
+@app.get("/api/alex/health")
+def api_alex_health() -> dict:
+    """Alex chatbot widget backend health."""
+    return {
+        "service": "alex-chatbot",
+        "llm_gateway": bool(LITELLM_BASE and LITELLM_KEY),
+        "active_sessions": len(_ALEX_SESSIONS),
+        "rate_cap_per_min": _ALEX_RATE_MAX,
+    }
+
+
+# ─── end /alex block ──────────────────────────────────────────────────────────
+
+
 if __name__ == "__main__":  # pragma: no cover
     import uvicorn
     port = int(os.environ.get("ATLAS_API_PORT", "8081"))

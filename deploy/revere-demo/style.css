@@ -259,3 +259,139 @@ a{color:var(--navy)}
   .view-head{flex-direction:column;align-items:flex-start}
   .view-head h2{font-size:24px}
 }
+
+/* ============ v5 — 10-agent Chamber roster + Aria Voice Orb ============ */
+
+.agent-grid--v5{
+  grid-template-columns:repeat(auto-fill,minmax(260px,1fr));
+  gap:16px;
+}
+.agent-card--hero{
+  grid-column:span 2;
+  background:linear-gradient(135deg,rgba(11,37,114,0.06),rgba(45,180,202,0.06));
+  border:1px solid rgba(11,37,114,0.18);
+  display:grid;
+  grid-template-columns:auto 1fr;
+  gap:24px;
+  align-items:center;
+  padding:22px 26px;
+}
+@media (max-width:900px){.agent-card--hero{grid-column:span 1;grid-template-columns:1fr}}
+.agent-hero-left{display:flex;align-items:center;gap:16px}
+.agent-hero-left .agent-ico{width:56px;height:56px;font-size:26px;margin-bottom:0}
+.agent-hero-meta h3{margin:2px 0 4px;font-size:22px}
+.agent-metrics--hero{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin:0}
+@media (max-width:900px){.agent-metrics--hero{grid-template-columns:repeat(2,1fr)}}
+
+.agent-tag{
+  display:inline-block;
+  font-size:10.5px;font-weight:600;letter-spacing:0.14em;text-transform:uppercase;
+  color:var(--navy);
+  padding:3px 9px;border-radius:999px;
+  background:rgba(45,180,202,0.12);
+  border:1px solid rgba(45,180,202,0.28);
+  margin-bottom:10px;
+}
+.agent-card--hero .agent-tag{background:linear-gradient(135deg,rgba(212,166,39,0.18),rgba(45,180,202,0.12));border-color:rgba(212,166,39,0.35);color:#7a5b0f}
+
+/* Per-agent gradient tints — each distinct per §10.5.4 */
+.agent-ico--atlas    {background:linear-gradient(135deg,#0B2572 0%,#d4a627 100%);color:#fff}
+.agent-ico--hermes   {background:linear-gradient(135deg,#2DB4CA,#116DFF);color:#fff}
+.agent-ico--artemis  {background:linear-gradient(135deg,#0B2572,#4ED0DB);color:#fff}
+.agent-ico--penelope {background:linear-gradient(135deg,#116DFF,#9a64e3);color:#fff}
+.agent-ico--sophia   {background:linear-gradient(135deg,#0B2572,#3dd598);color:#fff}
+.agent-ico--iris     {background:linear-gradient(135deg,#d946ef,#116DFF);color:#fff}
+.agent-ico--athena   {background:linear-gradient(135deg,#0B2572,#6c7687);color:#fff}
+.agent-ico--echo     {background:linear-gradient(135deg,#eab308,#d4a627);color:#0B2572}
+.agent-ico--cleopatra{background:linear-gradient(135deg,#d4a627,#b25789);color:#fff}
+
+/* Aria Voice Orb — per §10.5.4 render as orb not card */
+.aria-wrap{
+  margin:28px 0;
+  padding:32px 28px;
+  display:grid;
+  grid-template-columns:auto 1fr;
+  gap:32px;
+  align-items:center;
+  background:
+    radial-gradient(140% 80% at 10% 20%,rgba(45,180,202,0.12) 0%,transparent 60%),
+    radial-gradient(120% 80% at 90% 80%,rgba(17,109,255,0.10) 0%,transparent 60%),
+    linear-gradient(160deg,#07184a 0%,#0B2572 60%,#081a55 100%);
+  color:#fff;
+  border-radius:var(--radius);
+  box-shadow:0 14px 40px rgba(7,24,74,0.28);
+  overflow:hidden;
+  position:relative;
+  isolation:isolate;
+}
+@media (max-width:760px){.aria-wrap{grid-template-columns:1fr;text-align:center}}
+
+.aria-orb{
+  position:relative;
+  width:170px;height:170px;
+  border-radius:50%;
+  cursor:pointer;
+  flex-shrink:0;
+  justify-self:center;
+  outline:none;
+  transition:transform 160ms cubic-bezier(.22,1,.36,1);
+}
+.aria-orb:hover{transform:scale(1.03)}
+.aria-orb:focus-visible{box-shadow:0 0 0 3px var(--gold)}
+.aria-core{
+  position:absolute;inset:28px;
+  border-radius:50%;
+  background:
+    radial-gradient(60% 60% at 35% 30%,#ffffff 0%,rgba(212,166,39,0.6) 30%,rgba(45,180,202,0.85) 60%,#116DFF 100%);
+  box-shadow:
+    0 0 24px rgba(212,166,39,0.38),
+    0 0 60px rgba(45,180,202,0.45),
+    inset 0 0 30px rgba(255,255,255,0.35);
+  animation:aria-breathe 3.4s cubic-bezier(.22,1,.36,1) infinite;
+}
+@keyframes aria-breathe{
+  0%,100%{transform:scale(1);filter:brightness(1)}
+  50%{transform:scale(1.04);filter:brightness(1.08)}
+}
+.aria-ring{
+  position:absolute;border-radius:50%;
+  border:1px solid rgba(212,166,39,0.45);
+  animation:aria-pulse 3.4s cubic-bezier(.22,1,.36,1) infinite;
+}
+.aria-ring--1{inset:14px;animation-delay:0s}
+.aria-ring--2{inset:4px;border-color:rgba(45,180,202,0.45);animation-delay:0.8s}
+.aria-ring--3{inset:-8px;border-color:rgba(17,109,255,0.3);animation-delay:1.6s}
+@keyframes aria-pulse{
+  0%{transform:scale(0.92);opacity:0.9}
+  70%{transform:scale(1.18);opacity:0}
+  100%{transform:scale(1.18);opacity:0}
+}
+@media (prefers-reduced-motion:reduce){
+  .aria-core,.aria-ring{animation:none}
+}
+
+.aria-meta h3.aria-title{
+  margin:6px 0 8px;
+  font-size:28px;letter-spacing:-0.01em;font-weight:700;color:#fff;
+}
+.aria-meta .agent-tag{background:rgba(212,166,39,0.15);border-color:rgba(212,166,39,0.35);color:#f4d88a}
+.aria-sub{
+  color:rgba(255,255,255,0.82);
+  font-size:14.5px;line-height:1.55;
+  max-width:64ch;margin:0 0 16px;
+}
+.aria-prompts{display:flex;flex-wrap:wrap;gap:8px}
+@media (max-width:760px){.aria-prompts{justify-content:center}}
+.aria-chip{
+  background:rgba(255,255,255,0.08);
+  border:1px solid rgba(255,255,255,0.18);
+  color:#fff;
+  padding:8px 14px;
+  border-radius:999px;
+  font:500 12.5px/1 'Montserrat',sans-serif;
+  cursor:pointer;
+  backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);
+  transition:background 150ms ease,transform 150ms ease,border-color 150ms ease;
+}
+.aria-chip:hover{background:rgba(212,166,39,0.18);border-color:var(--gold);transform:translateY(-1px)}
+.aria-chip:active{transform:scale(0.97)}
