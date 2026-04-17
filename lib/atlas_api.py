@@ -1746,7 +1746,9 @@ _TITAN_RESTART_RATE_WINDOW_S = 300.0  # 5 minutes
 def _titan_restart_token() -> str:
     """Read the bearer token from /etc/amg/titan-restart.env. Returns empty
     string when the file is missing — the endpoint then refuses all requests
-    (fail-closed).
+    (fail-closed). No env-var fallback — the token MUST be persisted to disk
+    on the authoritative machine so that atlas-api restarts don't silently
+    reset the auth surface.
     """
     try:
         env = Path("/etc/amg/titan-restart.env").read_text()
@@ -1756,7 +1758,7 @@ def _titan_restart_token() -> str:
                 return line.split("=", 1)[1].strip().strip('"').strip("'")
     except Exception:
         pass
-    return os.environ.get("TITAN_RESTART_TOKEN", "").strip()
+    return ""  # fail-closed: no env-var fallback
 
 
 def _verify_titan_auth(request: Request, raw_body: bytes) -> tuple[bool, str]:
@@ -1814,12 +1816,21 @@ async def _mcp_log_restart(payload: dict) -> None:
 
 
 async def _restart_mac() -> dict:
+    """Touch ~/.claude/titan-restart.flag so launchd observes and fires
+    bin/titan-restart-launch.sh. Stamps our own api-side TS file so
+    /api/titan/session/status can show when this endpoint last fired
+    (the launcher also writes its own last-launch-ts on successful relaunch,
+    which is the actual source-of-truth for new-session availability).
+    """
     flag = Path.home() / ".claude" / "titan-restart.flag"
+    api_ts = Path.home() / ".claude" / "titan-restart.api-fired-ts"
     try:
         flag.parent.mkdir(parents=True, exist_ok=True)
         flag.touch()
+        api_ts.write_text(time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()))
         return {"flag_touched": True, "launchd_label": "com.amg.titan-autorestart",
-                "expected_new_session_within": "30s"}
+                "expected_new_session_within": "30s",
+                "api_fired_ts": api_ts.read_text().strip()}
     except Exception as e:
         return {"flag_touched": False, "error": f"{type(e).__name__}: {e}"}
 
@@ -1911,9 +1922,17 @@ async def api_titan_session_rotate_token(request: Request) -> JSONResponse:
         tmp.chmod(0o600)
         tmp.rename(env_path)
     except PermissionError:
-        raise HTTPException(500, "cannot write /etc/amg/titan-restart.env — needs root")
+        raise HTTPException(
+            500,
+            "cannot write /etc/amg/titan-restart.env — atlas-api must run as "
+            "root OR the directory must be pre-created + chowned to the "
+            "service user with 0700 perms. Current deployment has atlas-api "
+            "running as root on VPS so this path should work; on Mac, either "
+            "create /etc/amg/ with sudo OR override TITAN_RESTART_ENV_PATH "
+            "to a user-writable location in the systemd unit environment.",
+        )
     except Exception as e:
-        raise HTTPException(500, f"rotate failed: {type(e).__name__}")
+        raise HTTPException(500, f"rotate failed: {type(e).__name__}: {e}")
     await _mcp_log_restart({"event": "token-rotate", "rotated_by_ip": (request.client.host if request.client else "unknown")})
     return JSONResponse({
         "status": "rotated",

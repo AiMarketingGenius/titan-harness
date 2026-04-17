@@ -128,9 +128,10 @@ if [ -f ".git/hooks/pre-commit" ]; then
 fi
 
 # ───────── Step 3. MCP reachability ─────────
+UA="titan-boot-self-heal/1.0 ($(uname -s); $(hostname))"
 mcp_ok=false
 for attempt in 1 2 3; do
-  if curl -s --max-time 5 "$MCP_URL/health" 2>/dev/null | grep -q '"status"'; then
+  if curl -s --max-time 5 -A "$UA" "$MCP_URL/health" 2>/dev/null | grep -q '"status"'; then
     mcp_ok=true
     break
   fi
@@ -148,7 +149,7 @@ echo "[step3] MCP reachable ✓"
 # Don't require a specific payload shape (MCP evolves) — just require non-empty JSON
 # Use curl with a small-payload POST that every MCP build accepts.
 bootstrap_ok=false
-bootstrap_resp="$(curl -s --max-time 10 "$MCP_URL/api/get_sprint_state?project_id=EOM" 2>/dev/null)"
+bootstrap_resp="$(curl -s --max-time 10 -A "$UA" "$MCP_URL/api/get_sprint_state?project_id=EOM" 2>/dev/null)"
 if [ -n "$bootstrap_resp" ] && echo "$bootstrap_resp" | grep -qE '(sprint_name|completion_pct|kill_chain|"EOM")'; then
   bootstrap_ok=true
   echo "[step4] bootstrap context probe ok"
@@ -173,6 +174,7 @@ EOF
 )
   curl -s -X POST "$MCP_URL/api/log_decision" \
     -H 'Content-Type: application/json' \
+    -A "$UA" \
     -d "$BODY" > /dev/null 2>&1 || \
     echo "[step5] MCP log_decision post failed (non-blocking)"
 fi
