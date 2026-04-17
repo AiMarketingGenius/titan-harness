@@ -85,7 +85,7 @@
     iris:      "Iris has the April newsletter at 42% open / 11% click-through — healthy above benchmark. May draft is warming with three blocks: Board spotlight, Gala save-the-date, member business of the month. Want to sign off on the spotlight?",
     athena:    "Athena has April Board fully documented — minutes shipped, 12 motions logged, 34 action items with owners. One overdue: Rick's streetscape response memo. Want me to nudge Rick through Iris's Friday reminder loop?",
     echo:      "Echo is watching 127 reviews across the member roster — 14-minute average response, net sentiment +78. Two need your eyes: Joe's 3★ on Yelp (Echo drafted the response, awaiting owner approval) and a 1★ spam flag on Kelly's that Echo already filed with Google.",
-    cleopatra: "Cleopatra has shipped 68 creative assets this month, average Lumina score 9.4, 100% brand-consistency. The Gala save-the-date hero and the May member spotlight banner are ready for your review in the Creative tray.",
+    cleopatra: "Cleopatra has shipped 68 creative assets this month, average brand-gate score 9.4, 100% brand-consistency. The Gala save-the-date hero and the May member spotlight banner are ready for your review in the Creative tray.",
     aria:      "Atlas here, on voice. Same brain, same delegation — just speaking through the orb now. Ask me anything: member count, next Board meeting, a quick thank-you draft, a sponsor follow-up. I'll speak the answer and run the specialists silently."
   };
 
@@ -133,9 +133,9 @@
       "Echo's monthly reputation report for the Board will show 127 reviews monitored, 14-min average response, zero unhandled negatives. Athena and Iris both want the summary — Echo will ship one version each in the format they need."
     ],
     cleopatra: [
-      "Cleopatra's slideshow is ready: Gala save-the-date hero, May spotlight banner, Small Business Office Hours flyer, Sponsor-of-the-Month template. All scored 9.3+ by Lumina against the Chamber brand pack. Want to see them in the Creative tray or have them auto-routed?",
+      "Cleopatra's slideshow is ready: Gala save-the-date hero, May spotlight banner, Small Business Office Hours flyer, Sponsor-of-the-Month template. All scored 9.3+ by our brand gate against the Chamber brand pack. Want to see them in the Creative tray or have them auto-routed?",
       "Cleopatra's brand-consistency check ran this morning across 68 assets — 100% inside the Chamber pack. One warning: two March flyers used the pre-v4 navy; she queued re-renders, nothing shipped from them this cycle.",
-      "For the Gala, Cleopatra recommends our typography-first model for the flyer (legible baked-in text) and our photoreal model for the Chamber-Hall hero. Budget is well inside the May cap — Lumina gate stays on, no surprises."
+      "For the Gala, Cleopatra recommends our typography-first model for the flyer (legible baked-in text) and our photoreal model for the Chamber-Hall hero. Budget is well inside the May cap — brand gate stays on, no surprises."
     ],
     aria: [
       "Revere Chamber added 9 new members this month. 4 renewals pending, 2 flagged at-risk. Sophia has both at-risk accounts in a warm-touch sequence starting tomorrow. Want me to text you when the first reply comes in?",

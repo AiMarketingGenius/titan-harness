@@ -1416,7 +1416,7 @@ async def _revere_intent_card(text: str) -> dict | None:
                 {"label": "Small Business Office Hours", "value": "Wednesdays · 11:00 AM · Revere City Hall"},
                 {"label": "More events",                 "value": "reverechamberofcommerce.org/events"},
             ],
-            "footer": "Ask Alex to add a recurring reminder before each event.",
+            "footer": "Ask Atlas to set a recurring reminder before each event.",
         }
 
     # Team / specialist roster — Atlas + 8 specialists per CT-0417-25 architecture
@@ -1482,8 +1482,8 @@ _REVERE_SPECIALIST_LANES: dict[str, dict] = {
         "title": "Penelope · Events Engine",
         "atlas": {
             "default":  "Penelope has 4 events live, 182 RSVPs tracked, 81% average show rate. Wednesday's Small Business Office Hours is at 34 RSVPs — reminder sequence ready to fire Monday 9 AM unless you want to look it over first.",
-            "flyer":    "I'll spin Cleopatra on the flyer right now; Penelope will post it to IG, FB, GBP, and the Chamber site once Lumina clears it. Five minutes to first draft.",
-            "gala":     "Gala save-the-date is Cleopatra-drafted and Lumina-approved at 9.4 — Penelope has the RSVP landing page at portal.reverechamber.org/gala, reminders scheduled. Want to preview before Monday's send?",
+            "flyer":    "I'll spin Cleopatra on the flyer right now; Penelope will post it to IG, FB, GBP, and the Chamber site once our brand gate clears it. Five minutes to first draft.",
+            "gala":     "Gala save-the-date is Cleopatra-drafted, brand-gate approved at 9.4 — Penelope has the RSVP landing page at portal.reverechamber.org/gala, reminders scheduled. Want to preview before Monday's send?",
         },
         "card_title": "Atlas → Penelope · Events board",
         "card_rows":  [
@@ -1557,15 +1557,15 @@ _REVERE_SPECIALIST_LANES: dict[str, dict] = {
     "cleopatra": {
         "title": "Cleopatra · Creative Engine",
         "atlas": {
-            "default":  "Cleopatra has shipped 68 creative assets this month — average Lumina score 9.4, 100% brand-consistency. Gala save-the-date hero and May spotlight banner are sitting in the Creative tray ready for your review.",
-            "flyer":    "On it. Cleopatra is rendering the flyer on our Chamber brand pack — navy + teal + Montserrat. Baked-in text routes to our typography-first model, the photoreal hero to our photoreal model. Lumina gate enforces the 9.3 floor before anything ships. First draft in about 8 minutes.",
-            "gala":     "Gala save-the-date is Cleopatra-drafted, Lumina-approved at 9.4 — hero, RSVP banner, social shareable, all rendered on the Chamber pack. Preview link goes to your approvals tray as soon as you confirm.",
+            "default":  "Cleopatra has shipped 68 creative assets this month — average brand-gate score 9.4, 100% brand-consistency. Gala save-the-date hero and May spotlight banner are sitting in the Creative tray ready for your review.",
+            "flyer":    "On it. Cleopatra is rendering the flyer on our Chamber brand pack — navy + teal + Montserrat. Baked-in text routes to our typography-first model, the photoreal hero to our photoreal model. Our brand gate enforces the 9.3 floor before anything ships. First draft in about 8 minutes.",
+            "gala":     "Gala save-the-date is Cleopatra-drafted, brand-gate approved at 9.4 — hero, RSVP banner, social shareable, all rendered on the Chamber pack. Preview link goes to your approvals tray as soon as you confirm.",
             "logo":     "Cleopatra uses our vector-native model for logo work — true SVG export, brand styling presets. Want a draft set of 3 variations or a refinement of the current mark?",
         },
         "card_title": "Atlas → Cleopatra · Creative board",
         "card_rows":  [
             {"label": "Assets shipped (mo)",      "value": "68"},
-            {"label": "Avg. Lumina score",        "value": "9.4 / 10"},
+            {"label": "Avg. brand-gate score",        "value": "9.4 / 10"},
             {"label": "Brand-consistency rate",   "value": "100%"},
             {"label": "Pending approvals",        "value": "2 (Gala hero, May spotlight)"},
         ],
