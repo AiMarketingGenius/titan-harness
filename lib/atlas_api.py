@@ -1449,6 +1449,7 @@ _REVERE_AGENT_SCRIPTS: dict[str, dict[str, str]] = {
         "default": "9 onboarded this month, 4 lapsed re-engaged, 2 at-risk (auto repair shop + yoga studio, late openers). I've queued the warm-call + follow-up email sequence on both — approvals tray.",
         "onboarding": "Week-1 check-in is automatic for every new member — GBP baseline, directory completeness, first-event nudge. I escalate to you only if a member doesn't complete by Day 7.",
         "renewal": "12-month retention is 92% — above Chamber benchmark. The two lapses this year both cited life events, not Chamber value. I've logged that distinction in the renewal rubric.",
+        "members": "9 new members this month (+12% vs. March). 4 renewals pending — all 4 on auto-dial sequence with Artemis. 2 at-risk in warm-touch follow-up. Total active roster: 312 members. Want the member-growth chart broken out by tier?",
     },
     "iris": {
         "title": "Iris · Communications",
@@ -1487,7 +1488,9 @@ _REVERE_AGENT_SCRIPTS: dict[str, dict[str, str]] = {
 
 def _revere_agent_card(low: str) -> dict | None:
     """Map 'ask <agent>' / 'talk to <agent>' / bare agent-name + intent keyword
-    to a scripted card. Returns None if no agent name appears in the text.
+    to a scripted card. Returns a scripted card when either an agent name OR a
+    high-confidence chamber-intent keyword is present. Returns None otherwise
+    so the LLM path handles truly open-ended queries.
     """
     agent = None
     for name in _REVERE_AGENT_SCRIPTS:
@@ -1495,7 +1498,27 @@ def _revere_agent_card(low: str) -> dict | None:
             agent = name
             break
     if not agent:
-        return None
+        # Agent-less chamber intents — route to the agent that owns the intent.
+        if any(p in low for p in ("new member", "how many member", "member count", "members this month", "member growth")):
+            agent = "sophia"
+        elif any(p in low for p in ("review this week", "our google review", "our yelp", "review pipeline")):
+            agent = "echo"
+        elif any(p in low for p in ("newsletter", "monthly email", "member email")):
+            agent = "iris"
+        elif any(p in low for p in ("gala", "event rsvp", "rsvp", "office hours", "upcoming event")):
+            agent = "penelope"
+        elif any(p in low for p in ("board meeting", "minutes", "motion", "board agenda")):
+            agent = "athena"
+        elif any(p in low for p in ("sponsor thank", "renewal call", "lapsed member")):
+            agent = "artemis"
+        elif any(p in low for p in ("chamber called", "who called", "call log", "inbound call")):
+            agent = "hermes"
+        elif any(p in low for p in ("flyer", "hero image", "creative asset")):
+            agent = "cleopatra"
+        elif any(p in low for p in ("week in review", "sprint state", "delegations", "status check")):
+            agent = "atlas"
+        if not agent:
+            return None
     scripts = _REVERE_AGENT_SCRIPTS[agent]
     intent = "default"
     intent_map = {
@@ -1508,12 +1531,12 @@ def _revere_agent_card(low: str) -> dict | None:
         "minutes": ("minutes", "notes", "recap"),
         "reviews": ("review",),
         "sentiment": ("sentiment",),
-        "onboarding": ("onboard", "new member", "welcome"),
+        "onboarding": ("onboard", "welcome"),
         "newsletter": ("newsletter", "email blast"),
         "drip": ("drip", "sequence", "auto-email"),
-        "status": ("status", "update", "where are we"),
+        "status": ("status", "update", "where are we", "week in review"),
         "delegate": ("delegate", "route", "assign"),
-        "members": ("how many members", "member count"),
+        "members": ("how many members", "how many new member", "member count", "new member", "members this month", "member growth"),
         "board": ("schedule", "board meeting", "agenda"),
         "calls": ("calls", "phone", "who called"),
     }
