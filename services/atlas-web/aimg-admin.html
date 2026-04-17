@@ -1,0 +1,409 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#0B2572">
+<title>AI Memory Guard — Admin Portal</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700&display=swap">
+<style>
+  :root {
+    --bg-0:#0a0f1c; --bg-1:#111827; --bg-2:#1f2937;
+    --navy-1:#0B2572; --teal:#2DB4CA; --royal:#116DFF;
+    --gold:#d4a627; --gold-lt:#f4d88a;
+    --ink-hi:#f4f6fb; --ink:#cbd5e5; --muted:#8a96ad;
+    --line:rgba(255,255,255,0.08); --line-s:rgba(255,255,255,0.14);
+    --ok:#3dd598; --warn:#eab308; --danger:#ef4444;
+    --pink:#ec4899;
+    --radius:10px; --radius-lg:14px;
+    --shadow:0 8px 28px rgba(0,0,0,0.32);
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{margin:0;padding:0;background:var(--bg-0);color:var(--ink-hi);font-family:'Montserrat',-apple-system,BlinkMacSystemFont,sans-serif;-webkit-font-smoothing:antialiased;min-height:100vh}
+  .skip{position:absolute;left:-9999px;top:8px;padding:8px 14px;background:var(--gold);color:var(--bg-0);border-radius:8px;font-weight:600;z-index:100}
+  .skip:focus{left:16px;outline:2px solid var(--ink-hi);outline-offset:2px}
+
+  .topbar{display:flex;align-items:center;justify-content:space-between;padding:14px 28px;background:linear-gradient(135deg,var(--bg-0) 0%,#0f1a36 50%,var(--navy-1) 100%);border-bottom:1px solid var(--line);position:sticky;top:0;z-index:10}
+  .brand{display:flex;align-items:center;gap:12px}
+  .brand-mark{width:38px;height:38px;border-radius:10px;background:linear-gradient(135deg,var(--pink),var(--gold));display:flex;align-items:center;justify-content:center;font-weight:700;color:var(--bg-0);font-size:13px;box-shadow:0 2px 10px rgba(236,72,153,0.34)}
+  .brand-txt{display:flex;flex-direction:column;line-height:1.15}
+  .brand-line1{font-weight:600;font-size:14px;letter-spacing:-0.005em}
+  .brand-line2{font-size:10.5px;color:var(--gold-lt);letter-spacing:0.1em;text-transform:uppercase}
+  .topnav{display:flex;gap:6px}
+  .topnav button{padding:8px 14px;font:600 13px/1 'Montserrat',sans-serif;background:transparent;border:1px solid transparent;color:var(--muted);border-radius:8px;cursor:pointer;transition:background 150ms ease,color 150ms ease}
+  .topnav button:hover{color:var(--ink-hi);background:rgba(255,255,255,0.05)}
+  .topnav button.active{background:var(--pink);color:#fff}
+  .auth-pill{display:flex;align-items:center;gap:8px;font-size:11px;color:var(--muted);letter-spacing:0.06em;text-transform:uppercase}
+  .dot{width:8px;height:8px;border-radius:50%;background:var(--ok);box-shadow:0 0 8px rgba(61,213,152,0.7)}
+  .dot.err{background:var(--danger);box-shadow:0 0 8px rgba(239,68,68,0.7)}
+
+  main{padding:24px 28px 80px;max-width:1400px;margin:0 auto}
+  .view{display:none}
+  .view.active{display:block;animation:fadein 200ms ease-out}
+  @keyframes fadein{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:translateY(0)}}
+
+  .view-head{display:flex;align-items:flex-end;justify-content:space-between;margin-bottom:22px;gap:24px;flex-wrap:wrap}
+  .view-head h2{margin:0;font-size:24px;font-weight:600;letter-spacing:-0.01em}
+  .view-head .sub{margin-top:4px;color:var(--muted);font-size:13.5px}
+
+  .auth-gate{background:linear-gradient(180deg,var(--bg-1),var(--bg-2));border:1px solid var(--line);border-radius:var(--radius-lg);padding:32px;max-width:480px;margin:80px auto;box-shadow:var(--shadow)}
+  .auth-gate h3{margin:0 0 12px;font-size:18px;font-weight:600}
+  .auth-gate p{color:var(--muted);font-size:14px;line-height:1.55;margin:0 0 18px}
+  .auth-gate input{width:100%;padding:12px 14px;font:500 14px/1 'Montserrat',sans-serif;background:rgba(255,255,255,0.04);border:1px solid var(--line-s);border-radius:8px;color:var(--ink-hi);outline:none;transition:border-color 150ms ease}
+  .auth-gate input:focus{border-color:var(--pink)}
+  .auth-gate button{margin-top:10px;width:100%;padding:12px;font:600 14px/1 'Montserrat',sans-serif;background:linear-gradient(135deg,var(--pink),var(--gold));border:none;border-radius:8px;color:var(--bg-0);cursor:pointer;transition:transform 150ms ease}
+  .auth-gate button:hover{transform:translateY(-1px)}
+  .auth-err{color:var(--danger);font-size:12px;margin-top:8px;display:none}
+
+  .metric-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:14px;margin-bottom:24px}
+  .metric-card{background:linear-gradient(180deg,var(--bg-1),#0f1728);border:1px solid var(--line);border-radius:var(--radius);padding:16px 18px;box-shadow:var(--shadow)}
+  .metric-label{font-size:10.5px;color:var(--muted);letter-spacing:0.1em;text-transform:uppercase;margin-bottom:6px;font-weight:600}
+  .metric-value{font-size:28px;font-weight:600;color:var(--ink-hi);letter-spacing:-0.01em}
+  .metric-sub{font-size:11.5px;color:var(--muted);margin-top:4px}
+
+  .two-col{display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:18px}
+  .panel{background:linear-gradient(180deg,var(--bg-1),#0f1728);border:1px solid var(--line);border-radius:var(--radius);padding:18px 20px;box-shadow:var(--shadow)}
+  .panel h3{margin:0 0 12px;font-size:12px;font-weight:600;letter-spacing:0.1em;text-transform:uppercase;color:var(--muted);display:flex;justify-content:space-between;align-items:center}
+
+  .bar-row{display:grid;grid-template-columns:90px 1fr 48px;gap:10px;align-items:center;padding:6px 0;font-size:13px}
+  .bar-row .label{color:var(--ink)}
+  .bar-row .bar{background:rgba(255,255,255,0.04);border-radius:999px;height:8px;overflow:hidden}
+  .bar-row .bar>span{display:block;height:100%;background:linear-gradient(90deg,var(--teal),var(--royal));border-radius:999px}
+  .bar-row .count{text-align:right;color:var(--muted);font-variant-numeric:tabular-nums;font-size:12px}
+
+  .search-input{padding:9px 14px;min-width:260px;font:500 13px/1 'Montserrat',sans-serif;background:rgba(255,255,255,0.04);border:1px solid var(--line-s);border-radius:999px;color:var(--ink-hi);outline:none}
+  .search-input:focus{border-color:var(--pink)}
+
+  .users-table{width:100%;border-collapse:collapse;font-size:13px;background:var(--bg-1);border-radius:var(--radius);overflow:hidden;border:1px solid var(--line)}
+  .users-table th{text-align:left;padding:12px 16px;font-size:10.5px;font-weight:600;letter-spacing:0.1em;text-transform:uppercase;color:var(--muted);border-bottom:1px solid var(--line)}
+  .users-table td{padding:12px 16px;border-bottom:1px solid rgba(255,255,255,0.04);color:var(--ink)}
+  .users-table tr:last-child td{border-bottom:none}
+  .users-table tr:hover{background:rgba(255,255,255,0.02);cursor:pointer}
+  .users-table tr:hover td{color:var(--ink-hi)}
+  .plan-chip{display:inline-block;padding:2px 8px;font-size:10px;font-weight:600;letter-spacing:0.06em;text-transform:uppercase;border-radius:999px}
+  .plan-chip.free{color:var(--muted);background:rgba(255,255,255,0.06)}
+  .plan-chip.pro{color:var(--teal);background:rgba(45,180,202,0.16)}
+  .plan-chip.proplus{color:var(--gold);background:rgba(212,166,39,0.18)}
+  .status-chip{display:inline-block;padding:2px 8px;font-size:10px;font-weight:600;letter-spacing:0.06em;text-transform:uppercase;border-radius:999px}
+  .status-chip.active{color:var(--ok);background:rgba(61,213,152,0.14)}
+  .status-chip.paused{color:var(--warn);background:rgba(234,179,8,0.16)}
+  .status-chip.suspended{color:var(--danger);background:rgba(239,68,68,0.16)}
+
+  .drawer-overlay{position:fixed;inset:0;background:rgba(0,0,0,0.55);backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px);display:none;z-index:50}
+  .drawer-overlay.open{display:block}
+  .drawer{position:fixed;right:0;top:0;bottom:0;width:min(560px,92vw);background:linear-gradient(180deg,var(--bg-1),#0a0f1c);box-shadow:-12px 0 40px rgba(0,0,0,0.5);transform:translateX(100%);transition:transform 250ms cubic-bezier(.22,1,.36,1);overflow-y:auto;z-index:60;border-left:1px solid var(--line-s)}
+  .drawer.open{transform:translateX(0)}
+  .drawer-head{padding:20px 24px 14px;border-bottom:1px solid var(--line);position:sticky;top:0;background:linear-gradient(180deg,var(--bg-1) 70%,rgba(17,24,39,0));display:flex;align-items:flex-start;justify-content:space-between;gap:14px;z-index:1}
+  .drawer-head h3{margin:0;font-size:16px;font-weight:600;word-break:break-all}
+  .drawer-close{background:transparent;border:none;color:var(--muted);font-size:24px;padding:0 8px;cursor:pointer}
+  .drawer-close:hover{color:var(--ink-hi)}
+  .drawer-body{padding:18px 24px 60px}
+  .d-section{margin-bottom:24px}
+  .d-section h4{margin:0 0 8px;font-size:10.5px;font-weight:600;letter-spacing:0.1em;text-transform:uppercase;color:var(--muted)}
+  .d-row{display:flex;justify-content:space-between;padding:6px 0;font-size:13px;border-bottom:1px solid rgba(255,255,255,0.04)}
+  .d-row .lbl{color:var(--muted)}
+  .d-row .val{color:var(--ink-hi);font-weight:500;text-align:right}
+  .d-memory{background:rgba(255,255,255,0.03);border:1px solid var(--line);border-left:3px solid var(--pink);border-radius:8px;padding:10px 12px;margin-bottom:8px;font-size:12.5px;line-height:1.5}
+  .d-memory .m-meta{font-size:10.5px;color:var(--muted);margin-bottom:4px;letter-spacing:0.04em;text-transform:uppercase}
+  .d-memory .m-content{color:var(--ink)}
+
+  .empty{text-align:center;padding:60px 20px;color:var(--muted)}
+  .empty p{margin:8px 0}
+
+  @media (prefers-reduced-motion:reduce){*{transition:none !important;animation:none !important}}
+</style>
+</head>
+<body>
+
+<a href="#main" class="skip">Skip to main content</a>
+
+<!-- Auth gate -->
+<div id="auth-gate" class="auth-gate">
+  <h3>Admin Access</h3>
+  <p>Enter the admin bearer token to view subscriber data. The token is stored in your browser's memory for this session only.</p>
+  <input id="auth-token" type="password" placeholder="AIMG_ADMIN_TOKEN" autocomplete="off">
+  <button id="auth-submit">Unlock</button>
+  <div id="auth-err" class="auth-err">Authentication failed.</div>
+</div>
+
+<!-- App (hidden until auth) -->
+<div id="app" hidden>
+  <header class="topbar" role="banner">
+    <div class="brand">
+      <div class="brand-mark">QE</div>
+      <div class="brand-txt">
+        <span class="brand-line1">AI Memory Guard · Admin</span>
+        <span class="brand-line2">Subscriber Command Portal</span>
+      </div>
+    </div>
+    <nav class="topnav" aria-label="Admin views">
+      <button class="active" data-view="overview">Overview</button>
+      <button data-view="users">Users</button>
+      <button data-view="platforms">Platforms</button>
+    </nav>
+    <div class="auth-pill" role="status" aria-live="polite">
+      <span id="status-dot" class="dot"></span>
+      <span id="status-txt">Connected</span>
+    </div>
+  </header>
+
+  <main id="main" role="main">
+    <!-- Overview -->
+    <section class="view active" data-view="overview">
+      <div class="view-head">
+        <div>
+          <h2>Overview</h2>
+          <div class="sub">Aggregate metrics across the consumer fleet. Stage 1 — Paddle subscriber state arrives in Stage 2.</div>
+        </div>
+      </div>
+      <div id="overview-metrics" class="metric-grid"></div>
+      <div class="two-col">
+        <div class="panel">
+          <h3>Platform breakdown</h3>
+          <div id="platform-bars"></div>
+        </div>
+        <div class="panel">
+          <h3>Daily capture — last 14 days</h3>
+          <div id="daily-bars"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Users -->
+    <section class="view" data-view="users">
+      <div class="view-head">
+        <div>
+          <h2>Subscribers</h2>
+          <div class="sub">Tap a row for drill-in. Plan + status are Stage-2 placeholders until subscribers schema lands.</div>
+        </div>
+        <input id="user-search" class="search-input" placeholder="Filter by email…" aria-label="Search users">
+      </div>
+      <div class="panel" style="padding:0">
+        <table class="users-table">
+          <thead><tr><th>Email</th><th>Signed up</th><th>Memories</th><th>Plan</th><th>Status</th></tr></thead>
+          <tbody id="users-tbody"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- Platforms -->
+    <section class="view" data-view="platforms">
+      <div class="view-head">
+        <div>
+          <h2>Platform health</h2>
+          <div class="sub">Per-platform capture + QE health.</div>
+        </div>
+      </div>
+      <div id="platform-detail" class="panel"></div>
+    </section>
+  </main>
+</div>
+
+<div id="drawer-overlay" class="drawer-overlay"></div>
+<aside id="drawer" class="drawer" role="dialog" aria-modal="true" aria-labelledby="drawer-title" hidden>
+  <div class="drawer-head">
+    <div><h3 id="drawer-title">User</h3></div>
+    <button class="drawer-close" id="drawer-close" aria-label="Close">×</button>
+  </div>
+  <div class="drawer-body" id="drawer-body"></div>
+</aside>
+
+<script>
+(function(){
+  const API = '';
+  const els = {
+    authGate: document.getElementById('auth-gate'),
+    authToken: document.getElementById('auth-token'),
+    authSubmit: document.getElementById('auth-submit'),
+    authErr: document.getElementById('auth-err'),
+    app: document.getElementById('app'),
+    statusDot: document.getElementById('status-dot'),
+    statusTxt: document.getElementById('status-txt'),
+    metrics: document.getElementById('overview-metrics'),
+    platformBars: document.getElementById('platform-bars'),
+    dailyBars: document.getElementById('daily-bars'),
+    usersTbody: document.getElementById('users-tbody'),
+    userSearch: document.getElementById('user-search'),
+    platformDetail: document.getElementById('platform-detail'),
+    drawer: document.getElementById('drawer'),
+    drawerOverlay: document.getElementById('drawer-overlay'),
+    drawerClose: document.getElementById('drawer-close'),
+    drawerTitle: document.getElementById('drawer-title'),
+    drawerBody: document.getElementById('drawer-body'),
+  };
+  let token = sessionStorage.getItem('aimg_admin_token') || '';
+
+  function escapeHtml(s){ return String(s||'').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+  function setStatus(ok, t){ els.statusDot.className = 'dot' + (ok?'':' err'); els.statusTxt.textContent = t; }
+  function fmtDate(iso){ if(!iso) return ''; try { return new Date(iso).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}); } catch(e){ return iso; } }
+  function maxVal(obj){ return Object.values(obj||{}).reduce((a,b)=>Math.max(a,b||0),0) || 1; }
+
+  async function fetchJson(path){
+    try {
+      const r = await fetch(API + path, { headers: { 'Authorization': 'Bearer ' + token } });
+      if(r.status === 401){ setStatus(false,'Unauthorized'); showAuth(true); return null; }
+      if(!r.ok) throw new Error('HTTP ' + r.status);
+      setStatus(true,'Connected');
+      return await r.json();
+    } catch(e){ setStatus(false,'Offline'); console.error(path, e); return null; }
+  }
+
+  function showAuth(err){
+    els.authGate.style.display = 'block';
+    els.app.hidden = true;
+    els.authErr.style.display = err ? 'block' : 'none';
+    els.authToken.focus();
+  }
+  function showApp(){
+    els.authGate.style.display = 'none';
+    els.app.hidden = false;
+  }
+
+  els.authSubmit.addEventListener('click', async () => {
+    token = els.authToken.value.trim();
+    if(!token){ els.authErr.style.display='block'; return; }
+    sessionStorage.setItem('aimg_admin_token', token);
+    const probe = await fetch(API + '/api/aimg/admin/stats', { headers: { 'Authorization': 'Bearer ' + token } });
+    if(probe.status === 401){ els.authErr.style.display='block'; return; }
+    showApp();
+    loadOverview();
+  });
+  els.authToken.addEventListener('keydown', (e) => { if(e.key === 'Enter') els.authSubmit.click(); });
+
+  // ── Overview ─────────────────────────────────────────────
+  async function loadOverview(){
+    const data = await fetchJson('/api/aimg/admin/stats');
+    if(!data) return;
+    els.metrics.innerHTML = `
+      <div class="metric-card"><div class="metric-label">Total memories</div><div class="metric-value">${(data.total_memories||0).toLocaleString()}</div><div class="metric-sub">Across all platforms</div></div>
+      <div class="metric-card"><div class="metric-label">Total users</div><div class="metric-value">${(data.total_users||0).toLocaleString()}</div><div class="metric-sub">Registered accounts</div></div>
+      <div class="metric-card"><div class="metric-label">QE flagged</div><div class="metric-value">${data.qe_flagged_in_sample||0}</div><div class="metric-sub">In last ${data.sample_size||0} memory sample</div></div>
+      <div class="metric-card"><div class="metric-label">MRR</div><div class="metric-value" style="color:var(--muted)">—</div><div class="metric-sub">Stage 2 · Paddle wiring</div></div>
+    `;
+    const platforms = data.by_platform || {};
+    const pmax = maxVal(platforms);
+    els.platformBars.innerHTML = Object.entries(platforms).map(([p,n])=>`
+      <div class="bar-row"><div class="label">${escapeHtml(p)}</div><div class="bar"><span style="width:${Math.round((n/pmax)*100)}%"></span></div><div class="count">${n}</div></div>
+    `).join('') || '<div class="empty"><p>No platform data.</p></div>';
+    const daily = data.daily_capture || {};
+    const dmax = maxVal(daily);
+    els.dailyBars.innerHTML = Object.entries(daily).map(([d,n])=>`
+      <div class="bar-row"><div class="label">${escapeHtml(d.slice(5))}</div><div class="bar"><span style="width:${Math.round((n/dmax)*100)}%"></span></div><div class="count">${n}</div></div>
+    `).join('') || '<div class="empty"><p>No daily data.</p></div>';
+    renderPlatformDetail(platforms);
+  }
+
+  function renderPlatformDetail(platforms){
+    const total = Object.values(platforms||{}).reduce((a,b)=>a+b,0) || 1;
+    els.platformDetail.innerHTML = Object.entries(platforms||{}).map(([p,n])=>`
+      <div style="display:flex;justify-content:space-between;padding:10px 0;border-bottom:1px solid var(--line);align-items:center">
+        <div><strong style="color:var(--ink-hi)">${escapeHtml(p)}</strong><div style="font-size:11px;color:var(--muted)">${Math.round((n/total)*100)}% of sample</div></div>
+        <div style="font-size:20px;font-weight:600">${n}</div>
+      </div>
+    `).join('');
+  }
+
+  // ── Users ────────────────────────────────────────────────
+  async function loadUsers(q){
+    const path = '/api/aimg/admin/users' + (q ? '?q=' + encodeURIComponent(q) : '');
+    const data = await fetchJson(path);
+    if(!data){ els.usersTbody.innerHTML = ''; return; }
+    if(!data.users.length){ els.usersTbody.innerHTML = '<tr><td colspan="5" class="empty">No users.</td></tr>'; return; }
+    els.usersTbody.innerHTML = data.users.map(u => `
+      <tr data-uid="${escapeHtml(u.id)}">
+        <td>${escapeHtml(u.email||'(no email)')}</td>
+        <td>${escapeHtml(fmtDate(u.created_at))}</td>
+        <td style="color:var(--teal);font-weight:500">${u.memory_count||0}</td>
+        <td><span class="plan-chip ${u.plan==='pro+'?'proplus':u.plan==='pro'?'pro':'free'}">${escapeHtml(u.plan||'free')}</span></td>
+        <td><span class="status-chip ${escapeHtml(u.status||'active')}">${escapeHtml(u.status||'active')}</span></td>
+      </tr>
+    `).join('');
+    els.usersTbody.querySelectorAll('tr').forEach(tr => {
+      tr.addEventListener('click', () => openUser(tr.dataset.uid));
+    });
+  }
+
+  let searchTimer;
+  els.userSearch.addEventListener('input', (e) => {
+    clearTimeout(searchTimer);
+    searchTimer = setTimeout(() => loadUsers(e.target.value.trim()), 250);
+  });
+
+  // ── User drill-in drawer ─────────────────────────────────
+  async function openUser(uid){
+    const data = await fetchJson('/api/aimg/admin/users/' + encodeURIComponent(uid));
+    if(!data) return;
+    const u = data.user || {};
+    els.drawerTitle.textContent = u.email || uid;
+    let html = '';
+    html += '<div class="d-section"><h4>Account</h4>';
+    html += `<div class="d-row"><span class="lbl">User ID</span><span class="val" style="font-family:ui-monospace,monospace;font-size:11px">${escapeHtml(uid)}</span></div>`;
+    html += `<div class="d-row"><span class="lbl">Email</span><span class="val">${escapeHtml(u.email||'(none)')}</span></div>`;
+    html += `<div class="d-row"><span class="lbl">Signed up</span><span class="val">${escapeHtml(fmtDate(u.created_at))}</span></div>`;
+    html += `<div class="d-row"><span class="lbl">Plan</span><span class="val"><span class="plan-chip free">${escapeHtml(data.plan||'free')}</span></span></div>`;
+    html += `<div class="d-row"><span class="lbl">Status</span><span class="val"><span class="status-chip active">${escapeHtml(data.status||'active')}</span></span></div>`;
+    html += `<div class="d-row"><span class="lbl">Total memories</span><span class="val" style="color:var(--teal)">${data.memory_count||0}</span></div>`;
+    html += '</div>';
+
+    if(Object.keys(data.by_platform||{}).length){
+      html += '<div class="d-section"><h4>By platform</h4>';
+      Object.entries(data.by_platform).forEach(([p,n])=>{
+        html += `<div class="d-row"><span class="lbl">${escapeHtml(p)}</span><span class="val">${n}</span></div>`;
+      });
+      html += '</div>';
+    }
+    if(Object.keys(data.by_type||{}).length){
+      html += '<div class="d-section"><h4>By memory type</h4>';
+      Object.entries(data.by_type).forEach(([t,n])=>{
+        html += `<div class="d-row"><span class="lbl">${escapeHtml(t)}</span><span class="val">${n}</span></div>`;
+      });
+      html += '</div>';
+    }
+
+    if(data.recent_memories && data.recent_memories.length){
+      html += '<div class="d-section"><h4>Recent memories</h4>';
+      data.recent_memories.forEach(m => {
+        html += `
+          <div class="d-memory">
+            <div class="m-meta">${escapeHtml(m.platform||'')} · ${escapeHtml(m.memory_type||'')} · ${escapeHtml(fmtDate(m.created_at))}</div>
+            <div class="m-content">${escapeHtml(m.content||'')}</div>
+          </div>
+        `;
+      });
+      html += '</div>';
+    }
+
+    els.drawerBody.innerHTML = html;
+    els.drawer.hidden = false;
+    requestAnimationFrame(() => { els.drawer.classList.add('open'); els.drawerOverlay.classList.add('open'); });
+  }
+
+  function closeDrawer(){
+    els.drawer.classList.remove('open');
+    els.drawerOverlay.classList.remove('open');
+    setTimeout(() => { els.drawer.hidden = true; }, 250);
+  }
+  els.drawerClose.addEventListener('click', closeDrawer);
+  els.drawerOverlay.addEventListener('click', closeDrawer);
+  document.addEventListener('keydown', (e) => { if(e.key === 'Escape' && !els.drawer.hidden) closeDrawer(); });
+
+  // ── View switcher ────────────────────────────────────────
+  document.querySelectorAll('.topnav button').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const v = btn.dataset.view;
+      document.querySelectorAll('.topnav button').forEach(b => b.classList.toggle('active', b === btn));
+      document.querySelectorAll('.view').forEach(s => s.classList.toggle('active', s.dataset.view === v));
+      if(v === 'overview') loadOverview();
+      if(v === 'users') loadUsers();
+    });
+  });
+
+  // ── Boot ─────────────────────────────────────────────────
+  if(!token) showAuth(false);
+  else { showApp(); loadOverview(); }
+})();
+</script>
+</body>
+</html>

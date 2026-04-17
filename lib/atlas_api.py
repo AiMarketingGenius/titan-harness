@@ -2797,6 +2797,274 @@ def api_crm_health() -> dict:
 # ─── end /api/crm block ───────────────────────────────────────────────────────
 
 
+# ─── AIMG ADMIN COMMAND PORTAL (CT-0417-30 T5) ────────────────────────────────
+# Solon-facing subscriber management portal at /aimg-admin.
+# Hits CONSUMER Supabase (gaybcxzrzfgvcqpkbeiq) — strictly isolated from the
+# operator Supabase (egoazyasyrhslluossli) used by the CRM. Reads
+# AIMG_SUPABASE_URL + AIMG_SUPABASE_SERVICE_KEY from /etc/amg/aimg-supabase.env.
+#
+# Stage 1 (this commit): aggregate stats + user list from existing tables
+# (consumer_memories, users). Stage 2 (next iteration): wire Paddle
+# subscriber/billing state via new sql/aimg_001_admin_schema.sql migration.
+
+_AIMG_RATE: dict[str, list[float]] = {}
+_AIMG_RATE_MAX = 60
+_AIMG_RATE_WINDOW_S = 60.0
+
+
+def _aimg_supabase_cfg() -> tuple[str, str]:
+    """Read AIMG (consumer) Supabase URL + service key from /etc/amg/aimg-supabase.env."""
+    url = ""
+    key = ""
+    try:
+        for line in Path("/etc/amg/aimg-supabase.env").read_text().splitlines():
+            line = line.strip()
+            if line.startswith("AIMG_SUPABASE_URL="):
+                url = line.split("=", 1)[1].strip().strip('"').strip("'")
+            elif line.startswith("AIMG_SUPABASE_SERVICE_KEY="):
+                key = line.split("=", 1)[1].strip().strip('"').strip("'")
+    except (FileNotFoundError, PermissionError, OSError):
+        pass
+    return url, key
+
+
+def _aimg_admin_token() -> str:
+    """Admin bearer token from /etc/amg/aimg-admin.env (fail-closed)."""
+    try:
+        for line in Path("/etc/amg/aimg-admin.env").read_text().splitlines():
+            line = line.strip()
+            if line.startswith("AIMG_ADMIN_TOKEN="):
+                return line.split("=", 1)[1].strip().strip('"').strip("'")
+    except (FileNotFoundError, PermissionError, OSError):
+        pass
+    return ""
+
+
+def _verify_aimg_admin_auth(request: Request) -> bool:
+    expected = _aimg_admin_token()
+    if not expected:
+        return False
+    auth = request.headers.get("authorization", "") or request.headers.get("Authorization", "")
+    if not auth.lower().startswith("bearer "):
+        return False
+    provided = auth.split(" ", 1)[1].strip()
+    import hmac as _hmac
+    return _hmac.compare_digest(provided, expected)
+
+
+def _aimg_rate_check(ip: str) -> bool:
+    import time as _time
+    now = _time.time()
+    bucket = _AIMG_RATE.setdefault(ip, [])
+    bucket[:] = [t for t in bucket if now - t < _AIMG_RATE_WINDOW_S]
+    if len(bucket) >= _AIMG_RATE_MAX:
+        return False
+    bucket.append(now)
+    return True
+
+
+async def _aimg_supabase_get(path: str, params: dict | None = None,
+                              extra_headers: dict | None = None) -> list | dict | None:
+    """Generic GET against AIMG (consumer) Supabase REST."""
+    if httpx is None:
+        return None
+    url, key = _aimg_supabase_cfg()
+    if not url or not key:
+        return None
+    headers = {"apikey": key, "Authorization": f"Bearer {key}", "Accept": "application/json"}
+    if extra_headers:
+        headers.update(extra_headers)
+    try:
+        async with httpx.AsyncClient(timeout=8.0) as c:
+            r = await c.get(f"{url}/rest/v1/{path}", headers=headers, params=params or {})
+            if r.status_code not in (200, 206):
+                return None
+            # Preserve Content-Range header info by attaching to a wrapped dict
+            data = r.json()
+            cr = r.headers.get("content-range", "")
+            if cr and isinstance(data, list):
+                return {"data": data, "content_range": cr}
+            return data
+    except Exception:
+        return None
+
+
+# ─── Admin endpoints (all require bearer) ─────────────────────────────────────
+
+@app.get("/api/aimg/admin/stats")
+async def api_aimg_admin_stats(request: Request) -> JSONResponse:
+    """Aggregate stats — total memories, total users, platform breakdown,
+    daily capture volume (last 30 days), contradiction count.
+    """
+    if not _verify_aimg_admin_auth(request):
+        raise HTTPException(401, "unauthorized")
+    if not _aimg_rate_check(request.client.host if request.client else "unknown"):
+        raise HTTPException(429, "rate limit")
+
+    # Total memories
+    mem_probe = await _aimg_supabase_get("consumer_memories",
+        params={"select": "id", "limit": "0"},
+        extra_headers={"Prefer": "count=exact"})
+    total_memories = 0
+    if isinstance(mem_probe, dict) and mem_probe.get("content_range"):
+        try:
+            total_memories = int(mem_probe["content_range"].split("/")[-1])
+        except (ValueError, IndexError):
+            pass
+
+    # Distinct users (via user_id aggregation — hit users table for count)
+    users_probe = await _aimg_supabase_get("users",
+        params={"select": "id", "limit": "0"},
+        extra_headers={"Prefer": "count=exact"})
+    total_users = 0
+    if isinstance(users_probe, dict) and users_probe.get("content_range"):
+        try:
+            total_users = int(users_probe["content_range"].split("/")[-1])
+        except (ValueError, IndexError):
+            pass
+
+    # Platform breakdown (per-platform memory count). pgrest doesn't do GROUP BY
+    # cleanly over REST, so we sample the last 1000 memories and count platforms.
+    recent = await _aimg_supabase_get("consumer_memories", params={
+        "select": "platform,created_at,qe_status",
+        "order": "created_at.desc", "limit": "1000",
+    })
+    recent_list = recent if isinstance(recent, list) else (recent or {}).get("data", [])
+    by_platform: dict[str, int] = {}
+    by_day: dict[str, int] = {}
+    qe_flagged = 0
+    for m in recent_list:
+        p = m.get("platform") or "unknown"
+        by_platform[p] = by_platform.get(p, 0) + 1
+        ts = (m.get("created_at") or "")[:10]
+        if ts:
+            by_day[ts] = by_day.get(ts, 0) + 1
+        if m.get("qe_status") and m["qe_status"] not in ("unverified", "verified"):
+            qe_flagged += 1
+
+    # Sort daily breakdown descending
+    daily_sorted = sorted(by_day.items(), key=lambda kv: kv[0], reverse=True)[:14]
+
+    return JSONResponse({
+        "total_memories": total_memories,
+        "total_users":    total_users,
+        "by_platform":    dict(sorted(by_platform.items(), key=lambda kv: kv[1], reverse=True)),
+        "daily_capture":  dict(daily_sorted),
+        "qe_flagged_in_sample": qe_flagged,
+        "sample_size":    len(recent_list),
+        "ts": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+    })
+
+
+@app.get("/api/aimg/admin/users")
+async def api_aimg_admin_users_list(
+    request: Request,
+    q: str | None = None,
+    limit: int = 50,
+) -> JSONResponse:
+    """List users. Currently lists all users + attaches per-user memory count.
+    Stage 2 will join with subscribers table for plan + billing state.
+    """
+    if not _verify_aimg_admin_auth(request):
+        raise HTTPException(401, "unauthorized")
+    if not _aimg_rate_check(request.client.host if request.client else "unknown"):
+        raise HTTPException(429, "rate limit")
+    limit = max(1, min(200, limit))
+    params: dict = {"select": "id,email,created_at", "order": "created_at.desc", "limit": str(limit)}
+    if q:
+        params["email"] = f"ilike.*{q}*"
+    users = await _aimg_supabase_get("users", params=params)
+    user_list = users if isinstance(users, list) else (users or {}).get("data", []) or []
+
+    # Attach per-user memory count — capped to 50 users to bound request fan-out.
+    enriched: list[dict] = []
+    for u in user_list[:50]:
+        uid = u.get("id")
+        if not uid:
+            continue
+        mem_probe = await _aimg_supabase_get("consumer_memories",
+            params={"select": "id", "user_id": f"eq.{uid}", "limit": "0"},
+            extra_headers={"Prefer": "count=exact"})
+        count = 0
+        if isinstance(mem_probe, dict) and mem_probe.get("content_range"):
+            try:
+                count = int(mem_probe["content_range"].split("/")[-1])
+            except (ValueError, IndexError):
+                pass
+        enriched.append({
+            "id": uid,
+            "email": u.get("email"),
+            "created_at": u.get("created_at"),
+            "memory_count": count,
+            "plan": "free",       # Stage 2: join with subscribers table
+            "status": "active",   # Stage 2: paused/suspended from billing state
+        })
+    return JSONResponse({"users": enriched, "count": len(enriched),
+                         "note": "Stage 1 — plan/status are placeholders pending subscriber-table schema (aimg_001_admin_schema.sql)"})
+
+
+@app.get("/api/aimg/admin/users/{user_id}")
+async def api_aimg_admin_user_detail(request: Request, user_id: str) -> JSONResponse:
+    """Per-user drill-in: profile + recent memories + per-platform breakdown."""
+    if not _verify_aimg_admin_auth(request):
+        raise HTTPException(401, "unauthorized")
+    if not _aimg_rate_check(request.client.host if request.client else "unknown"):
+        raise HTTPException(429, "rate limit")
+
+    user = await _aimg_supabase_get("users", params={
+        "select": "*", "id": f"eq.{user_id}", "limit": "1",
+    })
+    if not user:
+        raise HTTPException(404, "user not found")
+    u0 = user[0] if isinstance(user, list) else (user.get("data") or [{}])[0]
+
+    mems = await _aimg_supabase_get("consumer_memories", params={
+        "select": "id,content,memory_type,platform,thread_id,exchange_number,source_timestamp,qe_status,created_at",
+        "user_id": f"eq.{user_id}", "order": "created_at.desc", "limit": "100",
+    })
+    mem_list = mems if isinstance(mems, list) else (mems or {}).get("data", []) or []
+    by_platform: dict[str, int] = {}
+    by_type: dict[str, int] = {}
+    for m in mem_list:
+        by_platform[m.get("platform") or "unknown"] = by_platform.get(m.get("platform") or "unknown", 0) + 1
+        by_type[m.get("memory_type") or "unknown"] = by_type.get(m.get("memory_type") or "unknown", 0) + 1
+
+    return JSONResponse({
+        "user": {k: u0.get(k) for k in ("id", "email", "created_at")},
+        "memory_count": len(mem_list),
+        "by_platform": by_platform,
+        "by_type": by_type,
+        "recent_memories": mem_list[:20],
+        "plan": "free",
+        "status": "active",
+    })
+
+
+@app.get("/api/aimg/admin/health")
+def api_aimg_admin_health() -> dict:
+    url, key = _aimg_supabase_cfg()
+    return {
+        "service": "aimg-admin",
+        "consumer_supabase_configured": bool(url and key),
+        "admin_token_configured": bool(_aimg_admin_token()),
+        "stage": 1,
+        "note": "Stage 2 pending: subscribers + einstein_fact_checks + billing_events schema",
+        "ts": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+    }
+
+
+@app.get("/aimg-admin")
+async def aimg_admin_serve() -> Response:
+    """Serve the AIMG Admin Command Portal."""
+    path = STATIC_DIR / "aimg-admin.html"
+    if not path.exists():
+        raise HTTPException(404, "aimg-admin.html missing — deploy pending")
+    return FileResponse(path, media_type="text/html")
+
+
+# ─── end /aimg-admin block ────────────────────────────────────────────────────
+
+
 if __name__ == "__main__":  # pragma: no cover
     import uvicorn
     port = int(os.environ.get("ATLAS_API_PORT", "8081"))
