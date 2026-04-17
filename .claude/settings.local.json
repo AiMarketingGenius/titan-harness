@@ -41,7 +41,11 @@
       "mcp__21f70b31-b788-4500-bc02-233323093a83__read_file_content",
       "mcp__21f70b31-b788-4500-bc02-233323093a83__list_recent_files",
       "mcp__21f70b31-b788-4500-bc02-233323093a83__download_file_content",
-      "mcp__Claude_in_Chrome__get_page_text"
+      "mcp__Claude_in_Chrome__get_page_text",
+      "mcp__0f44c9ec-a530-47dc-a8b8-4db51c221197__flag_blocker",
+      "mcp__0f44c9ec-a530-47dc-a8b8-4db51c221197__resolve_blocker",
+      "mcp__Claude_in_Chrome__read_page",
+      "mcp__Claude_in_Chrome__read_console_messages"
     ]
   }
 }
