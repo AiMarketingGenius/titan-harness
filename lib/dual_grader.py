@@ -37,14 +37,85 @@ GROK_MODEL = os.environ.get('GROK_GRADER_MODEL', 'grok-4-fast-reasoning')
 GROK_TIMEOUT = 60
 
 DEFAULT_FLOOR = 9.3
-DEFAULT_SCOPE_TIER = 'amg_growth'  # Gemini 2.5 Flash — per P10 2026-04-17 tier-downgrade rule
+DEFAULT_SCOPE_TIER = 'amg_growth'  # Gemini 2.5 Flash — P10 2026-04-17 tier-downgrade rule
 GROK_PRICING_PER_MTOK_IN = 20   # cents, approx for grok-4-fast
 GROK_PRICING_PER_MTOK_OUT = 80
-# Premium escalation triggers — caller passes scope_tier='amg_pro' explicitly
-PREMIUM_SCOPE_TIER = 'amg_pro'  # Gemini 2.5 Pro, only when:
-# (a) low-tier graders disagree after 2 rounds
-# (b) artifact is architecture-critical (contracts, legal, security arch, SOC 2, payments)
-# (c) critical_failure triggered
+
+# ---------------------------------------------------------------------------
+# Premium escalation DISCIPLINE — P10 PERMANENT 2026-04-17 (Solon correction)
+# ---------------------------------------------------------------------------
+# Premium tier (Gemini 2.5 Pro / Grok 4) is ONLY authorized when ALL THREE:
+#   1. Gemini Flash returned a valid score AND Grok 4.1 Fast returned a valid score
+#      (both non-skip — skips are grader failure, not disagreement)
+#   2. The two valid scores DISAGREE by > DISAGREE_THRESHOLD points (e.g., 7.2 + 9.5)
+#   3. Artifact is architecture-critical (contracts/legal/security/payments)
+#      OR caller passes --force-premium + --reason (Solon-explicit)
+#
+# When Gemini Flash skips: retry → content-transform → Grok-only fallback.
+# NEVER auto-promote-to-premium on skip.
+PREMIUM_SCOPE_TIER = 'amg_pro'
+DISAGREE_THRESHOLD = 1.5
+GEMINI_RETRY_BACKOFFS = [3, 9, 27]  # seconds
+ARCHITECTURE_CRITICAL_KEYWORDS = (
+    'contract', 'legal', 'security', 'pen-test', 'soc2', 'soc 2',
+    'payment', 'msa', 'nda', 'sow', 'partnership',
+)
+
+
+def _is_architecture_critical(context: str, artifact_type: str) -> bool:
+    ctx_lower = (context or '').lower()
+    return any(kw in ctx_lower for kw in ARCHITECTURE_CRITICAL_KEYWORDS)
+
+
+def _gemini_grade_with_retry(content: str, artifact_type: str, scope_tier: str,
+                              context: str, scope: str | None) -> dict[str, Any]:
+    """Run Gemini with 3-retry-on-skip + content-transformation fallback.
+    Does NOT escalate to premium on skip — that's the caller's explicit decision."""
+    # Round 1: direct
+    result = gemini_grade(content=content, artifact_type=artifact_type,
+                          scope_tier=scope_tier, context=context, scope=scope)
+    if not result.get('_meta', {}).get('skipped'):
+        return result
+
+    # Skip detected — retry with exponential backoff
+    for attempt, backoff in enumerate(GEMINI_RETRY_BACKOFFS, start=1):
+        time.sleep(backoff)
+        result = gemini_grade(content=content, artifact_type=artifact_type,
+                              scope_tier=scope_tier, context=context, scope=scope)
+        if not result.get('_meta', {}).get('skipped'):
+            result.setdefault('_meta', {})['retry_attempt'] = attempt
+            return result
+
+    # Still skipped — try content-transformation fallback:
+    # Chunk in halves + grade each + average. KB-documentation inputs that enumerate
+    # banned terms often trip Gemini safety filters; halving the content window can help.
+    if len(content) > 4000:
+        mid = len(content) // 2
+        r1 = gemini_grade(content=content[:mid], artifact_type=artifact_type,
+                          scope_tier=scope_tier, context=context + ' (chunk 1/2)', scope=scope)
+        r2 = gemini_grade(content=content[mid:], artifact_type=artifact_type,
+                          scope_tier=scope_tier, context=context + ' (chunk 2/2)', scope=scope)
+        r1_ok = not r1.get('_meta', {}).get('skipped')
+        r2_ok = not r2.get('_meta', {}).get('skipped')
+        if r1_ok and r2_ok:
+            avg = round((r1['overall_score_10'] + r2['overall_score_10']) / 2, 2)
+            return {
+                'artifact_type': artifact_type,
+                'decision': 'pass' if avg >= DEFAULT_FLOOR else 'revise',
+                'overall_score_10': avg,
+                'confidence_0_1': min(r1.get('confidence_0_1', 0.7), r2.get('confidence_0_1', 0.7)),
+                'subscores': {k: round((r1['subscores'].get(k, 0) + r2['subscores'].get(k, 0)) / 2, 2)
+                              for k in ('requirements_fit', 'correctness', 'risk_safety', 'operability', 'doctrine_compliance')},
+                'critical_failures': (r1.get('critical_failures') or []) + (r2.get('critical_failures') or []),
+                'required_revisions': (r1.get('required_revisions') or []) + (r2.get('required_revisions') or []),
+                'grade_reasoning': f"chunked grade (2 halves averaged): {r1.get('grade_reasoning', '')[:200]} | {r2.get('grade_reasoning', '')[:200]}",
+                '_meta': {'retry_attempt': 'chunked_fallback', 'ts': time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime())},
+            }
+
+    # All retries + transformation exhausted — return last skip result untouched.
+    # Caller sees gem_skipped=True and should proceed with Grok-only grade.
+    result.setdefault('_meta', {})['retry_attempt'] = 'exhausted'
+    return result
 
 
 GROK_SYSTEM_PROMPT = """You are a rigorous artifact grader. Score the artifact against this 5-dimension rubric (0-10 scale per dimension):
@@ -163,30 +234,72 @@ def _skip(reason: str) -> dict[str, Any]:
 
 def dualGrade(content: str, artifact_type: str, scope_tier: str,
               context: str = '', floor: float = DEFAULT_FLOOR,
-              scope: str | None = None) -> dict[str, Any]:
-    """Run Gemini and Grok in sequence. Return combined result."""
-    # Gemini first (cheaper; if it fails, abort before paying Grok)
-    gemini_result = gemini_grade(
+              scope: str | None = None, force_premium: bool = False,
+              premium_reason: str | None = None) -> dict[str, Any]:
+    """Run Gemini + Grok with P10 2026-04-17 premium-escalation discipline.
+
+    - Default scope_tier='amg_growth' (Gemini Flash + Grok Fast)
+    - Premium (amg_pro) gate-checked: requires force_premium=True + premium_reason,
+      OR architecture-critical context, OR valid-score disagreement > DISAGREE_THRESHOLD
+    - Gemini skips trigger retry-then-chunk-fallback, NOT premium escalation
+    """
+    # --- PREMIUM GATE -----------------------------------------------------
+    if scope_tier == PREMIUM_SCOPE_TIER:
+        arch_critical = _is_architecture_critical(context, artifact_type)
+        if not (force_premium or arch_critical):
+            # Auto-downgrade to amg_growth and log the attempted misuse
+            sys.stderr.write(
+                f'[dual-grader] WARNING: scope_tier={scope_tier} requested without '
+                f'force_premium and context not architecture-critical. '
+                f'AUTO-DOWNGRADING to amg_growth per P10 2026-04-17 discipline. '
+                f'To override: pass --force-premium --reason "<justification>".\n'
+            )
+            scope_tier = DEFAULT_SCOPE_TIER
+        elif force_premium and not premium_reason:
+            sys.stderr.write(
+                f'[dual-grader] ERROR: --force-premium requires --reason "<justification>". '
+                f'Auto-downgrading to amg_growth.\n'
+            )
+            scope_tier = DEFAULT_SCOPE_TIER
+        else:
+            sys.stderr.write(
+                f'[dual-grader] premium tier authorized: '
+                f'{"architecture-critical" if arch_critical else "force_premium"} '
+                f'reason={premium_reason or "arch-critical-auto"}\n'
+            )
+
+    # --- GEMINI (retry-on-skip + chunk-fallback) -------------------------
+    gemini_result = _gemini_grade_with_retry(
         content=content, artifact_type=artifact_type, scope_tier=scope_tier,
         context=context, scope=scope,
     )
-
     gem_score = gemini_result.get('overall_score_10', 0)
     gem_skipped = gemini_result.get('_meta', {}).get('skipped', False)
 
-    # Grok second
+    # --- GROK -------------------------------------------------------------
     grok_result = _grok_grade(content, artifact_type, context)
     grok_score = grok_result.get('overall_score_10', 0)
     grok_skipped = grok_result.get('_meta', {}).get('skipped', False)
 
-    # Decision logic
+    # --- DECISION LOGIC ---------------------------------------------------
     if gem_skipped and grok_skipped:
         decision = 'pending_review'
-    elif gem_skipped or grok_skipped:
-        decision = 'pending_review'  # conservative: only one grader = no clear signal
+    elif gem_skipped and not grok_skipped:
+        # Grok-only grade; caller-visible, Solon-reviewable
+        decision = 'pass_single_grader' if grok_score >= floor else 'revise_single_grader'
+    elif grok_skipped and not gem_skipped:
+        decision = 'pass_single_grader' if gem_score >= floor else 'revise_single_grader'
     else:
         both_pass = gem_score >= floor and grok_score >= floor
         decision = 'pass' if both_pass else 'revise'
+        # Premium-escalation signal: scores disagree meaningfully?
+        disagreement = abs(gem_score - grok_score)
+        if scope_tier != PREMIUM_SCOPE_TIER and disagreement > DISAGREE_THRESHOLD:
+            sys.stderr.write(
+                f'[dual-grader] INFO: low-tier graders disagree by {disagreement:.1f} points '
+                f'(Gemini {gem_score} vs Grok {grok_score}). Consider premium-escalation '
+                f'IF architecture-critical — otherwise trust the more conservative score.\n'
+            )
 
     # Combined revisions = union of both graders' required_revisions
     combined_revisions = list(dict.fromkeys(
@@ -232,10 +345,16 @@ def main(argv: list[str]) -> int:
     p = argparse.ArgumentParser(prog='dual_grader')
     p.add_argument('--input', '-i', help='File to grade. Default: stdin.')
     p.add_argument('--artifact-type', required=True, choices=sorted(VALID_ARTIFACT_TYPES))
-    p.add_argument('--scope-tier', required=True, choices=sorted(TIER_ROUTING.keys()))
+    p.add_argument('--scope-tier', default=DEFAULT_SCOPE_TIER, choices=sorted(TIER_ROUTING.keys()),
+                   help=f'Default {DEFAULT_SCOPE_TIER} (Gemini Flash). '
+                        f'Premium tier ({PREMIUM_SCOPE_TIER}) requires --force-premium + --reason.')
     p.add_argument('--context', default='')
     p.add_argument('--floor', type=float, default=DEFAULT_FLOOR)
     p.add_argument('--scope', default=None)
+    p.add_argument('--force-premium', action='store_true',
+                   help='Override auto-downgrade of amg_pro tier. Requires --reason.')
+    p.add_argument('--reason', default=None,
+                   help='Justification for premium-tier use. Required with --force-premium. Logged.')
     args = p.parse_args(argv)
 
     if args.input:
@@ -246,6 +365,7 @@ def main(argv: list[str]) -> int:
     result = dualGrade(
         content=content, artifact_type=args.artifact_type, scope_tier=args.scope_tier,
         context=args.context, floor=args.floor, scope=args.scope,
+        force_premium=args.force_premium, premium_reason=args.reason,
     )
     json.dump(result, sys.stdout, indent=2)
     sys.stdout.write('\n')

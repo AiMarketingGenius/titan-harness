@@ -15,7 +15,7 @@
 
 2. **Dual-validator floor 9.3/10** (Gemini 2.5 Flash + Grok 4.1 Fast by default)
    - Both must independently hit 9.3 before ship.
-   - Premium tier (Gemini Pro / Grok 4) ONLY for architecture-critical OR low-tier disagreement after 2 rounds.
+   - **Premium tier discipline (P10 2026-04-17 Solon correction):** `lib/dual_grader.py` auto-downgrades `--scope-tier amg_pro` unless (A) context is architecture-critical (keyword-matched) OR (B) `--force-premium --reason "<justification>"` passed OR (C) Solon explicit directive. **SKIP ≠ disagreement:** Gemini Flash skips trigger retry-then-chunk-fallback, never auto-promotion to premium. Full rule in `plans/agents/kb/titan/08_grader_discipline.md`.
    - Daily caps: $5 Gemini, $3 Grok, $10 total kill-switch.
 
 3. **Lumina gate on all visual / CRO / client-facing** (see `05_lumina_dependency.md`)

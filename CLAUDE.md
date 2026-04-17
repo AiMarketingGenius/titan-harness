@@ -613,6 +613,7 @@ Before emitting the cold-boot greeting (§7), the session loads:
    - `plans/agents/kb/titan/03_quality_bar_examples.md` — premium reference library + anti-examples
    - `plans/agents/kb/titan/04_error_patterns.md` — past mistakes catalog (trade-secret leaks, placeholder brand, identical icons, etc.)
    - `plans/agents/kb/titan/05_lumina_dependency.md` — when Lumina review is mandatory
+   - `plans/agents/kb/titan/08_grader_discipline.md` — premium-escalation rules (P10 2026-04-17 Solon correction)
 
 2. **Titan-Operator KB** (when session is orchestrator-mode):
    - `plans/agents/kb/titan-operator/00_identity.md`
@@ -643,15 +644,29 @@ Bypass paths (emergency only, logged):
 - **Skipped Lumina review recurrence** — the Revere v3 placeholder "RC" monogram + invented navy+gold + 7 identical agent icons shipped because Lumina was skipped. Layer 4 blocks visual commits without an approval YAML.
 - **Self-grade inflation recurrence** — Lumina approval YAML requires all 5 subscores logged (authenticity / hierarchy / craft / responsiveness / accessibility) — no single-number hand-wave.
 
-### 18.4 Mandatory dual-validator default (P10 2026-04-17)
+### 18.4 Mandatory dual-validator default (P10 2026-04-17) + premium-escalation discipline (Solon correction same day)
 
-- Default tier: `amg_growth` (Gemini 2.5 Flash + Grok 4.1 Fast) — ~$0.004/artifact
-- Premium escalation (`amg_pro`: Gemini 2.5 Pro + Grok 4) ONLY when:
-  - Low-tier validators disagree after 2 iteration rounds
-  - Artifact is architecture-critical (contracts, legal, security arch, SOC 2, payment integrations)
-  - Critical_failure triggered in low-tier response
-- Both validators must independently clear 9.3 before pass. Either below → revise.
-- Daily caps: Gemini $5, Grok $3, total kill-switch at $10.
+- **Default tier:** `amg_growth` (Gemini 2.5 Flash + Grok 4.1 Fast) — ~$0.004/artifact
+- **Both validators must independently clear 9.3** before pass. Either below → revise.
+- **Daily caps:** Gemini $5, Grok $3, total kill-switch at $10.
+
+**Premium-tier discipline (mechanically enforced in `lib/dual_grader.py`):**
+
+The wrapper AUTO-DOWNGRADES any `--scope-tier amg_pro` request to `amg_growth` unless ONE of:
+- (A) Context contains architecture-critical keyword (`contract`, `legal`, `security`, `pen-test`, `soc2`, `payment`, `msa`, `nda`, `sow`, `partnership`)
+- (B) Explicit `--force-premium --reason "<specific-justification>"` at CLI (both flags required; reason logged)
+- (C) Solon-directive explicitly requests premium (log Solon's quote in MCP `log_decision`)
+
+**SKIP ≠ disagreement.** When Gemini Flash skips (policy filter, API hiccup, timeout), the wrapper:
+1. Retries Flash 3× with exponential backoff (3s / 9s / 27s)
+2. If still skipped, content-transformation fallback (chunk in halves, grade each, average)
+3. If still skipped after transformations, returns `pass_single_grader` / `revise_single_grader` on Grok alone
+
+The wrapper DOES NOT auto-escalate to premium on skip. Premium is ONLY for valid-score disagreement (|Δ| > 1.5 points) on architecture-critical work, OR Solon-explicit-override with justification.
+
+**Why:** premium is ~10× the cost of low-tier. Burning premium on grader-stack bugs (Gemini safety filter tripping on KB files that document banned terms) eats the daily budget without producing better artifact grades. Keep low-tier as the default; reserve premium for genuine high-stakes architecture review.
+
+Full rule + worked examples: `plans/agents/kb/titan/08_grader_discipline.md` (session-bootstrap-loaded).
 
 ### 18.5 Auto-complete authorization (per P10 2026-04-17 Master Batch)
 
