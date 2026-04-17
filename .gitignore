@@ -25,6 +25,10 @@ plans/review_bundles/
 !plans/PLAN_*.md
 !plans/deployments/
 !plans/deployments/**
+!plans/agents/
+!plans/agents/**
+!plans/research/
+!plans/research/**
 var/log/
 var/
 
