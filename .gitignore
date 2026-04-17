@@ -29,6 +29,8 @@ plans/review_bundles/
 !plans/agents/**
 !plans/research/
 !plans/research/**
+!plans/doctrine/
+!plans/doctrine/**
 var/log/
 var/
 
