@@ -1,0 +1,167 @@
+{
+  "manifest_version": 3,
+  "name": "AI Memory Guard",
+  "version": "0.1.2",
+  "description": "Cross-platform persistent memory and quality enforcement for AI conversations (CT-0416-22 2026-04-17: grok.com host fix, perplexity.js recovered, copilot.microsoft.com added, strict allowlist)",
+  "permissions": [
+    "storage",
+    "activeTab",
+    "tabs",
+    "alarms",
+    "offscreen"
+  ],
+  "host_permissions": [
+    "https://claude.ai/*",
+    "https://chatgpt.com/*",
+    "https://chat.openai.com/*",
+    "https://gemini.google.com/*",
+    "https://grok.com/*",
+    "https://www.perplexity.ai/*",
+    "https://copilot.microsoft.com/*"
+  ],
+  "background": {
+    "service_worker": "service-worker.js",
+    "type": "module"
+  },
+  "content_scripts": [
+    {
+      "matches": ["https://claude.ai/*"],
+      "js": [
+        "platform-detector.js",
+        "claude.js",
+        "ui/thread-health.js",
+        "ui/notification.js",
+        "ui/carryover.js",
+        "ui/warning-bar.js",
+        "ui/einstein-warning.js",
+        "ui/onboarding.js"
+      ],
+      "run_at": "document_idle",
+      "css": [
+        "ui/design-tokens.css",
+        "ui/thread-health.css",
+        "ui/notification.css",
+        "ui/carryover.css",
+        "ui/warning-bar.css"
+      ]
+    },
+    {
+      "matches": ["https://chatgpt.com/*", "https://chat.openai.com/*"],
+      "js": [
+        "platform-detector.js",
+        "chatgpt.js",
+        "ui/thread-health.js",
+        "ui/notification.js",
+        "ui/carryover.js",
+        "ui/warning-bar.js",
+        "ui/einstein-warning.js",
+        "ui/onboarding.js"
+      ],
+      "run_at": "document_idle",
+      "css": [
+        "ui/design-tokens.css",
+        "ui/thread-health.css",
+        "ui/notification.css",
+        "ui/carryover.css",
+        "ui/warning-bar.css"
+      ]
+    },
+    {
+      "matches": ["https://gemini.google.com/*"],
+      "js": [
+        "platform-detector.js",
+        "gemini.js",
+        "ui/thread-health.js",
+        "ui/notification.js",
+        "ui/carryover.js",
+        "ui/warning-bar.js",
+        "ui/einstein-warning.js",
+        "ui/onboarding.js"
+      ],
+      "run_at": "document_idle",
+      "css": [
+        "ui/design-tokens.css",
+        "ui/thread-health.css",
+        "ui/notification.css",
+        "ui/carryover.css",
+        "ui/warning-bar.css"
+      ]
+    },
+    {
+      "matches": ["https://grok.com/*"],
+      "js": [
+        "platform-detector.js",
+        "grok.js",
+        "ui/thread-health.js",
+        "ui/notification.js",
+        "ui/carryover.js",
+        "ui/warning-bar.js",
+        "ui/einstein-warning.js",
+        "ui/onboarding.js"
+      ],
+      "run_at": "document_idle",
+      "css": [
+        "ui/design-tokens.css",
+        "ui/thread-health.css",
+        "ui/notification.css",
+        "ui/carryover.css",
+        "ui/warning-bar.css"
+      ]
+    },
+    {
+      "matches": ["https://www.perplexity.ai/*"],
+      "js": [
+        "platform-detector.js",
+        "perplexity.js",
+        "ui/thread-health.js",
+        "ui/notification.js",
+        "ui/carryover.js",
+        "ui/warning-bar.js",
+        "ui/einstein-warning.js",
+        "ui/onboarding.js"
+      ],
+      "run_at": "document_idle",
+      "css": [
+        "ui/design-tokens.css",
+        "ui/thread-health.css",
+        "ui/notification.css",
+        "ui/carryover.css",
+        "ui/warning-bar.css"
+      ]
+    },
+    {
+      "matches": ["https://copilot.microsoft.com/*"],
+      "js": [
+        "platform-detector.js",
+        "copilot.js",
+        "ui/thread-health.js",
+        "ui/notification.js",
+        "ui/carryover.js",
+        "ui/warning-bar.js",
+        "ui/einstein-warning.js",
+        "ui/onboarding.js"
+      ],
+      "run_at": "document_idle",
+      "css": [
+        "ui/design-tokens.css",
+        "ui/thread-health.css",
+        "ui/notification.css",
+        "ui/carryover.css",
+        "ui/warning-bar.css"
+      ]
+    }
+  ],
+  "action": {
+    "default_popup": "popup.html",
+    "default_icon": {
+      "16": "icons/icon-16.png",
+      "48": "icons/icon-48.png",
+      "128": "icons/icon-128.png"
+    }
+  },
+  "icons": {
+    "16": "icons/icon-16.png",
+    "48": "icons/icon-48.png",
+    "128": "icons/icon-128.png"
+  }
+}

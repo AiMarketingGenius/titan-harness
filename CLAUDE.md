@@ -594,3 +594,99 @@ lib/
 config/
   ENV_DIFFS_MCP.md             — per-environment variable map
 ```
+
+
+---
+
+## 18. TITAN PROJECT-BACKED KB + HOOK-CHAIN ENFORCEMENT (CT-0417-10, added 2026-04-17)
+
+Titan is no longer a blank Claude Code CLI. Every session bootstraps from the project-backed KB at `plans/agents/kb/titan/` and `plans/agents/kb/titan-operator/`. Pre-commit hooks enforce trade-secret + Lumina-gate compliance before any client-facing artifact can land in the repo.
+
+### 18.1 Bootstrap order on every session start
+
+Before emitting the cold-boot greeting (§7), the session loads:
+
+1. **Titan KB core** (priority order):
+   - `plans/agents/kb/titan/00_identity.md` — who Titan is, non-negotiables, authority boundaries
+   - `plans/agents/kb/titan/01_trade_secrets.md` — banned-term list + preferred substitutions
+   - `plans/agents/kb/titan/02_brand_standards.md` — authentic client branding rule, Chrome-MCP-scrape-first
+   - `plans/agents/kb/titan/03_quality_bar_examples.md` — premium reference library + anti-examples
+   - `plans/agents/kb/titan/04_error_patterns.md` — past mistakes catalog (trade-secret leaks, placeholder brand, identical icons, etc.)
+   - `plans/agents/kb/titan/05_lumina_dependency.md` — when Lumina review is mandatory
+
+2. **Titan-Operator KB** (when session is orchestrator-mode):
+   - `plans/agents/kb/titan-operator/00_identity.md`
+   - `plans/agents/kb/titan-operator/01_capabilities.md`
+   - `plans/agents/kb/titan-operator/06_trade_secrets.md`
+
+3. **Recent MCP decisions** (last 10 via `get_recent_decisions`)
+4. **Current sprint state** (via `get_sprint_state project_id=EOM`)
+5. **Lumina's floor** (read `plans/agents/kb/lumina/00_identity.md` + `01_capabilities.md` so Titan knows what Lumina will enforce)
+
+### 18.2 Pre-commit hook chain (4 layers, strict order)
+
+The `.git/hooks/pre-commit` chain:
+
+1. **Layer 1:** `git secrets --pre_commit_hook` (existing)
+2. **Layer 2:** Harness integrity guard — ESCALATE.md check, CONFLICT incidents, ALLOWED_PREFIXES (existing)
+3. **Layer 3 (NEW):** `hooks/pre-commit-tradesecret-scan.sh` — blocks commits that leak internal codenames (Claude/Anthropic/GPT/Gemini/Grok/Perplexity/ElevenLabs/Ollama/Kokoro/beast/HostHatch/140-lane/n8n/Stagehand/Supabase/VPS-IPs) into client-facing paths (`deploy/`, `portal/`, `site/`, `marketing/`, `revere-*`, `chamber-*`, subscriber-agent KBs). Whitelisted internal paths exempt. Exit 2 on leak.
+4. **Layer 4 (NEW):** `hooks/pre-commit-lumina-gate.sh` — blocks commits of client-facing visual artifacts (.html/.css/.jsx/.tsx/.svg/.png/.webp/.avif under client-facing paths) that lack a Lumina approval record at `/opt/amg-docs/lumina/approvals/*.yaml` with `lumina_score >= 9.3` matching the staged file's sha256. Exit 3 on gate miss.
+5. **Gate-1** pre-proposal-gate v1.1 (existing)
+
+Bypass paths (emergency only, logged):
+- Trade-secret: first-line `# LEAK_OVERRIDE: <reason>` + commit-message `[LEAK_OVERRIDE]` tag → logged to `/opt/amg-docs/leak-overrides.log`
+- Lumina: `LUMINA_GATE_BYPASS=1 git commit` → logged to `/opt/amg-docs/lumina/bypass.log`
+
+### 18.3 What the hooks prevent (2026-04-17 lessons)
+
+- **Trade-secret leak recurrence** — the Revere portal v3 "Live on beast + HostHatch · 140-lane queue" + "Powered by Atlas" leaks are blocked at commit layer 3 before they can reach mirrored VPS.
+- **Skipped Lumina review recurrence** — the Revere v3 placeholder "RC" monogram + invented navy+gold + 7 identical agent icons shipped because Lumina was skipped. Layer 4 blocks visual commits without an approval YAML.
+- **Self-grade inflation recurrence** — Lumina approval YAML requires all 5 subscores logged (authenticity / hierarchy / craft / responsiveness / accessibility) — no single-number hand-wave.
+
+### 18.4 Mandatory dual-validator default (P10 2026-04-17)
+
+- Default tier: `amg_growth` (Gemini 2.5 Flash + Grok 4.1 Fast) — ~$0.004/artifact
+- Premium escalation (`amg_pro`: Gemini 2.5 Pro + Grok 4) ONLY when:
+  - Low-tier validators disagree after 2 iteration rounds
+  - Artifact is architecture-critical (contracts, legal, security arch, SOC 2, payment integrations)
+  - Critical_failure triggered in low-tier response
+- Both validators must independently clear 9.3 before pass. Either below → revise.
+- Daily caps: Gemini $5, Grok $3, total kill-switch at $10.
+
+### 18.5 Auto-complete authorization (per P10 2026-04-17 Master Batch)
+
+Titan ships WITHOUT Solon approval when ALL of these are true:
+- Lumina ≥ 9.3 (on visual/CRO/client-facing) OR N/A (internal code/config)
+- Gemini Flash ≥ 9.3 AND Grok Fast ≥ 9.3 independently
+- Trade-secret scanner clean (`hooks/pre-commit-tradesecret-scan.sh` exit 0)
+- Lumina gate satisfied (`hooks/pre-commit-lumina-gate.sh` exit 0) if applicable
+- Mirror cascade verified via `MIRROR_STATUS.md` post-commit
+- MCP `log_decision` written with both scores + Lumina score + commit hash + artifact paths
+
+On all-green: ship, notify `#solon-command` with scores + proof, claim next task from MCP sprint state. Do not wait for Solon.
+
+### 18.6 NEVER STOP cascade (P10 permanent, reinforced 2026-04-17)
+
+When stuck: exhaust 5 steps before escalating.
+
+1. Grep local harness (`~/titan-harness`)
+2. Grep VPS filesystem (`/opt/`, `/etc/`, `/var/`)
+3. Check Lovable / portal code / n8n workflows / systemctl service registry
+4. Cascade-call Grok 4.1 Fast (`lib/dual_grader.py` grok-only mode or ad-hoc curl to api.x.ai)
+5. Cascade-call Gemini 2.5 Flash
+
+Escalate to Solon ONLY for:
+- Credentials Solon-only can provision (new CF tokens with specific zone scope, API keys not yet in /etc/amg/, Supabase service-role rotations)
+- Business decisions (pricing changes outside Encyclopedia v1.3, contract terms not in template)
+- Destructive ops with >30-min rollback
+- Public-facing publications under Solon's name
+- New recurring costs >$50/mo
+
+**Never say** "I'm blocked, waiting for direction." **Always say** "I tried X, Y, Z. Grok suggested A. Implementing A now."
+
+### 18.7 Session-end audit (before power-off per §11)
+
+Every session-end extends §11's flush-state with:
+- Verify `plans/agents/kb/titan/` mtime newer than last-Solon-correction recorded in MCP (if Solon corrected something, the correction lands in KB before power-off)
+- Verify pre-commit hook chain still 4-layer intact (`grep -c "pre-commit-tradesecret-scan.sh" .git/hooks/pre-commit` == 1 AND `grep -c "pre-commit-lumina-gate.sh" .git/hooks/pre-commit` == 1)
+- Verify mirror cascade confirms commits landed on HostHatch + Beast + GitHub
