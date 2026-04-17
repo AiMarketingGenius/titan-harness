@@ -4,19 +4,22 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <meta name="robots" content="noindex, nofollow" />
-<title>Revere AI Advantage — Powered by Atlas</title>
+<title>Revere AI Advantage — Powered by AMG</title>
 <link rel="stylesheet" href="style.css" />
-<link rel="icon" type="image/svg+xml" href="logo.svg" />
+<link rel="icon" type="image/png" href="brand-assets/revere-chamber-logo.png" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700&display=swap" />
 </head>
 <body>
 
 <!-- ============ PASSWORD GATE ============ -->
 <div id="gate" class="gate">
   <div class="gate-card">
-    <img src="logo.svg" alt="Revere Chamber" class="gate-logo" />
+    <img src="brand-assets/revere-chamber-logo.png" alt="Revere Chamber" class="gate-logo" />
     <div class="gate-kicker">Revere Chamber of Commerce · Board Preview</div>
     <h1 class="gate-title">Revere AI Advantage</h1>
-    <div class="gate-sub">Powered by <span class="atlas">Atlas</span></div>
+    <div class="gate-sub">Powered by <span class="brand-accent">AMG</span></div>
     <form id="gate-form" class="gate-form" autocomplete="off">
       <label for="gate-pw">Access code</label>
       <input type="password" id="gate-pw" placeholder="Enter access code" autofocus />
@@ -32,20 +35,20 @@
 
   <header class="topbar">
     <div class="brand">
-      <img src="logo.svg" alt="" class="brand-logo" />
+      <img src="brand-assets/revere-chamber-logo.png" alt="" class="brand-logo" />
       <div class="brand-txt">
         <div class="brand-line1">Revere AI Advantage</div>
-        <div class="brand-line2">Powered by <span class="atlas">Atlas</span></div>
+        <div class="brand-line2">Powered by <span class="brand-accent">AMG</span></div>
       </div>
     </div>
-    <nav class="navbar">
-      <button class="nav-btn active" data-view="dashboard">Agent Command</button>
-      <button class="nav-btn" data-view="member">Member Portal</button>
-      <button class="nav-btn" data-view="admin">Chamber Admin</button>
-      <button class="nav-btn" data-view="chamberos">Chamber OS</button>
+    <nav class="navbar" aria-label="Portal sections">
+      <button class="nav-btn active" data-view="dashboard" aria-label="Agent Command view" aria-current="page">Agent Command</button>
+      <button class="nav-btn" data-view="member" aria-label="Member Portal view">Member Portal</button>
+      <button class="nav-btn" data-view="admin" aria-label="Chamber Admin dashboard">Chamber Admin</button>
+      <button class="nav-btn" data-view="chamberos" aria-label="Chamber OS preview">Chamber OS</button>
     </nav>
-    <div class="topbar-right">
-      <div class="status-dot"></div><span class="status-txt">Live · production Atlas</span>
+    <div class="topbar-right" role="status" aria-live="polite">
+      <div class="status-dot" aria-hidden="true"></div><span class="status-txt">Active</span>
     </div>
   </header>
 
@@ -58,13 +61,13 @@
         <p class="view-sub">Every Revere Chamber member gets a private AI team trained on Revere demographics, local business rhythm, and the Chamber's member directory.</p>
       </div>
       <div class="view-head-right">
-        <div class="pill-live">Live on beast + HostHatch · 140-lane queue</div>
+        <div class="pill-live">Live · production-grade infrastructure</div>
       </div>
     </div>
 
     <div class="agent-grid">
       <article class="agent-card" data-agent="coach">
-        <div class="agent-ico">RC</div>
+        <div class="agent-ico agent-ico--coach">A</div>
         <h3>Revere Business Coach</h3>
         <div class="agent-sub">Weekly strategy · growth blockers · GTM plays</div>
         <ul class="agent-metrics">
@@ -76,7 +79,7 @@
       </article>
 
       <article class="agent-card" data-agent="content">
-        <div class="agent-ico">RC</div>
+        <div class="agent-ico agent-ico--content">M</div>
         <h3>Revere Content Strategist</h3>
         <div class="agent-sub">Blog · email · GBP posts · brand voice</div>
         <ul class="agent-metrics">
@@ -88,7 +91,7 @@
       </article>
 
       <article class="agent-card" data-agent="seo">
-        <div class="agent-ico">RC</div>
+        <div class="agent-ico agent-ico--seo">J</div>
         <h3>Revere SEO Specialist</h3>
         <div class="agent-sub">Local rankings · GBP · technical SEO</div>
         <ul class="agent-metrics">
@@ -100,7 +103,7 @@
       </article>
 
       <article class="agent-card" data-agent="social">
-        <div class="agent-ico">RC</div>
+        <div class="agent-ico agent-ico--social">S</div>
         <h3>Revere Social Media Manager</h3>
         <div class="agent-sub">Instagram · Facebook · LinkedIn scheduling</div>
         <ul class="agent-metrics">
@@ -112,7 +115,7 @@
       </article>
 
       <article class="agent-card" data-agent="reviews">
-        <div class="agent-ico">RC</div>
+        <div class="agent-ico agent-ico--reviews">R</div>
         <h3>Revere Reviews Manager</h3>
         <div class="agent-sub">Google · Yelp · Tripadvisor monitoring + response</div>
         <ul class="agent-metrics">
@@ -124,7 +127,7 @@
       </article>
 
       <article class="agent-card" data-agent="outbound">
-        <div class="agent-ico">RC</div>
+        <div class="agent-ico agent-ico--outbound">N</div>
         <h3>Revere Outbound Coordinator</h3>
         <div class="agent-sub">New-business outreach · sponsor prospecting</div>
         <ul class="agent-metrics">
@@ -136,7 +139,7 @@
       </article>
 
       <article class="agent-card" data-agent="cro">
-        <div class="agent-ico">RC</div>
+        <div class="agent-ico agent-ico--cro">L</div>
         <h3>Revere Conversion Optimizer</h3>
         <div class="agent-sub">Website CRO · funnel diagnosis · A/B tests</div>
         <ul class="agent-metrics">
@@ -148,15 +151,15 @@
       </article>
     </div>
 
-    <div class="atlas-banner">
+    <div class="amg-banner">
       <div>
-        <div class="atlas-banner-kicker">Every agent above runs on the Atlas engine</div>
-        <div class="atlas-banner-main">Same infrastructure that handles 140 concurrent AI workflows per second across AMG's production cluster — now private-labeled for Revere.</div>
+        <div class="amg-banner-kicker">Every agent above runs on AMG's production platform</div>
+        <div class="amg-banner-main">Private-labeled for Revere Chamber members. Each business gets its own seven-agent team, trained on local Revere demographics + the Chamber's member directory.</div>
       </div>
-      <div class="atlas-stats">
-        <div><b>140</b><span>concurrent lanes</span></div>
-        <div><b>2</b><span>production VPS</span></div>
-        <div><b>&lt;200ms</b><span>median response</span></div>
+      <div class="amg-stats">
+        <div><b>7</b><span>private agents</span></div>
+        <div><b>24/7</b><span>always on</span></div>
+        <div><b>&lt;2s</b><span>typical response</span></div>
       </div>
     </div>
   </section>
@@ -445,7 +448,7 @@
         <div class="co-phone">
           <div class="co-phone-screen">
             <div class="co-ph-head">
-              <div class="co-ph-logo"><img src="logo.svg" alt=""/></div>
+              <div class="co-ph-logo"><img src="brand-assets/revere-chamber-logo.png" alt=""/></div>
               <div class="co-ph-title">Revere AI · Mobile</div>
             </div>
             <div class="co-ph-row"><b>3</b><span>drafts awaiting approval</span></div>
@@ -458,10 +461,10 @@
       </div>
     </div>
 
-    <div class="atlas-banner">
+    <div class="amg-banner">
       <div>
-        <div class="atlas-banner-kicker">All three modules share the Atlas substrate</div>
-        <div class="atlas-banner-main">Same Postgres, same shared job queue, same operator grading stack. Chamber OS isn't a separate product — it's what happens when the Atlas agents get Chamber-specific surfaces.</div>
+        <div class="amg-banner-kicker">One unified platform, Chamber-specific surfaces</div>
+        <div class="amg-banner-main">Chamber OS isn't a separate product — it's what happens when your seven agents get Chamber-specific surfaces for Meeting Intelligence, project management, and mobile admin.</div>
       </div>
       <button class="btn-gold" onclick="switchView('dashboard')">Back to Agent Command</button>
     </div>
@@ -487,7 +490,7 @@
 </div>
 
 <footer class="footer" id="footer" hidden>
-  <div>Revere AI Advantage · Powered by the Atlas engine from AI Marketing Genius</div>
+  <div>Revere AI Advantage · Powered by AI Marketing Genius</div>
   <div class="footer-right">Private Board preview · AIMG · 2026</div>
 </footer>
 

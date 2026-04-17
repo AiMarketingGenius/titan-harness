@@ -37,8 +37,14 @@ GROK_MODEL = os.environ.get('GROK_GRADER_MODEL', 'grok-4-fast-reasoning')
 GROK_TIMEOUT = 60
 
 DEFAULT_FLOOR = 9.3
+DEFAULT_SCOPE_TIER = 'amg_growth'  # Gemini 2.5 Flash — per P10 2026-04-17 tier-downgrade rule
 GROK_PRICING_PER_MTOK_IN = 20   # cents, approx for grok-4-fast
 GROK_PRICING_PER_MTOK_OUT = 80
+# Premium escalation triggers — caller passes scope_tier='amg_pro' explicitly
+PREMIUM_SCOPE_TIER = 'amg_pro'  # Gemini 2.5 Pro, only when:
+# (a) low-tier graders disagree after 2 rounds
+# (b) artifact is architecture-critical (contracts, legal, security arch, SOC 2, payments)
+# (c) critical_failure triggered
 
 
 GROK_SYSTEM_PROMPT = """You are a rigorous artifact grader. Score the artifact against this 5-dimension rubric (0-10 scale per dimension):

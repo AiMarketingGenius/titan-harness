@@ -1,8 +1,12 @@
-/* Revere AI Advantage — navy (#0a2d5e) + gold (#d4a627) brand system */
+/* Revere AI Advantage — authentic Revere Chamber navy (#0B2572, scraped 2026-04-17)
+   + royal-blue accent (#116DFF, their real CTA color) + gold premium overlay (AMG-layer accent)
+   See plans/deployments/REVERE_CHAMBER_BRAND_AUDIT.md */
 :root{
-  --navy:#0a2d5e;
-  --navy-2:#123c7a;
-  --navy-ink:#0a1f3d;
+  --navy:#0B2572;
+  --navy-2:#1a3a94;
+  --navy-ink:#081b52;
+  --royal:#116DFF;
+  --teal:#2DB4CA;
   --gold:#d4a627;
   --gold-2:#f0c04a;
   --ivory:#fbf9f3;
@@ -18,7 +22,7 @@
   --shadow-lg:0 12px 40px rgba(10,45,94,.14);
 }
 *{box-sizing:border-box}
-html,body{margin:0;padding:0;background:var(--ivory);color:var(--ink);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;-webkit-font-smoothing:antialiased}
+html,body{margin:0;padding:0;background:var(--ivory);color:var(--ink);font-family:'Montserrat',-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;-webkit-font-smoothing:antialiased}
 a{color:var(--navy)}
 
 /* ================== GATE ================== */
@@ -28,7 +32,7 @@ a{color:var(--navy)}
 .gate-kicker{font-size:12px;letter-spacing:2px;text-transform:uppercase;color:var(--muted);margin-bottom:4px}
 .gate-title{margin:0 0 6px;font-size:28px;letter-spacing:-0.02em;color:var(--navy);font-family:Georgia,serif}
 .gate-sub{color:var(--muted);margin-bottom:28px;font-size:15px}
-.gate-sub .atlas{color:var(--gold);font-weight:600}
+.gate-sub .brand-accent{color:var(--gold);font-weight:600}
 .gate-form label{display:block;font-size:13px;color:var(--muted);text-align:left;margin-bottom:6px;font-weight:500}
 .gate-form input{width:100%;padding:12px 14px;border:1px solid var(--line);border-radius:8px;font-size:15px;margin-bottom:14px;background:var(--ivory);color:var(--ink)}
 .gate-form input:focus{outline:none;border-color:var(--navy);box-shadow:0 0 0 3px rgba(10,45,94,.1)}
@@ -45,7 +49,7 @@ a{color:var(--navy)}
 .brand-txt{line-height:1.2}
 .brand-line1{font-weight:700;font-size:17px;font-family:Georgia,serif;letter-spacing:.2px}
 .brand-line2{font-size:12px;color:rgba(255,255,255,.7);margin-top:2px}
-.brand-line2 .atlas{color:var(--gold);font-weight:600}
+.brand-line2 .brand-accent{color:var(--gold);font-weight:600}
 
 .navbar{display:flex;gap:4px;flex:1;justify-content:center}
 .nav-btn{background:transparent;color:rgba(255,255,255,.75);border:none;padding:10px 18px;border-radius:8px;cursor:pointer;font-size:14px;font-weight:500;letter-spacing:.2px;transition:all .15s}
@@ -78,7 +82,16 @@ a{color:var(--navy)}
 .agent-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(290px,1fr));gap:18px;margin-bottom:28px}
 .agent-card{background:var(--paper);border:1px solid var(--line);border-radius:var(--radius);padding:22px;position:relative;transition:transform .15s,box-shadow .15s,border-color .15s;display:flex;flex-direction:column}
 .agent-card:hover{transform:translateY(-2px);box-shadow:var(--shadow);border-color:var(--gold)}
-.agent-ico{width:40px;height:40px;border-radius:10px;background:linear-gradient(135deg,var(--navy),var(--navy-2));color:var(--gold);display:flex;align-items:center;justify-content:center;font-weight:700;font-size:14px;margin-bottom:14px;letter-spacing:1px}
+.agent-ico{width:44px;height:44px;border-radius:12px;background:linear-gradient(135deg,var(--navy),var(--navy-2));color:var(--gold);display:flex;align-items:center;justify-content:center;font-weight:700;font-size:18px;margin-bottom:14px;letter-spacing:0;font-family:'Montserrat',sans-serif;box-shadow:0 2px 6px rgba(11,37,114,.22)}
+/* Per-agent tint — subtle cool-to-warm gradient across the 7 personas,
+   all anchored on Revere navy so the set still reads as one family. */
+.agent-ico--coach   {background:linear-gradient(135deg,#0B2572,#1a3a94);color:var(--gold)}
+.agent-ico--content {background:linear-gradient(135deg,#123071,#2d5bc0);color:#e9f0ff}
+.agent-ico--seo     {background:linear-gradient(135deg,#0f2d6e,#116DFF);color:#fff}
+.agent-ico--social  {background:linear-gradient(135deg,#0e3068,#2DB4CA);color:#fff}
+.agent-ico--reviews {background:linear-gradient(135deg,#0B2572,#3d5eb0);color:#fff7d6}
+.agent-ico--outbound{background:linear-gradient(135deg,#122a66,#2c4ea1);color:var(--gold-2)}
+.agent-ico--cro     {background:linear-gradient(135deg,#0B2572,#d4a627);color:#fff}
 .agent-card h3{margin:0 0 4px;font-size:17px;color:var(--navy);letter-spacing:-0.01em}
 .agent-sub{font-size:13px;color:var(--muted);margin-bottom:16px;line-height:1.4}
 .agent-metrics{list-style:none;padding:0;margin:0 0 16px;border-top:1px solid var(--line)}
@@ -92,13 +105,13 @@ a{color:var(--navy)}
 .btn-gold:hover{background:var(--gold-2)}
 
 /* ================== ATLAS BANNER ================== */
-.atlas-banner{background:linear-gradient(135deg,var(--navy) 0%,var(--navy-2) 100%);color:#fff;border-radius:var(--radius);padding:26px 32px;display:flex;justify-content:space-between;align-items:center;gap:32px;border-left:4px solid var(--gold)}
-.atlas-banner-kicker{color:var(--gold);font-size:12px;letter-spacing:2px;text-transform:uppercase;font-weight:600;margin-bottom:6px}
-.atlas-banner-main{font-size:15px;line-height:1.5;color:rgba(255,255,255,.92)}
-.atlas-stats{display:flex;gap:28px;flex-shrink:0}
-.atlas-stats>div{text-align:center}
-.atlas-stats b{display:block;font-size:24px;color:var(--gold);font-family:Georgia,serif;margin-bottom:2px}
-.atlas-stats span{font-size:11px;color:rgba(255,255,255,.7);letter-spacing:.5px;text-transform:uppercase}
+.amg-banner{background:linear-gradient(135deg,var(--navy) 0%,var(--navy-2) 100%);color:#fff;border-radius:var(--radius);padding:26px 32px;display:flex;justify-content:space-between;align-items:center;gap:32px;border-left:4px solid var(--gold)}
+.amg-banner-kicker{color:var(--gold);font-size:12px;letter-spacing:2px;text-transform:uppercase;font-weight:600;margin-bottom:6px}
+.amg-banner-main{font-size:15px;line-height:1.5;color:rgba(255,255,255,.92)}
+.amg-stats{display:flex;gap:28px;flex-shrink:0}
+.amg-stats>div{text-align:center}
+.amg-stats b{display:block;font-size:24px;color:var(--gold);font-family:Georgia,serif;margin-bottom:2px}
+.amg-stats span{font-size:11px;color:rgba(255,255,255,.7);letter-spacing:.5px;text-transform:uppercase}
 
 /* ================== MEMBER PORTAL ================== */
 .member-grid{display:grid;grid-template-columns:1fr 1fr;gap:18px}
@@ -232,8 +245,8 @@ a{color:var(--navy)}
   .admin-grid{grid-template-columns:1fr}
   .kpi-row{grid-template-columns:1fr 1fr}
   .chamberos-grid{grid-template-columns:1fr}
-  .atlas-banner{flex-direction:column;align-items:flex-start;text-align:left}
-  .atlas-stats{width:100%;justify-content:space-between}
+  .amg-banner{flex-direction:column;align-items:flex-start;text-align:left}
+  .amg-stats{width:100%;justify-content:space-between}
   .rev-grid{grid-template-columns:1fr}
   .navbar{display:none}
   .topbar-right{display:none}
