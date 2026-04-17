@@ -155,7 +155,7 @@
       <div class="view-head">
         <div>
           <h2>Overview</h2>
-          <div class="sub">Aggregate metrics across the consumer fleet. Stage 1 — Paddle subscriber state arrives in Stage 2.</div>
+          <div class="sub">Aggregate metrics across the consumer fleet. Stage 1 — PayPal subscriber state arrives in Stage 2 (PaymentCloud + Durango = Phase 3 cutover).</div>
         </div>
       </div>
       <div id="overview-metrics" class="metric-grid"></div>
@@ -280,7 +280,7 @@
       <div class="metric-card"><div class="metric-label">Total memories</div><div class="metric-value">${(data.total_memories||0).toLocaleString()}</div><div class="metric-sub">Across all platforms</div></div>
       <div class="metric-card"><div class="metric-label">Total users</div><div class="metric-value">${(data.total_users||0).toLocaleString()}</div><div class="metric-sub">Registered accounts</div></div>
       <div class="metric-card"><div class="metric-label">QE flagged</div><div class="metric-value">${data.qe_flagged_in_sample||0}</div><div class="metric-sub">In last ${data.sample_size||0} memory sample</div></div>
-      <div class="metric-card"><div class="metric-label">MRR</div><div class="metric-value" style="color:var(--muted)">—</div><div class="metric-sub">Stage 2 · Paddle wiring</div></div>
+      <div class="metric-card"><div class="metric-label">MRR</div><div class="metric-value" style="color:var(--muted)">—</div><div class="metric-sub">Stage 2 · PayPal wiring</div></div>
     `;
     const platforms = data.by_platform || {};
     const pmax = maxVal(platforms);

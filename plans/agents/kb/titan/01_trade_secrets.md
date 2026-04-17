@@ -19,6 +19,11 @@ Any file committed under these paths is scanned by `/opt/titan-harness/.git/hook
 - `CLAUDE.md`, `MEMORY.md`, `RADAR.md`, `MIRROR_STATUS.md`, `INVENTORY.md`, `CORE_CONTRACT.md`
 - This file (`titan/kb/01_trade_secrets.md`) — it's the source of truth about the list, not a leak
 
+**Client-facing EXEMPTIONS (AI platform names allowed on purpose):**
+- `deploy/aimg-extension-fixes/` — Chrome extension source (declares host permissions for the 5 AI platforms; public in Chrome Web Store)
+- `deploy/aimemoryguard-landing/` — AIMG consumer landing page (names the 5 supported platforms as core integration value prop; public in Chrome Web Store listing)
+  - Rationale: AIMG consumer product is an integration layer for Claude / ChatGPT / Gemini / Grok / Perplexity. Naming them is the product pitch, not a trade-secret leak (underlying stack is still hidden). Underlying-vendor leaks (Anthropic direct, n8n, Supabase, etc.) remain blocked even in these paths — the exemption only covers the 5 consumer-product-integration surfaces.
+
 ## The banned-term set
 
 ### Underlying AI vendors + models (never in client-facing)

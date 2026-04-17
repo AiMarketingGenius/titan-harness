@@ -321,7 +321,7 @@ COMMENT ON TABLE public.proposal_spec_runs IS 'Thread 2: proposal-spec-from-call
 COMMENT ON TABLE public.marketing_content_queue IS 'Thread 3 Marketing: deduped feed of ingested content sources (blog, YouTube, Fireflies, decisions).';
 COMMENT ON TABLE public.marketing_packages IS 'Thread 3 Marketing: weekly 4-surface publish packages (email + LinkedIn + X + video), approval + schedule state.';
 COMMENT ON TABLE public.expected_payments IS 'Thread 4 Back-Office: what we expected to be paid (from subscription or invoice). Reconciled against received_payments.';
-COMMENT ON TABLE public.received_payments IS 'Thread 4 Back-Office: normalized payment events imported from PayPal CSV / Paddle / Dodo / PaymentCloud etc.';
+COMMENT ON TABLE public.received_payments IS 'Thread 4 Back-Office: normalized payment events imported from PayPal CSV (current) / PaymentCloud / Durango / Dodo etc.';
 COMMENT ON TABLE public.reconciliation_events IS 'Thread 4 Back-Office: classification of expected vs received (paid_on_time, late, missing, etc.).';
 COMMENT ON TABLE public.clients IS 'Thread 5 Client Reporting: active client roster with reporting cadence + auto-ship unlock state.';
 COMMENT ON TABLE public.client_metric_profiles IS 'Thread 5: per-client metric source mapping (GA4 property, GSC site, tracked metric list).';

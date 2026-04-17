@@ -132,7 +132,7 @@ def classify_item(item_text, mode):
             return (False, f"marked: {marker}")
 
     # Hard-block on hard limits (financial, legal, external)
-    for marker in ["contract", "signature", "credential", "2fa", "oauth", "password", "paypal", "stripe", "paddle review"]:
+    for marker in ["contract", "signature", "credential", "2fa", "oauth", "password", "paypal", "stripe", "paymentcloud review", "durango review"]:
         if marker in lower:
             return (False, f"hard limit: {marker}")
 

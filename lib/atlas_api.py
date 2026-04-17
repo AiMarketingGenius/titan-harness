@@ -52,7 +52,7 @@ from typing import Any
 
 try:
     from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException, Request
-    from fastapi.responses import HTMLResponse, JSONResponse, FileResponse, Response
+    from fastapi.responses import HTMLResponse, JSONResponse, FileResponse, Response, RedirectResponse
     from fastapi.staticfiles import StaticFiles
 except ImportError as exc:  # pragma: no cover
     raise SystemExit("fastapi + uvicorn are required: pip install --user fastapi uvicorn") from exc
@@ -2804,8 +2804,9 @@ def api_crm_health() -> dict:
 # AIMG_SUPABASE_URL + AIMG_SUPABASE_SERVICE_KEY from /etc/amg/aimg-supabase.env.
 #
 # Stage 1 (this commit): aggregate stats + user list from existing tables
-# (consumer_memories, users). Stage 2 (next iteration): wire Paddle
+# (consumer_memories, users). Stage 2 (next iteration): wire PayPal
 # subscriber/billing state via new sql/aimg_001_admin_schema.sql migration.
+# (PaymentCloud + Durango become Phase 3 cutover once onboarding clears.)
 
 _AIMG_RATE: dict[str, list[float]] = {}
 _AIMG_RATE_MAX = 60
@@ -3053,13 +3054,42 @@ def api_aimg_admin_health() -> dict:
     }
 
 
-@app.get("/aimg-admin")
-async def aimg_admin_serve() -> Response:
-    """Serve the AIMG Admin Command Portal."""
+# Canonical tenant-slug convention per 2026-04-17 P10 MULTI-TENANT LOCK:
+# lowercase, hyphen-separated, 3-40 chars. Solon is tenant #1 ('solon').
+_VALID_TENANT_SLUG = None
+def _is_valid_tenant_slug(s: str) -> bool:
+    global _VALID_TENANT_SLUG
+    if _VALID_TENANT_SLUG is None:
+        import re as _re
+        _VALID_TENANT_SLUG = _re.compile(r'^[a-z0-9][a-z0-9-]{1,38}[a-z0-9]$')
+    return isinstance(s, str) and bool(_VALID_TENANT_SLUG.match(s))
+
+
+@app.get("/portal/{tenant_slug}/aimg")
+async def aimg_admin_portal_tenant(tenant_slug: str) -> Response:
+    """Canonical portal.aimarketinggenius.io/{tenant_slug}/aimg route (GHL-style
+    multi-tenant per P10 2026-04-17 lock). AIMG admin lives as a MODULE inside
+    the operator-portal sub-tenant (Solon = 'solon' tenant).
+
+    Tenant-slug validation at the edge — Caddy should upgrade to this path once
+    portal.aimarketinggenius.io routing is wired. For now the same atlas-api
+    instance serves both subdomains and the path is the tenant discriminator.
+    """
+    if not _is_valid_tenant_slug(tenant_slug):
+        raise HTTPException(400, "invalid tenant_slug — must be lowercase hyphen-separated 3-40 chars")
     path = STATIC_DIR / "aimg-admin.html"
     if not path.exists():
         raise HTTPException(404, "aimg-admin.html missing — deploy pending")
     return FileResponse(path, media_type="text/html")
+
+
+@app.get("/aimg-admin")
+async def aimg_admin_serve() -> Response:
+    """DEPRECATED 2026-04-17 — pre-multi-tenant path. Use
+    /portal/{tenant_slug}/aimg instead. Kept as soft-cutover alias; redirects
+    to the Solon super-tenant route. Will be removed after CT-0417-35 ships.
+    """
+    return RedirectResponse(url="/portal/solon/aimg", status_code=307)
 
 
 # ─── end /aimg-admin block ────────────────────────────────────────────────────

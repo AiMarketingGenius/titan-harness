@@ -45,7 +45,7 @@ LANES: dict[str, Lane] = {
     "memory": Lane("memory", "MCP (memory.aimarketinggenius.io)", "Supabase direct reads"),
     "file_storage": Lane("file_storage", "VPS NVMe (/data)", "Cloudflare R2"),
     "comms": Lane("comms", "Slack (titan-bot)", "Email (ops inbox)"),
-    "payment": Lane("payment", "PayPal", "TBD (Paddle/MoR)", switch_type=SwitchType.MANUAL),
+    "payment": Lane("payment", "PayPal", "PaymentCloud + Durango (Phase 2 cutover)", switch_type=SwitchType.MANUAL),
     "version_control": Lane("version_control", "GitHub", "VPS local mirror (/data/git-mirror)"),
 }
 

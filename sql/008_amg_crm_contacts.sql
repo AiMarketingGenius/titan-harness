@@ -165,22 +165,18 @@ CREATE INDEX IF NOT EXISTS idx_crm_persistent_memory_type
 CREATE INDEX IF NOT EXISTS idx_crm_persistent_memory_text_trgm
     ON public.crm_persistent_memory USING gin (text_content gin_trgm_ops);
 
--- Now wire the FK from crm_contacts.persistent_memory_ref → namespace_id.
--- Done as ALTER (not in CREATE TABLE) because crm_persistent_memory must exist
--- first. Safe to re-run because of IF NOT EXISTS pattern below.
-DO $$
-BEGIN
-    IF NOT EXISTS (
-        SELECT 1 FROM information_schema.table_constraints
-        WHERE constraint_name = 'crm_contacts_persistent_memory_ref_fkey'
-    ) THEN
-        ALTER TABLE public.crm_contacts
-            ADD CONSTRAINT crm_contacts_persistent_memory_ref_fkey
-            FOREIGN KEY (persistent_memory_ref)
-            REFERENCES public.crm_persistent_memory(namespace_id)
-            ON DELETE SET NULL;
-    END IF;
-END$$;
+-- crm_contacts.persistent_memory_ref intentionally does NOT have a FK
+-- constraint to crm_persistent_memory.namespace_id — namespace_id is shared
+-- across multiple memory rows belonging to the same contact, so it cannot
+-- carry a UNIQUE constraint. The relationship is enforced at the application
+-- layer: when a contact is created, atlas-api generates a UUID and stores it
+-- both as crm_contacts.persistent_memory_ref AND as the namespace_id for
+-- every subsequent memory row inserted for that contact. The contact-side
+-- FK that DOES exist is crm_persistent_memory.contact_id → crm_contacts.id
+-- (declared in the table definition above), which is sufficient for cascade
+-- delete + integrity. The persistent_memory_ref column on crm_contacts is a
+-- denormalized cache of "current active namespace" — convenient for the
+-- get_unified_context() lookup hot-path.
 
 -- ----------------------------------------------------------------------------
 -- 6. updated_at trigger (applied to all mutable tables)

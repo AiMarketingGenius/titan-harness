@@ -22,9 +22,11 @@ set -u
 # (they're source docs / system code, not end-user output).
 CLIENT_FACING_RE='^(deploy/|portal/|site/|marketing/|.*revere-|.*chamber-)'
 
-# Exempt paths: Chrome-extension source (legitimately names AI sites it captures
-# from), brand-assets dirs (PNG/SVG binaries), backup files, original-archives.
-EXEMPT_PATH_RE='^deploy/aimg-extension-fixes/|/brand-assets/|\.bak$|\.original\.'
+# Exempt paths: Chrome-extension source + AIMG consumer landing (legitimately
+# name the 5 supported AI platforms — core product integration, public in
+# Chrome Web Store + manifest.json host permissions), brand-assets dirs
+# (PNG/SVG binaries), backup files, original-archives.
+EXEMPT_PATH_RE='^deploy/aimg-extension-fixes/|^deploy/aimemoryguard-landing/|/brand-assets/|\.bak$|\.original\.'
 
 # Scan only files whose contents render to end users. Code files OUTSIDE exempt
 # paths still get scanned (e.g., a normal deploy/**/*.js bundle).
