@@ -2248,6 +2248,555 @@ async def api_titan_folder_lock_status() -> JSONResponse:
 # ─── end /api/titan/session block ─────────────────────────────────────────────
 
 
+# ─── CRM PHASE 1 + UNIFIED CONTEXT (CT-0417-29) ───────────────────────────────
+# Server-side CRUD for the CRM tables (sql/008) + the get_unified_context MCP
+# tool (T3) + the CRM ↔ MCP bidirectional sync hook (T7).
+#
+# All Supabase access goes through the operator service-role key
+# (SUPABASE_SERVICE_ROLE_KEY in /root/.titan-env). Bypasses RLS by design —
+# the auth gate is at the atlas-api layer, not the DB layer, for v1.
+
+_CRM_RATE: dict[str, list[float]] = {}
+_CRM_RATE_MAX = 60       # per-IP messages per minute (UI-friendly)
+_CRM_RATE_WINDOW_S = 60.0
+
+
+def _crm_write_token() -> str:
+    """Read the bearer token gating CRM write endpoints from
+    /etc/amg/crm-write.env (root-owned, 600 perms). Returns empty string
+    when missing — write endpoints then refuse all requests (fail-closed).
+    Read endpoints (GET) remain open behind the edge reverse-proxy.
+    """
+    try:
+        for line in Path("/etc/amg/crm-write.env").read_text().splitlines():
+            line = line.strip()
+            if line.startswith("CRM_WRITE_TOKEN="):
+                return line.split("=", 1)[1].strip().strip('"').strip("'")
+    except (FileNotFoundError, PermissionError, OSError):
+        pass
+    return ""
+
+
+def _verify_crm_write_auth(request: Request) -> bool:
+    """Defense-in-depth bearer check for CRM write endpoints. Edge auth
+    (Cloudflare Access / Caddy basic-auth) is the primary gate; this is
+    second-line. Returns True on bearer match, False otherwise.
+
+    Behavior when /etc/amg/crm-write.env is missing:
+      - GET endpoints: still served (edge auth assumed sufficient for read)
+      - POST endpoints: refuse 401 (fail-closed for any write)
+    """
+    expected = _crm_write_token()
+    if not expected:
+        return False  # fail-closed: no token configured, no writes
+    auth = request.headers.get("authorization", "") or request.headers.get("Authorization", "")
+    if not auth.lower().startswith("bearer "):
+        return False
+    provided = auth.split(" ", 1)[1].strip()
+    # constant-time compare
+    import hmac as _hmac
+    return _hmac.compare_digest(provided, expected)
+
+
+def _crm_supabase_url() -> str:
+    """Operator Supabase URL (egoazyasyrhslluossli)."""
+    url = os.environ.get("SUPABASE_URL", "").strip()
+    if not url:
+        # Fallback — read directly from /root/.titan-env if env not exported
+        try:
+            for line in Path("/root/.titan-env").read_text().splitlines():
+                if line.startswith("SUPABASE_URL="):
+                    return line.split("=", 1)[1].strip().strip('"').strip("'")
+        except Exception:
+            pass
+    return url
+
+
+def _crm_supabase_key() -> str:
+    """Operator service-role key. Returns empty string when unavailable."""
+    key = os.environ.get("SUPABASE_SERVICE_ROLE_KEY", "").strip()
+    if key:
+        return key
+    try:
+        for line in Path("/root/.titan-env").read_text().splitlines():
+            if line.startswith("SUPABASE_SERVICE_ROLE_KEY="):
+                return line.split("=", 1)[1].strip().strip('"').strip("'")
+    except Exception:
+        pass
+    return ""
+
+
+async def _crm_supabase_get(path: str, params: dict | None = None) -> list[dict] | dict | None:
+    """Generic GET against operator Supabase REST. Returns parsed JSON or None."""
+    if httpx is None:
+        return None
+    url = _crm_supabase_url()
+    key = _crm_supabase_key()
+    if not url or not key:
+        return None
+    headers = {"apikey": key, "Authorization": f"Bearer {key}", "Accept": "application/json"}
+    try:
+        async with httpx.AsyncClient(timeout=8.0) as c:
+            r = await c.get(f"{url}/rest/v1/{path}", headers=headers, params=params or {})
+            if r.status_code != 200:
+                return None
+            return r.json()
+    except Exception:
+        return None
+
+
+async def _crm_supabase_post(path: str, body: dict | list) -> dict | list | None:
+    """Generic POST (insert) against operator Supabase REST. Returns inserted row(s)."""
+    if httpx is None:
+        return None
+    url = _crm_supabase_url()
+    key = _crm_supabase_key()
+    if not url or not key:
+        return None
+    headers = {
+        "apikey": key, "Authorization": f"Bearer {key}",
+        "Content-Type": "application/json", "Prefer": "return=representation",
+    }
+    try:
+        async with httpx.AsyncClient(timeout=8.0) as c:
+            r = await c.post(f"{url}/rest/v1/{path}", headers=headers, json=body)
+            if r.status_code not in (200, 201):
+                return {"error": f"HTTP {r.status_code}", "detail": r.text[:500]}
+            return r.json()
+    except Exception as e:
+        return {"error": f"{type(e).__name__}: {e}"}
+
+
+def _crm_rate_check(client_ip: str) -> bool:
+    import time as _time
+    now = _time.time()
+    bucket = _CRM_RATE.setdefault(client_ip, [])
+    bucket[:] = [t for t in bucket if now - t < _CRM_RATE_WINDOW_S]
+    if len(bucket) >= _CRM_RATE_MAX:
+        return False
+    bucket.append(now)
+    return True
+
+
+# ─── Read endpoints (CRM dashboard at ops.aimarketinggenius.io/crm) ───────────
+
+@app.get("/api/crm/contacts")
+async def api_crm_contacts(request: Request, q: str | None = None) -> JSONResponse:
+    """List contacts. Optional ?q= for trigram search on display_name."""
+    if not _crm_rate_check(request.client.host if request.client else "unknown"):
+        raise HTTPException(429, "rate limit")
+    if q:
+        rows = await _crm_supabase_get("crm_contacts", params={
+            "select": "*", "display_name": f"ilike.*{q}*", "order": "updated_at.desc", "limit": "50",
+        })
+    else:
+        rows = await _crm_supabase_get("crm_contacts", params={
+            "select": "*", "order": "updated_at.desc", "limit": "200",
+        })
+    return JSONResponse({"contacts": rows or [], "count": len(rows or [])})
+
+
+@app.get("/api/crm/contacts/{slug}")
+async def api_crm_contact_one(request: Request, slug: str) -> JSONResponse:
+    """Single contact by slug, with embedded deals + recent activities + memories."""
+    if not _crm_rate_check(request.client.host if request.client else "unknown"):
+        raise HTTPException(429, "rate limit")
+    contact = await _crm_supabase_get("crm_contacts", params={
+        "select": "*", "slug": f"eq.{slug}", "limit": "1",
+    })
+    if not contact:
+        raise HTTPException(404, "contact not found")
+    c0 = contact[0] if isinstance(contact, list) else contact
+    cid = c0["id"]
+    deals = await _crm_supabase_get("crm_deals", params={
+        "select": "*", "contact_id": f"eq.{cid}", "order": "updated_at.desc",
+    })
+    activities = await _crm_supabase_get("crm_activities", params={
+        "select": "*", "contact_id": f"eq.{cid}", "order": "occurred_at.desc", "limit": "100",
+    })
+    memories = await _crm_supabase_get("crm_persistent_memory", params={
+        "select": "*", "contact_id": f"eq.{cid}",
+        "order": "importance.desc,created_at.desc", "limit": "100",
+    })
+    return JSONResponse({
+        "contact": c0, "deals": deals or [], "activities": activities or [], "memories": memories or [],
+    })
+
+
+@app.get("/api/crm/deals")
+async def api_crm_deals_pipeline(request: Request) -> JSONResponse:
+    """Deal pipeline grouped by stage."""
+    if not _crm_rate_check(request.client.host if request.client else "unknown"):
+        raise HTTPException(429, "rate limit")
+    rows = await _crm_supabase_get("crm_deals", params={
+        "select": "*,contact:crm_contacts(slug,display_name,contact_name)",
+        "order": "updated_at.desc",
+    })
+    pipeline: dict[str, list] = {}
+    for r in (rows or []):
+        pipeline.setdefault(r.get("stage", "unknown"), []).append(r)
+    return JSONResponse({"pipeline": pipeline, "count": len(rows or [])})
+
+
+@app.get("/api/crm/activities")
+async def api_crm_activities_feed(request: Request, contact_id: str | None = None) -> JSONResponse:
+    """Activity feed — global or filtered by contact_id."""
+    if not _crm_rate_check(request.client.host if request.client else "unknown"):
+        raise HTTPException(429, "rate limit")
+    params = {"select": "*,contact:crm_contacts(slug,display_name)", "order": "occurred_at.desc", "limit": "100"}
+    if contact_id:
+        params["contact_id"] = f"eq.{contact_id}"
+    rows = await _crm_supabase_get("crm_activities", params=params)
+    return JSONResponse({"activities": rows or [], "count": len(rows or [])})
+
+
+# ─── Write endpoints (T7 sync + manual UI) ────────────────────────────────────
+
+_VALID_ACTIVITY_TYPES = {"call","email-sent","email-received","sms","meeting","note","stage-change","document-shared","demo"}
+_VALID_MEMORY_TYPES   = {"fact","preference","rule","context","blocker","decision","timeline","contact-detail"}
+_VALID_DIRECTIONS     = {"inbound","outbound","internal", None, ""}
+_UUID_RE              = None  # lazy-compile in _is_uuid
+
+def _is_uuid(s: object) -> bool:
+    """Strict UUID-shape check (avoids accepting arbitrary strings as contact_id)."""
+    global _UUID_RE
+    if _UUID_RE is None:
+        import re as _re
+        _UUID_RE = _re.compile(r'^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$')
+    return isinstance(s, str) and bool(_UUID_RE.match(s))
+
+
+async def _mcp_log_with_retry(payload: dict, attempts: int = 3, base_timeout: float = 4.0) -> bool:
+    """Best-effort MCP log_decision call with exponential backoff. Returns True
+    on success. Distinguishes transient (timeout / 5xx) from permanent (4xx)
+    failures: retry transient, give up immediately on permanent.
+    """
+    if httpx is None:
+        return False
+    import asyncio as _asyncio
+    for attempt in range(1, attempts + 1):
+        try:
+            async with httpx.AsyncClient(timeout=base_timeout) as c:
+                r = await c.post("https://memory.aimarketinggenius.io/api/log_decision", json=payload)
+                if r.status_code == 200:
+                    return True
+                # 4xx = permanent client error — don't retry
+                if 400 <= r.status_code < 500:
+                    return False
+                # 5xx = retryable
+        except (httpx.TimeoutException, httpx.ConnectError, httpx.ReadTimeout):
+            pass  # retryable
+        except (httpx.HTTPError, OSError):
+            pass  # treat as retryable transient
+        if attempt < attempts:
+            await _asyncio.sleep(0.5 * (2 ** (attempt - 1)))   # 0.5s, 1s, 2s
+    return False
+
+
+@app.post("/api/crm/activities")
+async def api_crm_activity_create(request: Request) -> JSONResponse:
+    """Create a new activity row. Auto-mirrors to MCP decision log if mcp_decision_id absent.
+
+    Auth: requires `Authorization: Bearer <CRM_WRITE_TOKEN>` per
+    /etc/amg/crm-write.env. Defense-in-depth — edge auth still applies.
+
+    Input validation (returns 400 on any failure):
+      - contact_id     must be UUID
+      - activity_type  must be in _VALID_ACTIVITY_TYPES
+      - direction      must be in _VALID_DIRECTIONS or absent
+      - summary        ≤ 1000 chars, ≥ 1 char
+      - body           ≤ 10000 chars
+      - actor          ≤ 100 chars, ≥ 1 char
+    """
+    if not _verify_crm_write_auth(request):
+        raise HTTPException(401, "unauthorized — bearer token required for CRM writes")
+    if not _crm_rate_check(request.client.host if request.client else "unknown"):
+        raise HTTPException(429, "rate limit")
+    try:
+        body = await request.json()
+    except (ValueError, TypeError):
+        raise HTTPException(400, "invalid JSON body")
+    if not isinstance(body, dict):
+        raise HTTPException(400, "body must be a JSON object")
+
+    # Required fields
+    for k in ("contact_id", "activity_type", "summary", "actor"):
+        if not body.get(k):
+            raise HTTPException(400, f"required field missing: {k}")
+    # Type / shape validation
+    if not _is_uuid(body["contact_id"]):
+        raise HTTPException(400, "contact_id must be a valid UUID")
+    if body["activity_type"] not in _VALID_ACTIVITY_TYPES:
+        raise HTTPException(400, f"activity_type must be one of {sorted(_VALID_ACTIVITY_TYPES)}")
+    if body.get("direction") not in _VALID_DIRECTIONS:
+        raise HTTPException(400, f"direction must be one of inbound/outbound/internal")
+    summary = str(body["summary"])[:1000]
+    if len(summary.strip()) == 0:
+        raise HTTPException(400, "summary cannot be empty/whitespace")
+    body["summary"] = summary
+    if "body" in body and body["body"] is not None:
+        body["body"] = str(body["body"])[:10000]
+    actor = str(body["actor"])[:100]
+    if len(actor.strip()) == 0:
+        raise HTTPException(400, "actor cannot be empty")
+    body["actor"] = actor
+
+    inserted = await _crm_supabase_post("crm_activities", body)
+    if isinstance(inserted, dict) and inserted.get("error"):
+        raise HTTPException(502, f"supabase: {inserted.get('error')}")
+
+    # T7 — auto-mirror to MCP decision log (best-effort, retry-on-transient)
+    mcp_logged = False
+    if not body.get("mcp_decision_id"):
+        slug_lookup = await _crm_supabase_get("crm_contacts", params={
+            "select": "slug,display_name", "id": f"eq.{body['contact_id']}", "limit": "1",
+        })
+        first = (slug_lookup or [{}])[0] if isinstance(slug_lookup, list) else {}
+        slug    = first.get("slug") or body["contact_id"][:8]
+        display = first.get("display_name") or "(unknown)"
+        mcp_logged = await _mcp_log_with_retry({
+            "project_source": "CRM",
+            "text": f"[CRM activity] {display} ({body['activity_type']}) — {body['summary']}",
+            "tags": ["crm-activity", f"client:{slug}", body["activity_type"]],
+        })
+    return JSONResponse({"created": inserted, "mcp_mirrored": mcp_logged})
+
+
+@app.post("/api/crm/memories")
+async def api_crm_memory_write(request: Request) -> JSONResponse:
+    """Append to a contact's persistent memory namespace.
+
+    Auth: requires `Authorization: Bearer <CRM_WRITE_TOKEN>` per
+    /etc/amg/crm-write.env. Defense-in-depth.
+
+    Input validation (returns 400 on any failure):
+      - contact_id     must be UUID
+      - memory_type    must be in _VALID_MEMORY_TYPES
+      - text_content   ≤ 2000 chars, ≥ 1 char
+      - importance     1-10 inclusive (default 5)
+      - written_by     ≤ 100 chars, ≥ 1 char
+    """
+    if not _verify_crm_write_auth(request):
+        raise HTTPException(401, "unauthorized — bearer token required for CRM writes")
+    if not _crm_rate_check(request.client.host if request.client else "unknown"):
+        raise HTTPException(429, "rate limit")
+    try:
+        body = await request.json()
+    except (ValueError, TypeError):
+        raise HTTPException(400, "invalid JSON body")
+    if not isinstance(body, dict):
+        raise HTTPException(400, "body must be a JSON object")
+
+    for k in ("contact_id", "memory_type", "text_content", "written_by"):
+        if not body.get(k):
+            raise HTTPException(400, f"required field missing: {k}")
+    if not _is_uuid(body["contact_id"]):
+        raise HTTPException(400, "contact_id must be a valid UUID")
+    if body["memory_type"] not in _VALID_MEMORY_TYPES:
+        raise HTTPException(400, f"memory_type must be one of {sorted(_VALID_MEMORY_TYPES)}")
+    text = str(body["text_content"])[:2000]
+    if len(text.strip()) == 0:
+        raise HTTPException(400, "text_content cannot be empty")
+    body["text_content"] = text
+    written = str(body["written_by"])[:100]
+    if len(written.strip()) == 0:
+        raise HTTPException(400, "written_by cannot be empty")
+    body["written_by"] = written
+    if "importance" in body:
+        try:
+            imp = int(body["importance"])
+        except (TypeError, ValueError):
+            raise HTTPException(400, "importance must be integer 1-10")
+        if not 1 <= imp <= 10:
+            raise HTTPException(400, "importance must be 1-10 inclusive")
+        body["importance"] = imp
+
+    # Auto-resolve namespace_id from contact's persistent_memory_ref if absent
+    if not body.get("namespace_id"):
+        c_rows = await _crm_supabase_get("crm_contacts", params={
+            "select": "persistent_memory_ref", "id": f"eq.{body['contact_id']}", "limit": "1",
+        })
+        if c_rows and isinstance(c_rows, list) and c_rows[0].get("persistent_memory_ref"):
+            body["namespace_id"] = c_rows[0]["persistent_memory_ref"]
+
+    inserted = await _crm_supabase_post("crm_persistent_memory", body)
+    if isinstance(inserted, dict) and inserted.get("error"):
+        raise HTTPException(502, f"supabase: {inserted.get('error')}")
+    return JSONResponse({"created": inserted})
+
+
+# ─── Unified context — the T3 deliverable ─────────────────────────────────────
+# Single endpoint that blends Layer 1 (MCP recent decisions) + Layer 2
+# (per-contact crm_persistent_memory + activities + facts) + Layer 4 (KB tags
+# from agent_context_loader if available). Returns a ranked context block
+# ready to inject into Atlas / EOM / Titan prompts.
+#
+# Per the doctrine in plans/doctrine/PERSISTENT_MEMORY_SCHEMA.md:
+#   priority 1 → Layer 1 [P10 PERMANENT] standing rules
+#   priority 2 → Layer 2 high-importance per-contact memories (importance >= 8)
+#   priority 3 → Layer 4 KB content
+#   priority 4 → Layer 1 recent decisions (last 30 days)
+#   priority 5 → Layer 5 session resume state (excluded — not consumed by operator stack)
+
+@app.get("/api/crm/unified-context")
+async def api_crm_unified_context(
+    request: Request,
+    project_id: str = "EOM",
+    contact_slug: str | None = None,
+    query: str | None = None,
+    include_crm: bool = True,
+    include_consumer: bool = False,   # consumer = Layer 3, never blended in v1
+    max_tokens: int = 4000,
+) -> JSONResponse:
+    """T3 — get_unified_context. Blends MCP + CRM persistent memory + KB.
+
+    Returns:
+      { ranked_context: [{layer, priority, content, source, importance}],
+        cacheable_prefix: <stable KB block for cache_control>,
+        query_tail:       <variable per-call additions>,
+        token_estimate:   int }
+    """
+    if not _crm_rate_check(request.client.host if request.client else "unknown"):
+        raise HTTPException(429, "rate limit")
+
+    if include_consumer:
+        return JSONResponse({"error": "Layer 3 (consumer Supabase) is not blendable in v1 per tenant-isolation doctrine. Set include_consumer=false."}, status_code=400)
+
+    ranked: list[dict] = []
+    cacheable_chunks: list[str] = []
+
+    # ── Priority 1: Layer 1 MCP P10 PERMANENT standing rules
+    if httpx is not None:
+        try:
+            async with httpx.AsyncClient(timeout=4.0) as c:
+                r = await c.get("https://memory.aimarketinggenius.io/api/get_recent_decisions",
+                                params={"count": "20", "project_filter": project_id})
+                if r.status_code == 200:
+                    decisions = r.json() if isinstance(r.json(), list) else r.json().get("decisions", [])
+                    for d in decisions:
+                        text = d.get("text", "")
+                        if "[P10 PERMANENT" in text or "[P10]" in text:
+                            ranked.append({
+                                "layer": 1, "priority": 1, "content": text[:600], "importance": 10,
+                                "source": "MCP P10 PERMANENT", "ts": d.get("created_at"),
+                            })
+                            cacheable_chunks.append(f"[P10] {text[:400]}")
+        except Exception:
+            pass
+
+    # ── Priority 2: Layer 2 high-importance per-contact memories
+    if include_crm and contact_slug:
+        c_rows = await _crm_supabase_get("crm_contacts", params={
+            "select": "id,slug,display_name,contact_name,contact_email,contact_phone,address,city,state,zip,timezone,tags,persistent_memory_ref",
+            "slug": f"eq.{contact_slug}", "limit": "1",
+        })
+        if c_rows:
+            c0 = c_rows[0]
+            cid = c0["id"]
+            # contact card itself
+            contact_card = (
+                f"CONTACT: {c0.get('display_name')} (slug={c0.get('slug')})\n"
+                f"Primary contact: {c0.get('contact_name')} · {c0.get('contact_email')} · {c0.get('contact_phone')}\n"
+                f"Address: {c0.get('address') or ''} {c0.get('city') or ''} {c0.get('state') or ''} {c0.get('zip') or ''}\n"
+                f"Timezone: {c0.get('timezone')} · Tags: {', '.join(c0.get('tags') or [])}"
+            )
+            ranked.append({"layer": 2, "priority": 2, "content": contact_card, "importance": 10,
+                           "source": "crm_contacts", "ts": None})
+            cacheable_chunks.append(contact_card)
+            # high-importance memories (importance >= 8)
+            mem_params = {"select": "memory_type,text_content,importance,valid_from",
+                          "contact_id": f"eq.{cid}", "importance": "gte.8",
+                          "order": "importance.desc,created_at.desc", "limit": "20"}
+            mems = await _crm_supabase_get("crm_persistent_memory", params=mem_params)
+            for m in (mems or []):
+                ranked.append({
+                    "layer": 2, "priority": 2,
+                    "content": f"[{m['memory_type']}/imp{m['importance']}] {m['text_content']}",
+                    "importance": m["importance"], "source": "crm_persistent_memory",
+                    "ts": m.get("valid_from"),
+                })
+                cacheable_chunks.append(f"[{m['memory_type']}] {m['text_content']}")
+            # active deal headline
+            deals = await _crm_supabase_get("crm_deals", params={
+                "select": "title,stage,amount_cents,currency,metadata,expected_close",
+                "contact_id": f"eq.{cid}", "order": "updated_at.desc", "limit": "3",
+            })
+            for d in (deals or []):
+                ranked.append({
+                    "layer": 2, "priority": 2,
+                    "content": f"DEAL: {d['title']} · stage={d['stage']} · amt={d.get('amount_cents')} {d.get('currency')}",
+                    "importance": 9, "source": "crm_deals", "ts": None,
+                })
+            # recent activities (top 5)
+            acts = await _crm_supabase_get("crm_activities", params={
+                "select": "activity_type,direction,summary,occurred_at,actor",
+                "contact_id": f"eq.{cid}", "order": "occurred_at.desc", "limit": "5",
+            })
+            for a in (acts or []):
+                ranked.append({
+                    "layer": 2, "priority": 4,
+                    "content": f"ACT [{a['activity_type']}/{a.get('direction','')}] {a['summary']} ({a.get('actor')})",
+                    "importance": 6, "source": "crm_activities", "ts": a.get("occurred_at"),
+                })
+
+    # ── Priority 4: Layer 1 recent decisions (last 30 days, non-P10)
+    if httpx is not None:
+        try:
+            async with httpx.AsyncClient(timeout=4.0) as c:
+                r = await c.get("https://memory.aimarketinggenius.io/api/get_recent_decisions",
+                                params={"count": "10", "project_filter": project_id})
+                if r.status_code == 200:
+                    decisions = r.json() if isinstance(r.json(), list) else r.json().get("decisions", [])
+                    for d in decisions:
+                        text = d.get("text", "")
+                        if "[P10" not in text:
+                            ranked.append({
+                                "layer": 1, "priority": 4, "content": text[:400],
+                                "importance": 5, "source": "MCP recent", "ts": d.get("created_at"),
+                            })
+        except Exception:
+            pass
+
+    # ── Token estimate (rough — 1 token ≈ 4 chars)
+    full_text = "\n".join(item["content"] for item in ranked)
+    token_estimate = max(1, len(full_text) // 4)
+
+    return JSONResponse({
+        "ranked_context": ranked,
+        "cacheable_prefix": "\n".join(cacheable_chunks),
+        "query_tail": query or "",
+        "token_estimate": token_estimate,
+        "doctrine_ref": "plans/doctrine/PERSISTENT_MEMORY_SCHEMA.md",
+        "project_id": project_id,
+        "contact_slug": contact_slug,
+        "ts": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+    })
+
+
+# ─── CRM dashboard UI (T4) ────────────────────────────────────────────────────
+
+@app.get("/crm")
+async def crm_dashboard_serve() -> Response:
+    """Serve the CRM Phase 1 dashboard."""
+    path = STATIC_DIR / "crm.html"
+    if not path.exists():
+        raise HTTPException(404, "crm.html missing — deploy pending")
+    return FileResponse(path, media_type="text/html")
+
+
+@app.get("/api/crm/health")
+def api_crm_health() -> dict:
+    return {
+        "service": "crm-phase-1",
+        "supabase_configured": bool(_crm_supabase_url() and _crm_supabase_key()),
+        "doctrine": "sql/008_amg_crm_contacts.sql + plans/doctrine/PERSISTENT_MEMORY_SCHEMA.md",
+        "ts": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+    }
+
+
+# ─── end /api/crm block ───────────────────────────────────────────────────────
+
+
 if __name__ == "__main__":  # pragma: no cover
     import uvicorn
     port = int(os.environ.get("ATLAS_API_PORT", "8081"))

@@ -1,0 +1,474 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0B2572">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<title>AMG CRM — Phase 1</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700&display=swap">
+<style>
+  :root {
+    --navy-0: #07184a;
+    --navy-1: #0B2572;
+    --navy-2: #14327f;
+    --teal: #2DB4CA;
+    --teal-lt: #4ED0DB;
+    --royal: #116DFF;
+    --gold: #d4a627;
+    --gold-lt: #f4d88a;
+    --paper: #ffffff;
+    --ivory: #fbf9f3;
+    --ink: #1c2433;
+    --muted: #6c7687;
+    --line: #e6e2d4;
+    --ok: #1a7f4d;
+    --warn: #c17a00;
+    --danger: #a02020;
+    --radius: 12px;
+    --radius-lg: 16px;
+    --shadow-card: 0 4px 24px rgba(11,37,114,0.08);
+    --shadow-elev: 0 12px 40px rgba(11,37,114,0.14);
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { margin:0; padding:0; font-family:'Montserrat',-apple-system,BlinkMacSystemFont,sans-serif; background:var(--ivory); color:var(--ink); -webkit-font-smoothing:antialiased; }
+  a { color: var(--royal); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  .skip { position:absolute; left:-9999px; top:8px; padding:8px 14px; background:var(--gold); color:var(--navy-0); border-radius:8px; font-weight:600; z-index:100; }
+  .skip:focus { left:16px; outline:2px solid var(--paper); outline-offset:2px; }
+
+  /* ============ App shell ============ */
+  .app { display:grid; grid-template-rows:auto 1fr; min-height:100vh; }
+  .topbar { display:flex; align-items:center; justify-content:space-between; padding:14px 28px; background:linear-gradient(135deg,var(--navy-0),var(--navy-1) 60%,var(--navy-2)); color:#fff; box-shadow:0 2px 14px rgba(7,24,74,0.32); position:sticky; top:0; z-index:10; }
+  .brand { display:flex; align-items:center; gap:14px; }
+  .brand-mark { width:38px; height:38px; border-radius:10px; background:linear-gradient(135deg,var(--gold),var(--teal-lt)); display:flex; align-items:center; justify-content:center; font-weight:700; color:var(--navy-0); box-shadow:0 2px 8px rgba(212,166,39,0.3); }
+  .brand-txt { display:flex; flex-direction:column; line-height:1.15; }
+  .brand-line1 { font-weight:600; font-size:15px; letter-spacing:-0.005em; }
+  .brand-line2 { font-size:11px; color:var(--gold-lt); letter-spacing:0.08em; text-transform:uppercase; font-weight:500; }
+  .topnav { display:flex; gap:6px; }
+  .topnav button { padding:8px 14px; font:600 13px/1 'Montserrat',sans-serif; background:transparent; border:1px solid transparent; color:rgba(255,255,255,0.7); border-radius:8px; cursor:pointer; transition:background 150ms ease, color 150ms ease; }
+  .topnav button:hover { color:#fff; background:rgba(255,255,255,0.06); }
+  .topnav button.active { background:var(--gold); color:var(--navy-0); }
+  .status { display:flex; align-items:center; gap:8px; font-size:11px; color:rgba(255,255,255,0.65); letter-spacing:0.05em; text-transform:uppercase; }
+  .status-dot { width:8px; height:8px; border-radius:50%; background:var(--ok); box-shadow:0 0 8px rgba(26,127,77,0.7); }
+  .status-dot.err { background:var(--danger); box-shadow:0 0 8px rgba(160,32,32,0.7); }
+
+  /* ============ Main ============ */
+  main { padding:24px 28px 80px; max-width:1400px; width:100%; margin:0 auto; }
+  .view-head { display:flex; align-items:flex-end; justify-content:space-between; margin-bottom:20px; gap:24px; flex-wrap:wrap; }
+  .view-head h2 { margin:0; font-size:26px; font-weight:600; letter-spacing:-0.01em; }
+  .view-head .sub { margin-top:4px; color:var(--muted); font-size:14px; }
+  .search-input { padding:10px 14px; min-width:280px; font:500 14px/1 'Montserrat',sans-serif; background:#fff; border:1px solid var(--line); border-radius:999px; outline:none; color:var(--ink); transition:border-color 150ms ease, box-shadow 150ms ease; }
+  .search-input:focus { border-color:var(--royal); box-shadow:0 0 0 3px rgba(17,109,255,0.12); }
+  .btn { display:inline-flex; align-items:center; gap:8px; padding:9px 16px; font:600 13px/1 'Montserrat',sans-serif; border-radius:999px; cursor:pointer; transition:transform 120ms ease, box-shadow 150ms ease, background 150ms ease; border:none; }
+  .btn-primary { background:linear-gradient(135deg,var(--gold),#e0b84a); color:var(--navy-0); box-shadow:0 4px 14px rgba(212,166,39,0.28); }
+  .btn-primary:hover { transform:translateY(-1px); }
+  .btn-ghost { background:#fff; border:1px solid var(--line); color:var(--navy-1); }
+  .btn-ghost:hover { background:#fafafa; }
+
+  /* ============ Contacts grid ============ */
+  .contacts-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(320px,1fr)); gap:18px; }
+  .contact-card { background:#fff; border:1px solid var(--line); border-radius:var(--radius); padding:18px 20px; box-shadow:var(--shadow-card); transition:transform 150ms ease, box-shadow 150ms ease; cursor:pointer; }
+  .contact-card:hover { transform:translateY(-2px); box-shadow:var(--shadow-elev); }
+  .cc-head { display:flex; align-items:flex-start; justify-content:space-between; gap:14px; margin-bottom:10px; }
+  .cc-name { font-size:16px; font-weight:600; color:var(--ink); margin:0; }
+  .cc-slug { font-size:11px; color:var(--muted); letter-spacing:0.05em; text-transform:uppercase; margin-top:2px; }
+  .cc-tag { display:inline-block; padding:3px 9px; font-size:10px; font-weight:600; letter-spacing:0.06em; text-transform:uppercase; color:var(--navy-1); background:rgba(45,180,202,0.12); border:1px solid rgba(45,180,202,0.28); border-radius:999px; margin-right:4px; margin-bottom:4px; }
+  .cc-tag.gold { color:#7a5b0f; background:rgba(212,166,39,0.14); border-color:rgba(212,166,39,0.4); }
+  .cc-tag.warn { color:var(--danger); background:rgba(160,32,32,0.08); border-color:rgba(160,32,32,0.3); }
+  .cc-meta { font-size:13px; color:var(--muted); line-height:1.5; }
+  .cc-meta b { color:var(--ink); font-weight:500; }
+
+  /* ============ Pipeline kanban ============ */
+  .pipeline { display:grid; grid-template-columns:repeat(6,minmax(220px,1fr)); gap:14px; overflow-x:auto; padding-bottom:8px; }
+  @media (max-width:1100px){ .pipeline { grid-template-columns:repeat(3,minmax(220px,1fr)); } }
+  @media (max-width:700px){ .pipeline { grid-template-columns:1fr; } }
+  .stage-col { background:#fff; border:1px solid var(--line); border-radius:var(--radius); padding:14px; box-shadow:var(--shadow-card); }
+  .stage-col h3 { margin:0 0 12px; font-size:11px; font-weight:600; letter-spacing:0.1em; text-transform:uppercase; color:var(--muted); display:flex; justify-content:space-between; align-items:center; }
+  .stage-col h3 .count { background:var(--navy-1); color:#fff; padding:2px 7px; border-radius:8px; font-size:10px; }
+  .deal-card { background:linear-gradient(180deg,#fff,#fbfbf7); border:1px solid var(--line); border-radius:8px; padding:11px 13px; margin-bottom:10px; cursor:pointer; transition:transform 120ms ease, border-color 150ms ease; }
+  .deal-card:hover { transform:translateY(-1px); border-color:var(--royal); }
+  .deal-title { font-size:13px; font-weight:500; color:var(--ink); margin:0 0 4px; line-height:1.35; }
+  .deal-meta { font-size:11px; color:var(--muted); }
+  .deal-amount { font-size:11px; color:var(--ok); font-weight:600; margin-top:4px; }
+
+  /* ============ Activity feed ============ */
+  .activity-feed { background:#fff; border:1px solid var(--line); border-radius:var(--radius); box-shadow:var(--shadow-card); overflow:hidden; }
+  .activity-row { display:grid; grid-template-columns:80px 130px 1fr; gap:14px; padding:14px 18px; border-bottom:1px solid #f1efe8; align-items:start; }
+  .activity-row:last-child { border-bottom:none; }
+  .a-when { font-size:11px; color:var(--muted); }
+  .a-type { display:inline-block; padding:3px 10px; font-size:10px; font-weight:600; letter-spacing:0.06em; text-transform:uppercase; color:var(--navy-1); background:rgba(11,37,114,0.06); border-radius:999px; }
+  .a-type.outbound { color:var(--royal); background:rgba(17,109,255,0.08); }
+  .a-type.note { color:var(--muted); background:rgba(108,118,135,0.1); }
+  .a-summary { font-size:13.5px; color:var(--ink); margin:0; font-weight:500; line-height:1.4; }
+  .a-body { font-size:12.5px; color:var(--muted); margin-top:4px; line-height:1.5; }
+  .a-meta { font-size:11px; color:var(--muted); margin-top:4px; }
+
+  /* ============ Drawer (contact detail) ============ */
+  .drawer-overlay { position:fixed; inset:0; background:rgba(7,24,74,0.45); backdrop-filter:blur(4px); -webkit-backdrop-filter:blur(4px); display:none; z-index:50; }
+  .drawer-overlay.open { display:block; }
+  .drawer { position:fixed; right:0; top:0; bottom:0; width:min(560px,92vw); background:#fff; box-shadow:-12px 0 40px rgba(7,24,74,0.22); transform:translateX(100%); transition:transform 250ms cubic-bezier(.22,1,.36,1); overflow-y:auto; z-index:60; }
+  .drawer.open { transform:translateX(0); }
+  .drawer-head { padding:22px 26px 14px; border-bottom:1px solid var(--line); position:sticky; top:0; background:linear-gradient(180deg,#fff 70%,rgba(255,255,255,0)); display:flex; align-items:flex-start; justify-content:space-between; gap:14px; }
+  .drawer-head h3 { margin:0; font-size:20px; font-weight:600; color:var(--ink); }
+  .drawer-close { background:transparent; border:none; cursor:pointer; font-size:24px; color:var(--muted); padding:0 8px; }
+  .drawer-body { padding:18px 26px 60px; }
+  .d-section { margin-bottom:24px; }
+  .d-section h4 { margin:0 0 8px; font-size:11px; font-weight:600; letter-spacing:0.1em; text-transform:uppercase; color:var(--muted); }
+  .d-row { display:flex; justify-content:space-between; padding:6px 0; font-size:13.5px; border-bottom:1px solid #f4f1e7; }
+  .d-row .lbl { color:var(--muted); }
+  .d-row .val { color:var(--ink); font-weight:500; text-align:right; }
+  .d-memory { background:linear-gradient(180deg,#fbf9f3,#fff); border:1px solid var(--line); border-left:3px solid var(--gold); border-radius:8px; padding:11px 13px; margin-bottom:8px; font-size:13px; line-height:1.45; }
+  .d-memory .m-meta { font-size:10.5px; color:var(--muted); margin-bottom:4px; letter-spacing:0.05em; text-transform:uppercase; }
+  .d-deal { background:#fbfbf7; border:1px solid var(--line); border-radius:8px; padding:11px 13px; margin-bottom:8px; }
+  .d-deal-title { font-size:13.5px; font-weight:500; margin:0 0 4px; }
+  .d-deal-stage { display:inline-block; padding:2px 9px; font-size:10px; font-weight:600; letter-spacing:0.05em; text-transform:uppercase; border-radius:999px; }
+  .d-deal-stage.discovery { color:var(--royal); background:rgba(17,109,255,0.1); }
+  .d-deal-stage.proposal-sent { color:#7a5b0f; background:rgba(212,166,39,0.16); }
+  .d-deal-stage.closed-won { color:var(--ok); background:rgba(26,127,77,0.12); }
+  .d-deal-stage.closed-lost { color:var(--danger); background:rgba(160,32,32,0.1); }
+  .d-deal-stage.on-hold { color:var(--warn); background:rgba(193,122,0,0.12); }
+  .d-deal-stage.negotiation { color:var(--navy-1); background:rgba(11,37,114,0.08); }
+
+  /* ============ View switcher ============ */
+  .view { display:none; }
+  .view.active { display:block; animation:fadein 200ms ease-out; }
+  @keyframes fadein { from { opacity:0; transform:translateY(4px); } to { opacity:1; transform:translateY(0); } }
+
+  .empty { text-align:center; padding:60px 20px; color:var(--muted); }
+  .empty p { margin:8px 0; }
+
+  @media (prefers-reduced-motion:reduce) { * { transition:none !important; animation:none !important; } }
+</style>
+</head>
+<body>
+
+<a href="#main" class="skip">Skip to main content</a>
+
+<div class="app">
+  <header class="topbar" role="banner">
+    <div class="brand">
+      <div class="brand-mark">CRM</div>
+      <div class="brand-txt">
+        <span class="brand-line1">AMG CRM</span>
+        <span class="brand-line2">Phase 1 · Internal</span>
+      </div>
+    </div>
+    <nav class="topnav" aria-label="CRM views">
+      <button class="active" data-view="contacts">Contacts</button>
+      <button data-view="pipeline">Pipeline</button>
+      <button data-view="activity">Activity</button>
+    </nav>
+    <div class="status" role="status" aria-live="polite">
+      <span id="status-dot" class="status-dot"></span>
+      <span id="status-txt">Connected</span>
+    </div>
+  </header>
+
+  <main id="main" role="main">
+    <!-- Contacts view -->
+    <section class="view active" data-view="contacts">
+      <div class="view-head">
+        <div>
+          <h2>Contacts</h2>
+          <div class="sub">Single source of truth for every active client + deal in pipeline.</div>
+        </div>
+        <input id="contact-search" class="search-input" placeholder="Search by name…" aria-label="Search contacts">
+      </div>
+      <div id="contacts-grid" class="contacts-grid"></div>
+    </section>
+
+    <!-- Pipeline view -->
+    <section class="view" data-view="pipeline">
+      <div class="view-head">
+        <div>
+          <h2>Deal Pipeline</h2>
+          <div class="sub">Stages from discovery through close.</div>
+        </div>
+      </div>
+      <div id="pipeline" class="pipeline"></div>
+    </section>
+
+    <!-- Activity view -->
+    <section class="view" data-view="activity">
+      <div class="view-head">
+        <div>
+          <h2>Activity Feed</h2>
+          <div class="sub">All calls, emails, notes, and stage changes across every contact. Auto-mirrored to MCP decision log.</div>
+        </div>
+      </div>
+      <div id="activity-feed" class="activity-feed"></div>
+    </section>
+  </main>
+</div>
+
+<!-- Drawer -->
+<div id="drawer-overlay" class="drawer-overlay" role="presentation"></div>
+<aside id="drawer" class="drawer" role="dialog" aria-modal="true" aria-labelledby="drawer-title" hidden>
+  <div class="drawer-head">
+    <div>
+      <h3 id="drawer-title">Contact</h3>
+      <div class="sub" style="font-size:12px;color:var(--muted);margin-top:2px" id="drawer-sub"></div>
+    </div>
+    <button class="drawer-close" id="drawer-close" aria-label="Close drawer">×</button>
+  </div>
+  <div class="drawer-body" id="drawer-body"></div>
+</aside>
+
+<script>
+(function(){
+  const API = ''; // same-origin; atlas-api serves /api/crm/* and /crm
+  const els = {
+    statusDot: document.getElementById('status-dot'),
+    statusTxt: document.getElementById('status-txt'),
+    contactsGrid: document.getElementById('contacts-grid'),
+    pipeline: document.getElementById('pipeline'),
+    activityFeed: document.getElementById('activity-feed'),
+    contactSearch: document.getElementById('contact-search'),
+    drawer: document.getElementById('drawer'),
+    drawerOverlay: document.getElementById('drawer-overlay'),
+    drawerClose: document.getElementById('drawer-close'),
+    drawerTitle: document.getElementById('drawer-title'),
+    drawerSub: document.getElementById('drawer-sub'),
+    drawerBody: document.getElementById('drawer-body'),
+  };
+
+  function escapeHtml(s){ return String(s||'').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+  function setStatus(ok, txt){ els.statusDot.className = 'status-dot' + (ok ? '' : ' err'); els.statusTxt.textContent = txt; }
+  function fmtMoney(cents, currency){ if(cents == null) return ''; const v = (cents/100).toLocaleString('en-US',{style:'currency',currency:currency||'USD',maximumFractionDigits:0}); return v; }
+  function fmtDate(iso){ if(!iso) return ''; try { return new Date(iso).toLocaleString('en-US',{month:'short',day:'numeric',hour:'numeric',minute:'2-digit'}); } catch(e){ return iso; } }
+  function fmtRelative(iso){
+    if(!iso) return '';
+    const ms = Date.now() - new Date(iso).getTime();
+    const min = Math.round(ms/60000); if(min<60) return min+' min ago';
+    const hr = Math.round(min/60); if(hr<24) return hr+'h ago';
+    const d = Math.round(hr/24); if(d<14) return d+'d ago';
+    return fmtDate(iso);
+  }
+
+  async function fetchJson(path){
+    try {
+      const r = await fetch(API + path);
+      if(!r.ok) throw new Error('HTTP ' + r.status);
+      setStatus(true, 'Connected');
+      return await r.json();
+    } catch(e){
+      setStatus(false, 'Offline');
+      console.error(path, e);
+      return null;
+    }
+  }
+
+  // ── Contacts ─────────────────────────────────────────────
+  function renderContacts(contacts){
+    if(!contacts || !contacts.length){
+      els.contactsGrid.innerHTML = '<div class="empty"><p>No contacts found.</p><p>Backfill via sql/008b_crm_seed_backfill.sql or POST to /api/crm/contacts.</p></div>';
+      return;
+    }
+    els.contactsGrid.innerHTML = contacts.map(c => `
+      <div class="contact-card" data-slug="${escapeHtml(c.slug)}">
+        <div class="cc-head">
+          <div>
+            <h3 class="cc-name">${escapeHtml(c.display_name||'')}</h3>
+            <div class="cc-slug">${escapeHtml(c.slug||'')}</div>
+          </div>
+        </div>
+        <div class="cc-meta">
+          ${c.contact_name ? '<b>'+escapeHtml(c.contact_name)+'</b><br>' : ''}
+          ${c.contact_email ? escapeHtml(c.contact_email)+'<br>' : ''}
+          ${c.contact_phone ? escapeHtml(c.contact_phone)+'<br>' : ''}
+          ${c.city ? escapeHtml(c.city) + (c.state ? ', '+escapeHtml(c.state) : '') : ''}
+        </div>
+        <div style="margin-top:10px">
+          ${(c.tags||[]).map(t => {
+            const cls = t.includes('crisis') || t.includes('warn') ? 'warn' : (t.includes('founding') || t.includes('priority') ? 'gold' : '');
+            return `<span class="cc-tag ${cls}">${escapeHtml(t)}</span>`;
+          }).join('')}
+        </div>
+      </div>
+    `).join('');
+    els.contactsGrid.querySelectorAll('.contact-card').forEach(card => {
+      card.addEventListener('click', () => openContact(card.dataset.slug));
+    });
+  }
+
+  async function loadContacts(query){
+    const path = query ? `/api/crm/contacts?q=${encodeURIComponent(query)}` : '/api/crm/contacts';
+    const data = await fetchJson(path);
+    renderContacts(data && data.contacts);
+  }
+
+  // ── Pipeline ─────────────────────────────────────────────
+  const STAGE_ORDER = ['discovery','proposal-sent','negotiation','closed-won','closed-lost','on-hold'];
+  function renderPipeline(pipeline){
+    if(!pipeline){ els.pipeline.innerHTML = '<div class="empty"><p>No deals.</p></div>'; return; }
+    els.pipeline.innerHTML = STAGE_ORDER.map(stage => {
+      const deals = pipeline[stage] || [];
+      return `
+        <div class="stage-col">
+          <h3>${escapeHtml(stage)} <span class="count">${deals.length}</span></h3>
+          ${deals.map(d => {
+            const slug = d.contact ? d.contact.slug : '';
+            const name = d.contact ? d.contact.display_name : '';
+            return `
+              <div class="deal-card" data-slug="${escapeHtml(slug)}">
+                <p class="deal-title">${escapeHtml(d.title||'')}</p>
+                <div class="deal-meta">${escapeHtml(name||'')}</div>
+                ${d.amount_cents ? '<div class="deal-amount">'+fmtMoney(d.amount_cents, d.currency)+'</div>' : ''}
+              </div>
+            `;
+          }).join('')}
+          ${deals.length === 0 ? '<div style="color:var(--muted);font-size:12px;padding:8px 0">empty</div>' : ''}
+        </div>
+      `;
+    }).join('');
+    els.pipeline.querySelectorAll('.deal-card').forEach(card => {
+      card.addEventListener('click', () => { if(card.dataset.slug) openContact(card.dataset.slug); });
+    });
+  }
+
+  async function loadPipeline(){
+    const data = await fetchJson('/api/crm/deals');
+    renderPipeline(data && data.pipeline);
+  }
+
+  // ── Activity feed ─────────────────────────────────────────
+  function renderActivity(activities){
+    if(!activities || !activities.length){
+      els.activityFeed.innerHTML = '<div class="empty"><p>No activities yet.</p></div>'; return;
+    }
+    els.activityFeed.innerHTML = activities.map(a => {
+      const dirClass = a.direction === 'outbound' ? 'outbound' : (a.activity_type === 'note' ? 'note' : '');
+      const slug = a.contact ? a.contact.slug : '';
+      const name = a.contact ? a.contact.display_name : '';
+      return `
+        <div class="activity-row" data-slug="${escapeHtml(slug)}" style="cursor:pointer">
+          <div class="a-when">${escapeHtml(fmtRelative(a.occurred_at))}</div>
+          <div><span class="a-type ${dirClass}">${escapeHtml(a.activity_type||'')}</span></div>
+          <div>
+            <p class="a-summary">${escapeHtml(a.summary||'')}</p>
+            ${a.body ? '<p class="a-body">'+escapeHtml(a.body)+'</p>' : ''}
+            <div class="a-meta">${escapeHtml(name||'')}${a.actor ? ' · by '+escapeHtml(a.actor) : ''}</div>
+          </div>
+        </div>
+      `;
+    }).join('');
+    els.activityFeed.querySelectorAll('.activity-row').forEach(row => {
+      row.addEventListener('click', () => { if(row.dataset.slug) openContact(row.dataset.slug); });
+    });
+  }
+
+  async function loadActivity(){
+    const data = await fetchJson('/api/crm/activities');
+    renderActivity(data && data.activities);
+  }
+
+  // ── Drawer ───────────────────────────────────────────────
+  async function openContact(slug){
+    const data = await fetchJson('/api/crm/contacts/' + encodeURIComponent(slug));
+    if(!data || !data.contact){ alert('Contact not found.'); return; }
+    const c = data.contact;
+    els.drawerTitle.textContent = c.display_name || '(unnamed)';
+    els.drawerSub.textContent = (c.contact_name || '') + (c.tags ? ' · ' + (c.tags||[]).join(' · ') : '');
+
+    let html = '';
+
+    // Contact details
+    html += '<div class="d-section"><h4>Contact</h4>';
+    if(c.contact_email) html += `<div class="d-row"><span class="lbl">Email</span><span class="val">${escapeHtml(c.contact_email)}</span></div>`;
+    if(c.contact_phone) html += `<div class="d-row"><span class="lbl">Phone</span><span class="val">${escapeHtml(c.contact_phone)}</span></div>`;
+    if(c.address) html += `<div class="d-row"><span class="lbl">Address</span><span class="val">${escapeHtml(c.address)}</span></div>`;
+    if(c.city || c.state) html += `<div class="d-row"><span class="lbl">Location</span><span class="val">${escapeHtml((c.city||'') + (c.state ? ', '+c.state : '') + (c.zip ? ' '+c.zip : ''))}</span></div>`;
+    if(c.timezone) html += `<div class="d-row"><span class="lbl">Timezone</span><span class="val">${escapeHtml(c.timezone)}</span></div>`;
+    html += '</div>';
+
+    // Deals
+    if(data.deals && data.deals.length){
+      html += '<div class="d-section"><h4>Deals (' + data.deals.length + ')</h4>';
+      data.deals.forEach(d => {
+        html += `
+          <div class="d-deal">
+            <p class="d-deal-title">${escapeHtml(d.title||'')}</p>
+            <span class="d-deal-stage ${escapeHtml(d.stage||'')}">${escapeHtml(d.stage||'')}</span>
+            ${d.amount_cents ? '&nbsp;&nbsp;<span style="font-size:12px;color:var(--ok);font-weight:600">'+fmtMoney(d.amount_cents,d.currency)+'</span>' : ''}
+            ${d.metadata && d.metadata.pricing ? '<div style="font-size:12px;color:var(--muted);margin-top:5px">'+escapeHtml(d.metadata.pricing)+'</div>' : ''}
+          </div>
+        `;
+      });
+      html += '</div>';
+    }
+
+    // Persistent memories
+    if(data.memories && data.memories.length){
+      html += '<div class="d-section"><h4>Persistent memories (' + data.memories.length + ')</h4>';
+      data.memories.forEach(m => {
+        html += `
+          <div class="d-memory">
+            <div class="m-meta">${escapeHtml(m.memory_type||'')} · importance ${m.importance}</div>
+            ${escapeHtml(m.text_content||'')}
+          </div>
+        `;
+      });
+      html += '</div>';
+    }
+
+    // Recent activities
+    if(data.activities && data.activities.length){
+      html += '<div class="d-section"><h4>Recent activities</h4>';
+      data.activities.slice(0,8).forEach(a => {
+        html += `
+          <div style="padding:10px 0;border-bottom:1px solid #f4f1e7">
+            <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--muted);margin-bottom:4px">
+              <span>${escapeHtml(a.activity_type||'')} · ${escapeHtml(a.direction||'')}</span>
+              <span>${escapeHtml(fmtRelative(a.occurred_at))}</span>
+            </div>
+            <div style="font-size:13px;color:var(--ink);font-weight:500">${escapeHtml(a.summary||'')}</div>
+            ${a.body ? '<div style="font-size:12px;color:var(--muted);margin-top:3px">'+escapeHtml(a.body)+'</div>' : ''}
+          </div>
+        `;
+      });
+      html += '</div>';
+    }
+
+    els.drawerBody.innerHTML = html;
+    els.drawer.hidden = false;
+    requestAnimationFrame(() => { els.drawer.classList.add('open'); els.drawerOverlay.classList.add('open'); });
+  }
+
+  function closeDrawer(){
+    els.drawer.classList.remove('open');
+    els.drawerOverlay.classList.remove('open');
+    setTimeout(() => { els.drawer.hidden = true; }, 250);
+  }
+
+  els.drawerClose.addEventListener('click', closeDrawer);
+  els.drawerOverlay.addEventListener('click', closeDrawer);
+  document.addEventListener('keydown', (e) => { if(e.key === 'Escape' && !els.drawer.hidden) closeDrawer(); });
+
+  // ── Search ───────────────────────────────────────────────
+  let searchTimer;
+  els.contactSearch.addEventListener('input', (e) => {
+    clearTimeout(searchTimer);
+    searchTimer = setTimeout(() => loadContacts(e.target.value.trim()), 250);
+  });
+
+  // ── View switcher ────────────────────────────────────────
+  document.querySelectorAll('.topnav button').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const v = btn.dataset.view;
+      document.querySelectorAll('.topnav button').forEach(b => b.classList.toggle('active', b === btn));
+      document.querySelectorAll('.view').forEach(s => s.classList.toggle('active', s.dataset.view === v));
+      if(v === 'pipeline') loadPipeline();
+      if(v === 'activity') loadActivity();
+      if(v === 'contacts') loadContacts();
+    });
+  });
+
+  // ── Initial load ─────────────────────────────────────────
+  loadContacts();
+})();
+</script>
+</body>
+</html>
