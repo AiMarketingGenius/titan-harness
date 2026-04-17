@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>AMG Chatbot Widget — Demo Page</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700&display=swap" />
+<style>
+:root { --brand-navy: #0B2572; --brand-gold: #d4a627; --brand-ivory: #fbf9f3; --brand-ink: #1c2433; --brand-muted: #6c7687; }
+* { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; font-family: 'Montserrat', -apple-system, BlinkMacSystemFont, sans-serif; background: var(--brand-ivory); color: var(--brand-ink); }
+header { padding: 22px 32px; background: var(--brand-navy); color: white; display: flex; justify-content: space-between; align-items: center; }
+header .brand { font-weight: 700; font-size: 19px; letter-spacing: -0.01em; }
+header .brand .accent { color: var(--brand-gold); }
+main { max-width: 960px; margin: 64px auto; padding: 0 32px; }
+main h1 { font-size: 42px; line-height: 1.1; margin: 0 0 12px; letter-spacing: -0.02em; color: var(--brand-navy); }
+main .sub { color: var(--brand-muted); font-size: 17px; max-width: 640px; line-height: 1.5; }
+.demo-box { margin-top: 48px; padding: 32px; background: #fff; border-radius: 14px; border: 1px solid #e6e2d4; box-shadow: 0 2px 12px rgba(11,37,114,.04); }
+.demo-box h2 { margin: 0 0 12px; color: var(--brand-navy); }
+.demo-box code { background: var(--brand-ivory); padding: 2px 6px; border-radius: 4px; font-size: 13px; }
+.demo-prompt { display: inline-block; margin: 16px 0; padding: 10px 16px; background: var(--brand-gold); color: var(--brand-navy); border-radius: 8px; font-weight: 600; font-size: 14px; }
+footer { padding: 32px; color: var(--brand-muted); font-size: 12px; text-align: center; border-top: 1px solid #e6e2d4; margin-top: 80px; }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="brand">AI Marketing Genius <span class="accent">— Demo</span></div>
+  <div style="font-size: 12px; color: rgba(255,255,255,.7);">Widget staging · CT-0417-01</div>
+</header>
+
+<main>
+  <h1>The Alex widget in action</h1>
+  <p class="sub">This demo page is a staging surface for the AMG chatbot widget that will ship on aimarketinggenius.io. The floating button lower-right opens a conversation with Alex — your AMG Business Coach agent, project-backed with the full Encyclopedia v1.3 context + live client_facts lookup.</p>
+
+  <div class="demo-box">
+    <h2>Try these prompts</h2>
+    <p>The widget connects to Atlas via the agent_context_loader tool. Alex's full KB is loaded + cached (5-min prompt caching) so responses stay crisp and on-brand.</p>
+    <div class="demo-prompt">"What does the Chamber AI Advantage program include?"</div><br />
+    <div class="demo-prompt">"How does Revere's 18% rev-share compare to the standard rate?"</div><br />
+    <div class="demo-prompt">"I'm a local business owner. Where do I start?"</div>
+  </div>
+
+  <div class="demo-box">
+    <h2>Integration</h2>
+    <p>Single-script embed on aimarketinggenius.io:</p>
+    <pre><code>&lt;script src="https://amg-cdn.example.com/widget.js"&gt;&lt;/script&gt;</code></pre>
+    <p>Backend: <code>/api/alex/message</code> on atlas-api (project-backed via agent_context_loader).</p>
+  </div>
+</main>
+
+<footer>
+  Widget staging build · text-only · voice orb layer queued for next phase · CT-0417-01
+</footer>
+
+<!-- Widget loads last -->
+<script src="widget.js"></script>
+
+</body>
+</html>
