@@ -138,6 +138,11 @@
     font-size:10.5px; color:var(--gold-lt); letter-spacing:0.1em; text-transform:uppercase;
     margin-bottom:4px; font-weight:600;
   }
+  /* Backstage trace — shows which specialists Atlas invoked, visual cue only */
+  .bubble.bot .backstage {
+    font-size:10.5px; color:var(--muted); margin-top:8px;
+    letter-spacing:0.04em; opacity:0.75; font-weight:500;
+  }
 
   /* Card (structured response) */
   .card {
@@ -220,8 +225,8 @@
     <div class="brand">
       <img src="/atlas/revere-chamber-logo-original.png" alt="Revere Chamber of Commerce logo" onerror="this.onerror=null;this.src='/atlas/icons/icon-192.png';">
       <div class="brand-txt">
-        <span class="brand-line1">Revere AI Advantage</span>
-        <span class="brand-line2">Chamber Mobile · Concept</span>
+        <span class="brand-line1">Atlas · Chamber Mobile</span>
+        <span class="brand-line2">One voice · nine hands</span>
       </div>
     </div>
     <div class="status" role="status" aria-live="polite">
@@ -234,15 +239,15 @@
     <button class="chip" data-q="What are the membership tiers?">Membership tiers</button>
     <button class="chip" data-q="Who's the Chamber president?">Chamber contact</button>
     <button class="chip" data-q="What events are coming up?">Upcoming events</button>
-    <button class="chip" data-q="Who are the Chamber agents?">Chamber agents</button>
-    <button class="chip" data-q="Talk to Cleopatra about a Gala flyer.">Ask Cleopatra</button>
-    <button class="chip" data-q="Talk to Artemis about renewing sponsorships.">Ask Artemis</button>
+    <button class="chip" data-q="Who are your specialists?">Atlas's specialists</button>
+    <button class="chip" data-q="Atlas, draft a Gala flyer.">Ask Atlas: Gala flyer</button>
+    <button class="chip" data-q="Atlas, draft a Gala flyer and call lapsed members and prep Board minutes.">Fire 3 lanes at once</button>
   </div>
 
   <main id="thread" class="thread" aria-label="Conversation thread">
     <div class="bubble bot">
-      <div class="from">Revere AI Advantage</div>
-      Welcome. I'm the Chamber's ten-agent team — Atlas orchestrates, Hermes answers inbound, Artemis runs outbound, Penelope runs events, Sophia owns member success, Iris handles communications, Athena runs Board ops, Echo watches reputation, Cleopatra makes the creative, and Aria is your phone-native voice. Tap a chip or ask anything.
+      <div class="from">Atlas</div>
+      Atlas here. I run the Chamber. Behind me sit eight specialists — Hermes on inbound, Artemis on outbound, Penelope on events, Sophia on member success, Iris on comms, Athena on Board ops, Echo on reputation, Cleopatra on creative. You only ever talk to me. I delegate, I narrate back. Tap a chip or ask anything.
     </div>
   </main>
 
@@ -272,18 +277,24 @@
       statusTxt.textContent = txt;
     }
 
-    function bubble(role, text, from) {
+    function bubble(role, text, from, backstage) {
       var div = document.createElement('div');
       div.className = 'bubble ' + (role === 'me' ? 'me' : 'bot');
       if (role !== 'me') {
         var f = document.createElement('div');
         f.className = 'from';
-        f.textContent = from || 'Revere AI Advantage';
+        f.textContent = from || 'Atlas';
         div.appendChild(f);
       }
       var t = document.createElement('span');
       t.textContent = text;
       div.appendChild(t);
+      if (backstage && backstage.length) {
+        var trace = document.createElement('div');
+        trace.className = 'backstage';
+        trace.textContent = 'Atlas → ' + backstage.map(function(s){ return s.charAt(0).toUpperCase() + s.slice(1); }).join(' + ');
+        div.appendChild(trace);
+      }
       thread.appendChild(div);
       thread.scrollTop = thread.scrollHeight;
     }
@@ -338,11 +349,15 @@
         });
         if (!r.ok) throw new Error('HTTP ' + r.status);
         var data = await r.json();
-        if (data && data.card) card(data.card);
-        else if (data && data.reply) bubble('bot', data.reply);
+        // New Atlas-sole-speaker payload (CT-0417-25): {speaker, reply, backstage, cards}
+        if (data && data.reply) {
+          bubble('bot', data.reply, 'Atlas', data.backstage || []);
+        }
+        var cardsList = (data && data.cards && data.cards.length) ? data.cards : (data && data.card ? [data.card] : []);
+        cardsList.forEach(function(c){ card(c); });
         setStatus('ok', 'Online');
       } catch (e) {
-        bubble('bot', "Your AI team is briefly offline. Try again in a moment, or reach Don at 617-413-6773.");
+        bubble('bot', "Our stack blinked for a second. Try again, or reach Don directly at 617-413-6773.", 'Atlas', []);
         setStatus('err', 'Offline');
       } finally {
         sendBtn.disabled = false;

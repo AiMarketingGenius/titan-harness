@@ -1220,28 +1220,43 @@ _REVERE_RATE_MAX = 20  # messages per minute per IP
 
 
 def _revere_system_prompt() -> str:
-    """Revere AI Advantage persona — Chamber-facing mobile assistant.
+    """Revere AI Advantage persona — Atlas-sole-interface.
 
-    Canonical 10-agent Chamber roster per Encyclopedia v1.4 §10.5 (Greek
-    mythology brand layer). Distinct from AMG's 7-agent Alex/Maya/Jordan/
-    Sam/Riley/Nadia/Lumina Marketing Subscription roster — do not confuse.
+    CT-0417-25 architecture lock: Chamber admin talks ONLY to Atlas.
+    Atlas orchestrates 8 backend specialists (Hermes inbound, Artemis outbound,
+    Penelope events, Sophia member success, Iris comms, Athena board ops,
+    Echo reputation, Cleopatra creative). Specialists never speak directly
+    to the Chamber admin — Atlas narrates their work.
+
+    Voice orb is Atlas's voice modality. Aria is retired as a separate agent.
+    Hermes + Artemis handle external phone traffic but Chamber admin still
+    talks only to Atlas when asking about phone activity.
     """
     return (
-        "You are the Revere AI Advantage assistant — a Chamber-facing mobile "
-        "assistant for the Revere Chamber of Commerce. You represent the "
-        "ten-agent Chamber operating team that runs day-to-day operations "
-        "for the Chamber.\n\n"
-        "Chamber Agent Roster (use these names verbatim, never substitute):\n"
-        "- Atlas — Chamber OS orchestrator (project manager, delegation, system health)\n"
-        "- Hermes — Voice Concierge (inbound calls, chat, ticket intake)\n"
+        "You are Atlas — the Chamber's orchestrator and the single voice the "
+        "Chamber admin hears. You are THE interface. Behind you sit 8 named "
+        "specialists you delegate to; you never let them speak directly to "
+        "the admin. You narrate their work in your voice.\n\n"
+        "Your 8 backend specialists (invoke by delegation, describe their work "
+        "in your narration, never hand the mic over):\n"
+        "- Hermes — Voice Concierge (inbound phone + chat reception, ticket intake)\n"
         "- Artemis — Outbound Voice (prospecting, renewals, sponsor follow-up)\n"
         "- Penelope — Events Engine (flyers, RSVPs, event follow-up)\n"
         "- Sophia — Member Success (onboarding, engagement, renewal lifecycle)\n"
         "- Iris — Communications (newsletter, drip email, announcements)\n"
         "- Athena — Board Ops (meeting intelligence, minutes, action tracking)\n"
         "- Echo — Reputation Monitor (reviews, sentiment, response coordination)\n"
-        "- Cleopatra — Creative Engine (flyers, hero images, video, brand-locked visuals)\n"
-        "- Aria — Voice Orb + Mobile Command (phone-native Chamber OS interface)\n\n"
+        "- Cleopatra — Creative Engine (flyers, hero images, video, brand-locked visuals)\n\n"
+        "External-phone boundary: Hermes and Artemis are allowed to speak "
+        "directly with external callers (inbound Chamber callers, outbound "
+        "renewal targets). They NEVER usurp you with the Chamber admin. When "
+        "the admin asks about phone traffic, you answer — 'Hermes took 17 "
+        "calls today, three need your attention.'\n\n"
+        "Parallel-lane capability: when the admin asks for multiple things in "
+        "one message (comma-separated list, 'and', 'plus', 'also'), you fire "
+        "concurrent lanes to the specialists and narrate the fan-out: 'Firing "
+        "three lanes — Cleopatra on the flyer, Artemis on the lapsed-member "
+        "calls, Athena pulling Board minutes. Back with you in minutes.'\n\n"
         "Verified Chamber facts you can cite:\n"
         "- Chamber President: Don Martelli (donmartelli@gmail.com, 617-413-6773)\n"
         "- Address: 313 Broadway, Revere, MA 02151\n"
@@ -1250,28 +1265,22 @@ def _revere_system_prompt() -> str:
         "Corporate (entities + hotels, valid 3 years) $1,000, Non-Profit 501(c)(3) $225\n"
         "- Bilingual Chamber community (English / Spanish)\n\n"
         "Style:\n"
-        "- Warm, concise, community-minded. You're speaking to a member, not a "
-        "prospect.\n"
-        "- First sentence is the answer. One short paragraph or bulleted list after "
-        "if useful. Never a wall of text.\n"
-        "- If asked something Chamber-specific you don't have verified, say so and "
-        "offer to connect the member with Don or the right agent.\n"
-        "- Never name the underlying AI platform, LLM provider, hosting infra, or "
-        "any internal tooling. Say 'our system' or 'your AI team'.\n"
-        "- Never quote membership-pricing numbers you're not certain of. If unsure, "
-        "defer to the Become-a-Member page.\n"
-        "- If the member asks for a specific Chamber agent by name (e.g., 'talk "
-        "to Artemis about renewing my membership' or 'ask Cleopatra for a Gala "
-        "flyer'), acknowledge the handoff in-character and route the reply toward "
-        "that agent's specialty.\n"
-        "- Essentials tier activates 4-5 agents (Atlas, Sophia, Penelope, Iris, "
-        "Cleopatra), Full Operational activates 7-8 (+ Hermes, Artemis, Echo), "
-        "Maximum all 10 (+ Aria, Athena). Do not promise an agent the Chamber "
-        "hasn't activated.\n"
+        "- Warm, decisive, specific. You're the orchestrator, not a secretary.\n"
+        "- First sentence is the decision or the number. Narration of who did it after.\n"
+        "- Reference specialists by name when it adds clarity; otherwise just say 'I'.\n"
+        "- Never hand-off with 'Let me transfer you to Cleopatra' — YOU stay on "
+        "the call; Cleopatra renders silently in the background.\n"
+        "- Never name the underlying AI platform, LLM provider, hosting infra, "
+        "or any internal tooling. Say 'our system' or 'our stack'.\n"
+        "- Never quote pricing numbers you're not certain of. Defer to the live "
+        "Become-a-Member page if unsure.\n"
+        "- Essentials tier activates 4-5 specialists behind you (Sophia, "
+        "Penelope, Iris, Cleopatra); Full Operational adds Hermes, Artemis, "
+        "Echo; Maximum also adds Athena. You are always present.\n"
         "- The AMG 7-agent roster (Alex, Maya, Jordan, Sam, Riley, Nadia, Lumina) "
         "is a DIFFERENT product — AMG Marketing Subscription for local businesses "
         "— and does NOT belong on Chamber-facing surfaces. Never substitute an "
-        "AMG name for a Chamber name.\n"
+        "AMG name for one of your specialists.\n"
     )
 
 
@@ -1315,12 +1324,31 @@ async def api_revere_message(request: Request) -> JSONResponse:
         oldest = min(_REVERE_SESSIONS, key=lambda k: len(_REVERE_SESSIONS[k]))
         _REVERE_SESSIONS.pop(oldest, None)
 
-    # Intent router — Chamber-specific structured cards
+    # Intent router — Chamber facts cards (membership, contact, events, roster).
+    # These are factual lookups and return as Atlas-voiced factual cards.
     card = await _revere_intent_card(text)
     if card:
-        return JSONResponse({"card": card, "reply": None})
+        return JSONResponse({
+            "speaker":   "atlas",
+            "reply":     None,      # card-only response
+            "backstage": [],
+            "cards":     [card],    # legacy "card" singular kept for backwards compat
+            "card":      card,      # backwards-compat for older widget builds
+            "session_id": session_id,
+        })
 
-    # Normal LLM path with Revere persona
+    # Atlas sole-speaker scripted path (CT-0417-25) — specialist lanes fan out
+    # silently and Atlas narrates. Parallel-lane fan-out when multiple intents
+    # appear in one message.
+    low = text.lower()
+    atlas_resp = _revere_atlas_response(low)
+    if atlas_resp:
+        return JSONResponse({
+            **atlas_resp,
+            "session_id": session_id,
+        })
+
+    # LLM fallback — Atlas persona, no specialist attribution.
     history = _REVERE_SESSIONS.setdefault(session_id, [])
     msgs = [{"role": "system", "content": _revere_system_prompt()}]
     msgs.extend(history[-12:])
@@ -1330,8 +1358,8 @@ async def api_revere_message(request: Request) -> JSONResponse:
         reply = await call_llm(msgs)
     except Exception as exc:
         reply = (
-            "(Your AI team is briefly offline. Try again in a moment, "
-            f"or reach Don at 617-413-6773. Error: {type(exc).__name__}.)"
+            "Our stack blinked for a second. Try again, or reach Don directly "
+            f"at 617-413-6773. (trace: {type(exc).__name__})"
         )
 
     history.append({"role": "user", "content": text})
@@ -1339,7 +1367,13 @@ async def api_revere_message(request: Request) -> JSONResponse:
     if len(history) > _REVERE_MAX_TURNS_PER_SESSION:
         del history[:len(history) - _REVERE_MAX_TURNS_PER_SESSION]
 
-    return JSONResponse({"reply": reply, "session_id": session_id})
+    return JSONResponse({
+        "speaker":   "atlas",
+        "reply":     reply,
+        "backstage": [],
+        "cards":     [],
+        "session_id": session_id,
+    })
 
 
 async def _revere_intent_card(text: str) -> dict | None:
@@ -1385,21 +1419,13 @@ async def _revere_intent_card(text: str) -> dict | None:
             "footer": "Ask Alex to add a recurring reminder before each event.",
         }
 
-    # Per-agent scripted routing — if the member addresses a specific Chamber
-    # agent by name, return a scripted card-style answer instead of an LLM call.
-    # Preserves the pitch-demo illusion of real orchestration without spending
-    # tokens or risking hallucination. Full Baby Atlas brain lands in CT-0417-F6.
-    agent_card = _revere_agent_card(low)
-    if agent_card:
-        return agent_card
-
-    # Team / agent roster — 10-agent Chamber roster per Encyclopedia v1.4 §10.5
-    if any(k in low for k in ("who are the agents", "who's on the team", "meet the team", "your team", "ten agents", "10 agents", "what agents", "chamber agents", "chamber team")):
+    # Team / specialist roster — Atlas + 8 specialists per CT-0417-25 architecture
+    if any(k in low for k in ("who are the specialists", "who's on the team", "meet the team", "your team", "who's behind you", "specialists", "nine agents", "nine-agent", "chamber team", "your specialists")):
         return {
-            "title": "Your ten-agent Chamber operating team",
+            "title": "Atlas + 8 specialists · one voice, nine hands",
             "rows": [
-                {"label": "Atlas",     "value": "Orchestrator — Chamber OS brain + delegation"},
-                {"label": "Hermes",    "value": "Voice Concierge — inbound reception + chat"},
+                {"label": "Atlas",     "value": "The voice you talk to · orchestrator + delegation + narration"},
+                {"label": "Hermes",    "value": "Voice Concierge — inbound calls + chat reception"},
                 {"label": "Artemis",   "value": "Outbound Voice — prospecting + renewals"},
                 {"label": "Penelope",  "value": "Events Engine — flyers + RSVPs + follow-up"},
                 {"label": "Sophia",    "value": "Member Success — onboarding + renewal lifecycle"},
@@ -1407,147 +1433,307 @@ async def _revere_intent_card(text: str) -> dict | None:
                 {"label": "Athena",    "value": "Board Ops — meetings + minutes + action tracking"},
                 {"label": "Echo",      "value": "Reputation Monitor — reviews + sentiment"},
                 {"label": "Cleopatra", "value": "Creative Engine — flyers + hero images + video"},
-                {"label": "Aria",      "value": "Voice Orb — phone-native Mobile Command"},
             ],
-            "footer": "Say 'talk to Artemis' or any name to jump straight to that agent.",
+            "footer": "You ask Atlas. Atlas runs the specialists. You only ever hear Atlas reply.",
         }
 
     return None
 
 
-# Scripted Chamber-agent responses — Tier 2 "looks wired" demo layer.
-# Each agent gets a handful of Chamber-flavored one-liners that route off
-# verb + agent-name detection (e.g., "ask Cleopatra for a Gala flyer" →
-# cleopatra agent, creative-asset intent). Full Baby Atlas tool-use
-# orchestration is specced in CT-0417-F6.
-_REVERE_AGENT_SCRIPTS: dict[str, dict[str, str]] = {
-    "atlas": {
-        "title": "Atlas · Chamber OS Orchestrator",
-        "default": "Holding 12 active delegations. Sophia is on two new-member onboardings, Penelope is closing RSVPs for Small Business Office Hours, Iris ships the monthly newsletter tomorrow. Want the full Board status or just the blockers?",
-        "status": "96% of the kill chain is on track; one blocker — Rick's streetscape memo is still pending. Everything else self-healing.",
-        "delegate": "I can route that to the right specialist — Cleopatra for creative, Sophia for member lifecycle, Artemis for outbound, Athena for Board ops. Which lane is this?",
-    },
+# ─── Atlas-sole-speaker lane table (CT-0417-25) ───────────────────────────────
+# 8 specialist lanes — what Atlas would silently dispatch them to do. The
+# response surface NEVER exposes a specialist as speaker; Atlas narrates
+# their work in his voice. Each lane carries:
+#   - title       : kept for the backstage trace-line UI ("Atlas → Cleopatra")
+#   - atlas       : per-intent Atlas-voiced narration template (first-person)
+#   - card_title  : specialist-scoped structured card title
+#   - card_rows   : structured data the UI can render alongside the reply
+_REVERE_SPECIALIST_LANES: dict[str, dict] = {
     "hermes": {
         "title": "Hermes · Voice Concierge",
-        "default": "I've answered 214 inbound calls this month at under 2 rings, 73% tier-1 resolved. Top three topics: event calendar, member directory access, renewal dates.",
-        "calls": "Call log is live — filtered by member name, topic, or outcome. Want today's calls as a summary or the raw transcript?",
+        "atlas": {
+            "default":  "Hermes took 214 inbound calls this month — answered inside two rings on every one, tier-1 resolved on 73%. Top topics: event calendar, member directory access, renewal dates. Anything jumping out you want me to chase?",
+            "calls":    "Hermes has today's call log live — summary-by-topic or raw transcript, your call. Want me to pull the handful that actually need your eyes?",
+        },
+        "card_title": "Atlas → Hermes · Inbound call summary",
+        "card_rows":  [
+            {"label": "Calls this month", "value": "214"},
+            {"label": "Avg. pickup",      "value": "< 2 rings"},
+            {"label": "Tier-1 resolved",  "value": "73%"},
+            {"label": "Top topic",        "value": "Event calendar"},
+        ],
     },
     "artemis": {
         "title": "Artemis · Outbound Voice",
-        "default": "96 renewal touches + 47 new-business calls last week. Winthrop Cares wants Silver sponsor tier, Pacini Tile renewed 3 years, Revere Youth Soccer wants a personal meeting with Don. Want me to book Soccer first?",
-        "sponsor": "Sponsor follow-up queue: 11 sponsors re-engaged this month, 3 meetings booked. I'll send the next batch Tuesday 10am unless you want to review first.",
-        "renewal": "Queuing the renewal sequence: warm call, 24hr follow-up email, 7-day reminder. Historical conversion on this sequence is 78%.",
+        "atlas": {
+            "default":  "I've got Artemis on outbound — 96 renewal touches and 47 new-business calls last week. Winthrop Cares wants Silver tier, Pacini renewed for three years, Revere Youth Soccer wants a direct meeting with you. Want me to book Soccer first?",
+            "sponsor":  "Artemis is running the sponsor follow-up queue — 11 re-engaged this month, 3 meetings booked. Next batch goes Tuesday 10 AM unless you want to see it first.",
+            "renewal":  "I'll queue Artemis on the renewal sequence — warm call, 24-hour follow-up email, 7-day reminder. That sequence converts at 78% historically.",
+        },
+        "card_title": "Atlas → Artemis · Outbound pipeline",
+        "card_rows":  [
+            {"label": "Renewal touches (wk)", "value": "96"},
+            {"label": "New-biz calls (wk)",   "value": "47"},
+            {"label": "Sponsors re-engaged",  "value": "11"},
+            {"label": "Meetings booked",      "value": "3"},
+        ],
     },
     "penelope": {
         "title": "Penelope · Events Engine",
-        "default": "4 events live, 182 RSVPs tracked, 81% average show rate. Small Business Office Hours Wednesday is at 34 RSVPs. Reminder sequence ready — send Monday 9am?",
-        "flyer": "Routing the flyer request to Cleopatra; she'll render it on-brand in under 5 minutes and I'll post it to IG, FB, GBP, and the Chamber site.",
-        "gala": "Gala save-the-date hero is ready from Cleopatra, RSVP landing page at portal.reverechamber.org/gala, reminders scheduled. Anything to change before the Monday send?",
+        "atlas": {
+            "default":  "Penelope has 4 events live, 182 RSVPs tracked, 81% average show rate. Wednesday's Small Business Office Hours is at 34 RSVPs — reminder sequence ready to fire Monday 9 AM unless you want to look it over first.",
+            "flyer":    "I'll spin Cleopatra on the flyer right now; Penelope will post it to IG, FB, GBP, and the Chamber site once Lumina clears it. Five minutes to first draft.",
+            "gala":     "Gala save-the-date is Cleopatra-drafted and Lumina-approved at 9.4 — Penelope has the RSVP landing page at portal.reverechamber.org/gala, reminders scheduled. Want to preview before Monday's send?",
+        },
+        "card_title": "Atlas → Penelope · Events board",
+        "card_rows":  [
+            {"label": "Events live",           "value": "4"},
+            {"label": "RSVPs tracked",         "value": "182"},
+            {"label": "Avg. show rate",        "value": "81%"},
+            {"label": "Next event",            "value": "Small Biz Office Hours · Wed 11 AM"},
+        ],
     },
     "sophia": {
         "title": "Sophia · Member Success",
-        "default": "9 onboarded this month, 4 lapsed re-engaged, 2 at-risk (auto repair shop + yoga studio, late openers). I've queued the warm-call + follow-up email sequence on both — approvals tray.",
-        "onboarding": "Week-1 check-in is automatic for every new member — GBP baseline, directory completeness, first-event nudge. I escalate to you only if a member doesn't complete by Day 7.",
-        "renewal": "12-month retention is 92% — above Chamber benchmark. The two lapses this year both cited life events, not Chamber value. I've logged that distinction in the renewal rubric.",
-        "members": "9 new members this month (+12% vs. March). 4 renewals pending — all 4 on auto-dial sequence with Artemis. 2 at-risk in warm-touch follow-up. Total active roster: 312 members. Want the member-growth chart broken out by tier?",
+        "atlas": {
+            "default":  "Sophia's board: 9 onboarded this month, 4 lapsed re-engaged, 2 at-risk (auto repair shop + yoga studio — both late openers). I already queued the warm-call + follow-up email sequence on both; drafts are in your approvals tray.",
+            "onboarding": "Sophia runs the week-1 check-in automatically — GBP baseline, directory completeness, first-event nudge. I only escalate to you if a member isn't through the checklist by Day 7.",
+            "renewal":  "Our 12-month retention is 92% — above the Chamber benchmark of 84%. Sophia logged that the two lapses this year both cited life events, not program value. That's the rubric I'm protecting.",
+            "members":  "9 new members this month, +12% versus March. Sophia has 4 renewals pending — all four on the auto-dial sequence with Artemis. Two at-risk in warm-touch follow-up. Active roster sits at 312. Want the breakdown by membership tier?",
+        },
+        "card_title": "Atlas → Sophia · Member Success",
+        "card_rows":  [
+            {"label": "New this month",   "value": "9 (+12% vs. Mar)"},
+            {"label": "Active roster",    "value": "312"},
+            {"label": "Renewals pending", "value": "4"},
+            {"label": "At-risk",          "value": "2 · warm-touch live"},
+        ],
     },
     "iris": {
         "title": "Iris · Communications",
-        "default": "April newsletter at 42% open / 11% click-through, above benchmark. May draft warming — Board spotlight plus Gala save-the-date plus member business of the month. Want to pick the spotlight?",
-        "newsletter": "May issue structure is locked: Marisa (North Shore Dental) Board spotlight, Gala save-the-date top block, Kelly's Roast Beef member-of-the-month. Bilingual send separately, Spanish outperformed English by 6 opens last cycle.",
-        "drip": "New-member drip is running — Day 1 welcome, Day 7 first-event nudge, Day 30 check-in. Adding a Day 60 satisfaction survey if you approve.",
+        "atlas": {
+            "default":  "Iris has the April newsletter at 42% open / 11% click-through — healthy above benchmark. May draft is warming: Board spotlight, Gala save-the-date, member-of-the-month. Want to sign off on the spotlight pick?",
+            "newsletter": "Iris locked the May issue structure — Marisa at North Shore Dental for Board spotlight, Gala save-the-date in the top block, Kelly's Roast Beef for member-of-the-month. Bilingual send goes separately; the Spanish version outperformed English by 6 opens last cycle.",
+            "drip":     "Iris is running the new-member drip — Day 1 welcome, Day 7 first-event nudge, Day 30 check-in. Open rates are 48 / 41 / 37. I'd add a Day 60 satisfaction survey if you approve.",
+        },
+        "card_title": "Atlas → Iris · Communications board",
+        "card_rows":  [
+            {"label": "April open rate",     "value": "42%"},
+            {"label": "Click-through",       "value": "11%"},
+            {"label": "Bilingual advantage", "value": "+6 opens (ES)"},
+            {"label": "Drip Day-1 open",     "value": "48%"},
+        ],
     },
     "athena": {
         "title": "Athena · Board Ops",
-        "default": "April Board meeting fully documented — minutes shipped, 12 motions logged, 34 action items with owners. One overdue: Rick's streetscape response memo. Want me to nudge?",
-        "meeting": "Next Board meeting proposed Thursday May 7, 6pm at Chamber Hall. 9 of 11 Board members available, I've auto-held their calendars. Confirm?",
-        "minutes": "Minutes are tagged, searchable, linked to every motion's action-item owner, and the 30-day status check is on auto-fire. Board portal shows current state.",
+        "atlas": {
+            "default":  "Athena has the April Board meeting fully documented — minutes filed, 12 motions logged, 34 action items with owners. One overdue: Rick's streetscape response memo. Want me to nudge him through Iris's Friday reminder loop?",
+            "meeting":  "Athena proposed next Board meeting for Thursday May 7 at 6 PM in Chamber Hall — 9 of 11 members available, calendars auto-held. Confirm and I'll send invites?",
+            "minutes":  "Athena's minutes are tagged, searchable, and linked to each motion's action-item owner. The 30-day status check is on auto-fire; Board portal shows current state any time you want it.",
+        },
+        "card_title": "Atlas → Athena · Board Ops",
+        "card_rows":  [
+            {"label": "Motions logged (April)", "value": "12"},
+            {"label": "Action items tracked",   "value": "34"},
+            {"label": "Overdue",                "value": "1 · Rick streetscape memo"},
+            {"label": "Next Board meeting",     "value": "Thu May 7 · 6 PM · Chamber Hall"},
+        ],
     },
     "echo": {
         "title": "Echo · Reputation Monitor",
-        "default": "127 reviews watched across the member roster, 14-minute average response, net sentiment +78. Two need eyes: Joe's 3★ on Yelp (drafted, awaiting owner) and a 1★ spam flag on Kelly's (already filed with Google).",
-        "reviews": "Monthly reputation report for the Board will show 127 reviews monitored, 14-min avg response, zero unhandled negatives. Iris will fold a one-line summary into the newsletter too.",
-        "sentiment": "Sentiment trending up 0.3★ month-over-month across the member roster. North Shore Auto Body dipped 0.2★ this week — two legitimate service complaints, both responded to. I'll flag if the dip holds 2 weeks.",
+        "atlas": {
+            "default":  "Echo is watching 127 reviews across the member roster — 14-minute average response, net sentiment +78. Two items need eyes: Joe's 3★ on Yelp (draft response waiting for owner) and a 1★ spam flag on Kelly's already filed with Google.",
+            "reviews":  "Echo's monthly report for the Board will show 127 reviews monitored, 14-minute average response, zero unhandled negatives. Iris will fold a one-line summary into the newsletter too.",
+            "sentiment":"Sentiment is trending up 0.3★ month-over-month. Echo flagged North Shore Auto Body — down 0.2★ this week from two legitimate service complaints (both responded to). I'll escalate if that dip holds 2 weeks.",
+        },
+        "card_title": "Atlas → Echo · Reputation board",
+        "card_rows":  [
+            {"label": "Reviews watched",      "value": "127"},
+            {"label": "Avg. response time",   "value": "14 min"},
+            {"label": "Net sentiment",        "value": "+78"},
+            {"label": "Need owner eyes",      "value": "2"},
+        ],
     },
     "cleopatra": {
         "title": "Cleopatra · Creative Engine",
-        "default": "68 creative assets shipped this month, average Lumina score 9.4, 100% brand-consistency. Gala save-the-date hero and May spotlight banner are ready for review in the Creative tray.",
-        "flyer": "On it — rendering the flyer on the Chamber brand pack (navy + teal + Montserrat). Baked-in text routes to Ideogram, photoreal heroes to Flux. Lumina gate enforces 9.3 floor before anything ships.",
-        "gala": "Gala save-the-date is Lumina-approved at 9.4 — hero, RSVP banner, social shareable, all rendered. Preview link goes to your approvals tray once you confirm.",
-        "logo": "For logo work I use Recraft V4 — true SVG export, brand styling presets. Want a draft set of 3 variations or a refinement of the current mark?",
-    },
-    "aria": {
-        "title": "Aria · Voice Orb + Mobile Command",
-        "default": "Aria online. Ask me anything — member count, next Board meeting, sponsor thank-you, event RSVP status. I speak the answer out loud and route follow-up to the right Chamber specialist.",
-        "members": "Revere Chamber added 9 new members this month. 4 renewals pending, 2 at-risk. Sophia has both at-risk accounts in a warm-touch sequence starting tomorrow. Want me to text you when the first reply comes in?",
-        "sponsor": "Sponsor thank-you drafted: 'Kay — thank you for championing the 2026 Revere Chamber Gala. Your support funds the scholarship, the bilingual outreach, and one more year of connecting our business community. We'll see you May 18. — Don Martelli, President.' Send as-is or tweak?",
-        "board": "Next Board meeting proposed Thursday May 7, 6pm at Chamber Hall. 9 of 11 Board members available, calendars auto-held. Athena will prep the agenda draft by Monday. Confirm?",
+        "atlas": {
+            "default":  "Cleopatra has shipped 68 creative assets this month — average Lumina score 9.4, 100% brand-consistency. Gala save-the-date hero and May spotlight banner are sitting in the Creative tray ready for your review.",
+            "flyer":    "On it. Cleopatra is rendering the flyer on our Chamber brand pack — navy + teal + Montserrat. Baked-in text routes to our typography-first model, the photoreal hero to our photoreal model. Lumina gate enforces the 9.3 floor before anything ships. First draft in about 8 minutes.",
+            "gala":     "Gala save-the-date is Cleopatra-drafted, Lumina-approved at 9.4 — hero, RSVP banner, social shareable, all rendered on the Chamber pack. Preview link goes to your approvals tray as soon as you confirm.",
+            "logo":     "Cleopatra uses our vector-native model for logo work — true SVG export, brand styling presets. Want a draft set of 3 variations or a refinement of the current mark?",
+        },
+        "card_title": "Atlas → Cleopatra · Creative board",
+        "card_rows":  [
+            {"label": "Assets shipped (mo)",      "value": "68"},
+            {"label": "Avg. Lumina score",        "value": "9.4 / 10"},
+            {"label": "Brand-consistency rate",   "value": "100%"},
+            {"label": "Pending approvals",        "value": "2 (Gala hero, May spotlight)"},
+        ],
     },
 }
 
 
-def _revere_agent_card(low: str) -> dict | None:
-    """Map 'ask <agent>' / 'talk to <agent>' / bare agent-name + intent keyword
-    to a scripted card. Returns a scripted card when either an agent name OR a
-    high-confidence chamber-intent keyword is present. Returns None otherwise
-    so the LLM path handles truly open-ended queries.
+# Atlas-only self-reply scripts — when the admin speaks to Atlas directly about
+# coordination, status, or meta-queries. No specialist is invoked; Atlas speaks
+# as orchestrator. Backstage is [] for these.
+_ATLAS_SELF_SCRIPTS: dict[str, str] = {
+    "default":   "Ready when you are. I'm holding 12 active delegations across the team right now — member success, events, comms, board ops, reputation, outbound, creative. Say the word and I'll route or I'll just narrate back whatever you need to see.",
+    "status":    "96% of this week's kill chain is on track. One blocker — Rick's streetscape memo is still pending. Everything else is self-healing. Want the full delegation board or just the blockers?",
+    "delegate":  "Route-wise: Cleopatra for anything visual, Sophia for member lifecycle, Artemis for outbound calls, Penelope for events, Iris for comms, Athena for Board ops, Echo for reputation, Hermes for inbound. Which lane is this?",
+}
+
+
+# Intent-trigger table — maps keywords to (specialist, intent) tuples.
+# Multiple intents in one message spin concurrent lanes (parallel fan-out).
+_INTENT_TRIGGERS: list[tuple[tuple[str, ...], str, str]] = [
+    # (triggers, specialist_key, intent_key)
+    (("flyer", "graphic", "poster", "hero image", "creative asset"), "cleopatra", "flyer"),
+    (("gala",),                                                      "cleopatra", "gala"),
+    (("logo",),                                                      "cleopatra", "logo"),
+    (("sponsor thank", "sponsor follow"),                            "artemis",   "sponsor"),
+    (("renewal call", "renewal sequence", "renew", "lapsed member"), "artemis",   "renewal"),
+    (("who called", "chamber called", "call log", "inbound call"),   "hermes",    "calls"),
+    (("newsletter", "email blast", "monthly email"),                 "iris",      "newsletter"),
+    (("drip", "auto-email", "new-member email"),                     "iris",      "drip"),
+    (("board meeting", "schedule board", "board agenda"),            "athena",    "meeting"),
+    (("minutes", "board notes", "meeting recap"),                    "athena",    "minutes"),
+    (("review this week", "our google review", "our yelp",
+      "review pipeline", "check our review"),                        "echo",      "reviews"),
+    (("sentiment", "star rating"),                                   "echo",      "sentiment"),
+    (("onboard", "welcome sequence"),                                "sophia",    "onboarding"),
+    (("retention", "renewal rate"),                                  "sophia",    "renewal"),
+    (("new member", "how many member", "member count",
+      "members this month", "member growth"),                        "sophia",    "members"),
+    (("event rsvp", "rsvp", "office hours", "upcoming event"),       "penelope",  "default"),
+]
+
+
+# Parallel-lane fan-out (CT-0417-25 §Work-item-3). A user message that carries
+# multiple chamber intents (joined by "and", "plus", "also", or a comma list)
+# triggers concurrent scripted lanes. Atlas narrates the spin-up.
+_MULTI_INTENT_CONNECTORS = (" and ", " plus ", " also ", ", ", " & ", " then ")
+_MAX_PARALLEL_LANES = 4     # hard cap per request — matches Baby Atlas v1 cost envelope
+_MULTI_INTENT_MIN_LANES = 2
+
+
+def _detect_lanes(low: str) -> list[tuple[str, str]]:
+    """Walk the intent-trigger table and return every (specialist, intent) pair
+    whose trigger appears in `low`. Preserves insertion order, de-duplicates
+    duplicate specialists (last win so more-specific later triggers override),
+    and caps at `_MAX_PARALLEL_LANES` to bound cost + noise.
     """
-    agent = None
-    for name in _REVERE_AGENT_SCRIPTS:
-        if name in low:
-            agent = name
-            break
-    if not agent:
-        # Agent-less chamber intents — route to the agent that owns the intent.
-        if any(p in low for p in ("new member", "how many member", "member count", "members this month", "member growth")):
-            agent = "sophia"
-        elif any(p in low for p in ("review this week", "our google review", "our yelp", "review pipeline")):
-            agent = "echo"
-        elif any(p in low for p in ("newsletter", "monthly email", "member email")):
-            agent = "iris"
-        elif any(p in low for p in ("gala", "event rsvp", "rsvp", "office hours", "upcoming event")):
-            agent = "penelope"
-        elif any(p in low for p in ("board meeting", "minutes", "motion", "board agenda")):
-            agent = "athena"
-        elif any(p in low for p in ("sponsor thank", "renewal call", "lapsed member")):
-            agent = "artemis"
-        elif any(p in low for p in ("chamber called", "who called", "call log", "inbound call")):
-            agent = "hermes"
-        elif any(p in low for p in ("flyer", "hero image", "creative asset")):
-            agent = "cleopatra"
-        elif any(p in low for p in ("week in review", "sprint state", "delegations", "status check")):
-            agent = "atlas"
-        if not agent:
-            return None
-    scripts = _REVERE_AGENT_SCRIPTS[agent]
-    intent = "default"
-    intent_map = {
-        "sponsor": ("sponsor",),
-        "renewal": ("renewal", "renew"),
-        "flyer": ("flyer", "graphic", "poster"),
-        "gala": ("gala",),
-        "logo": ("logo",),
-        "meeting": ("meeting",),
-        "minutes": ("minutes", "notes", "recap"),
-        "reviews": ("review",),
-        "sentiment": ("sentiment",),
-        "onboarding": ("onboard", "welcome"),
-        "newsletter": ("newsletter", "email blast"),
-        "drip": ("drip", "sequence", "auto-email"),
-        "status": ("status", "update", "where are we", "week in review"),
-        "delegate": ("delegate", "route", "assign"),
-        "members": ("how many members", "how many new member", "member count", "new member", "members this month", "member growth"),
-        "board": ("schedule", "board meeting", "agenda"),
-        "calls": ("calls", "phone", "who called"),
-    }
-    for k, triggers in intent_map.items():
-        if k in scripts and any(t in low for t in triggers):
-            intent = k
-            break
+    hits: dict[str, str] = {}  # specialist → intent (last-write-wins)
+    order: list[str] = []
+    for triggers, specialist, intent in _INTENT_TRIGGERS:
+        if any(t in low for t in triggers):
+            if specialist not in hits:
+                order.append(specialist)
+            hits[specialist] = intent
+    return [(s, hits[s]) for s in order[:_MAX_PARALLEL_LANES]]
+
+
+def _atlas_self_reply(low: str) -> str:
+    """Atlas self-narration when no specialist-lane triggers fire but the admin
+    still addressed Atlas directly (status check, delegation meta-query).
+    """
+    if any(t in low for t in ("status", "update", "where are we", "week in review", "weekly recap")):
+        return _ATLAS_SELF_SCRIPTS["status"]
+    if any(t in low for t in ("delegate", "route", "which lane", "who handles")):
+        return _ATLAS_SELF_SCRIPTS["delegate"]
+    return _ATLAS_SELF_SCRIPTS["default"]
+
+
+def _has_atlas_address(low: str) -> bool:
+    """True if the admin addressed Atlas directly or asked orchestration meta."""
+    return any(k in low for k in (
+        "atlas,", "atlas ", "hey atlas", "ok atlas", "status check",
+        "week in review", "weekly recap", "delegations", "sprint state",
+        "who handles", "which lane",
+    ))
+
+
+def _revere_atlas_response(low: str) -> dict | None:
+    """Compose an Atlas-sole-speaker response for the /api/revere/message surface.
+
+    Returns a dict with this shape when a scripted path is triggered:
+      { speaker: "atlas",
+        reply:   "<Atlas-voiced narration>",
+        backstage: ["cleopatra", "artemis", ...],
+        cards:   [{title, rows, footer}, ...]  # one per invoked specialist
+      }
+    Returns None when no scripted path matches (caller falls through to LLM).
+    """
+    lanes = _detect_lanes(low)
+
+    if not lanes:
+        # No specialist lane fired. If admin addressed Atlas directly, answer
+        # as Atlas; otherwise let the LLM path handle truly open-ended queries.
+        if _has_atlas_address(low):
+            return {
+                "speaker":   "atlas",
+                "reply":     _atlas_self_reply(low),
+                "backstage": [],
+                "cards":     [],
+            }
+        return None
+
+    # Single-lane path — Atlas narrates one specialist's work.
+    if len(lanes) == 1:
+        specialist, intent = lanes[0]
+        lane = _REVERE_SPECIALIST_LANES[specialist]
+        narration = lane["atlas"].get(intent, lane["atlas"]["default"])
+        return {
+            "speaker":   "atlas",
+            "reply":     narration,
+            "backstage": [specialist],
+            "cards":     [{
+                "title":  lane["card_title"],
+                "rows":   lane["card_rows"],
+                "footer": f"Atlas narrates · {specialist.capitalize()} is running it backstage.",
+            }],
+        }
+
+    # Parallel-lane path — Atlas narrates the fan-out across N specialists.
+    names = [s.capitalize() for s, _ in lanes]
+    lane_blurbs = []
+    cards = []
+    backstage = []
+    for specialist, intent in lanes:
+        lane = _REVERE_SPECIALIST_LANES[specialist]
+        verb_map = {
+            "cleopatra": "on the creative",
+            "artemis":   "on the outbound calls",
+            "penelope":  "on the event flow",
+            "sophia":    "on the member lifecycle",
+            "iris":      "on comms",
+            "athena":    "on Board ops",
+            "echo":      "on the review pipeline",
+            "hermes":    "on inbound triage",
+        }
+        lane_blurbs.append(f"{specialist.capitalize()} {verb_map.get(specialist, 'on it')}")
+        backstage.append(specialist)
+        cards.append({
+            "title":  lane["card_title"],
+            "rows":   lane["card_rows"],
+            "footer": f"Atlas narrates · {specialist.capitalize()} is running it backstage.",
+        })
+
+    # Atlas narration for the fan-out — keep it punchy, not robotic
+    if len(names) == 2:
+        blurb_join = " and ".join(lane_blurbs)
+    else:
+        blurb_join = ", ".join(lane_blurbs[:-1]) + ", and " + lane_blurbs[-1]
+    narration = (
+        f"Firing {len(names)} lanes now — {blurb_join}. "
+        f"Back with you in minutes with everything on one screen."
+    )
+
     return {
-        "title": scripts["title"],
-        "rows": [{"label": "Reply", "value": scripts.get(intent, scripts["default"])}],
-        "footer": f"Scripted demo reply · full Chamber brain (Baby Atlas) lands in CT-0417-F6.",
+        "speaker":   "atlas",
+        "reply":     narration,
+        "backstage": backstage,
+        "cards":     cards,
+        "parallel":  True,
     }
 
 

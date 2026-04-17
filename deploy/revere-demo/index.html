@@ -56,24 +56,24 @@
   <section class="view active" data-view="dashboard">
     <div class="view-head">
       <div>
-        <div class="view-kicker">Your Chamber's ten-agent operating team</div>
-        <h2>Chamber Agent Command</h2>
-        <p class="view-sub">Atlas orchestrates nine named specialists who run Revere Chamber's day-to-day operations — member success, events, communications, outbound, reputation, creative, and Board ops. Each agent is Chamber-branded, Chamber-scoped, Chamber-owned.</p>
+        <div class="view-kicker">One voice · nine hands · parallel lanes</div>
+        <h2>Atlas Command</h2>
+        <p class="view-sub">You talk to Atlas. Atlas runs eight specialists — Hermes on inbound, Artemis on outbound, Penelope on events, Sophia on member success, Iris on comms, Athena on Board ops, Echo on reputation, Cleopatra on creative. Specialists never chat with you directly; Atlas delegates, narrates back, and fires concurrent lanes when you batch requests.</p>
       </div>
       <div class="view-head-right">
         <div class="pill-live">Live · Chamber OS · production-grade</div>
       </div>
     </div>
 
-    <!-- Atlas — primary orchestrator card, spans two columns on desktop -->
+    <!-- Atlas — the voice the Chamber admin talks to. Specialists sit silent behind. -->
     <div class="agent-grid agent-grid--v5">
       <article class="agent-card agent-card--hero" data-agent="atlas">
         <div class="agent-hero-left">
           <div class="agent-ico agent-ico--atlas">⟡</div>
           <div class="agent-hero-meta">
-            <div class="agent-tag">Orchestrator</div>
+            <div class="agent-tag">The voice you talk to</div>
             <h3>Atlas</h3>
-            <div class="agent-sub">Chamber OS brain · project manager · delegation engine</div>
+            <div class="agent-sub">Chamber OS orchestrator · delegates to 8 specialists · narrates everything back · fires parallel lanes on batched requests</div>
           </div>
         </div>
         <ul class="agent-metrics agent-metrics--hero">
@@ -95,7 +95,7 @@
           <li><span>Avg. pickup</span><b>&lt; 2 rings</b></li>
           <li><span>Resolved tier-1</span><b>73%</b></li>
         </ul>
-        <button class="btn-primary" onclick="openChat('hermes')">Ask Hermes</button>
+        <button class="btn-primary" onclick="openChat('hermes')">Ask Atlas about Hermes</button>
       </article>
 
       <article class="agent-card" data-agent="artemis">
@@ -108,7 +108,7 @@
           <li><span>Sponsors re-engaged</span><b>11</b></li>
           <li><span>New-member calls</span><b>47</b></li>
         </ul>
-        <button class="btn-primary" onclick="openChat('artemis')">Ask Artemis</button>
+        <button class="btn-primary" onclick="openChat('artemis')">Ask Atlas about Artemis</button>
       </article>
 
       <article class="agent-card" data-agent="penelope">
@@ -121,7 +121,7 @@
           <li><span>RSVPs tracked</span><b>182</b></li>
           <li><span>Avg. show rate</span><b>81%</b></li>
         </ul>
-        <button class="btn-primary" onclick="openChat('penelope')">Ask Penelope</button>
+        <button class="btn-primary" onclick="openChat('penelope')">Ask Atlas about Penelope</button>
       </article>
 
       <article class="agent-card" data-agent="sophia">
@@ -134,7 +134,7 @@
           <li><span>Renewal rate (12-mo)</span><b>92%</b></li>
           <li><span>Lapsed re-engaged</span><b>4</b></li>
         </ul>
-        <button class="btn-primary" onclick="openChat('sophia')">Ask Sophia</button>
+        <button class="btn-primary" onclick="openChat('sophia')">Ask Atlas about Sophia</button>
       </article>
 
       <article class="agent-card" data-agent="iris">
@@ -147,7 +147,7 @@
           <li><span>Avg. open rate</span><b>42%</b></li>
           <li><span>Click-through</span><b>11%</b></li>
         </ul>
-        <button class="btn-primary" onclick="openChat('iris')">Ask Iris</button>
+        <button class="btn-primary" onclick="openChat('iris')">Ask Atlas about Iris</button>
       </article>
 
       <article class="agent-card" data-agent="athena">
@@ -160,7 +160,7 @@
           <li><span>Action items tracked</span><b>34</b></li>
           <li><span>Motions + votes logged</span><b>12</b></li>
         </ul>
-        <button class="btn-primary" onclick="openChat('athena')">Ask Athena</button>
+        <button class="btn-primary" onclick="openChat('athena')">Ask Atlas about Athena</button>
       </article>
 
       <article class="agent-card" data-agent="echo">
@@ -173,7 +173,7 @@
           <li><span>Avg. response time</span><b>14 min</b></li>
           <li><span>Net sentiment score</span><b>+78</b></li>
         </ul>
-        <button class="btn-primary" onclick="openChat('echo')">Ask Echo</button>
+        <button class="btn-primary" onclick="openChat('echo')">Ask Atlas about Echo</button>
       </article>
 
       <article class="agent-card" data-agent="cleopatra">
@@ -186,22 +186,23 @@
           <li><span>Avg. Lumina score</span><b>9.4</b></li>
           <li><span>Brand-consistency rate</span><b>100%</b></li>
         </ul>
-        <button class="btn-primary" onclick="openChat('cleopatra')">Ask Cleopatra</button>
+        <button class="btn-primary" onclick="openChat('cleopatra')">Ask Atlas about Cleopatra</button>
       </article>
     </div>
 
-    <!-- Aria — orb, not card — per §10.5.4 -->
+    <!-- Voice Orb — Atlas speaking via voice modality. Orb stays visually;
+         brand label deferred per CT-0417-25 architecture lock. -->
     <div class="aria-wrap">
-      <div class="aria-orb" role="button" tabindex="0" aria-label="Activate Aria Voice Orb" onclick="openChat('aria')" onkeypress="if(event.key==='Enter')openChat('aria')">
+      <div class="aria-orb" role="button" tabindex="0" aria-label="Activate Atlas voice orb" onclick="openChat('aria')" onkeypress="if(event.key==='Enter')openChat('aria')">
         <div class="aria-core"></div>
         <div class="aria-ring aria-ring--1"></div>
         <div class="aria-ring aria-ring--2"></div>
         <div class="aria-ring aria-ring--3"></div>
       </div>
       <div class="aria-meta">
-        <div class="agent-tag">Voice Orb · Mobile Command</div>
-        <h3 class="aria-title">Aria</h3>
-        <p class="aria-sub">"Aria, how many new members this month?" — Don speaks into his phone; Aria answers out loud and routes follow-up to the right specialist. Orb pulses on listen, speak, and think.</p>
+        <div class="agent-tag">Voice Orb · Atlas speaking</div>
+        <h3 class="aria-title">Atlas on voice</h3>
+        <p class="aria-sub">"Atlas, how many new members this month?" — Don speaks into his phone; Atlas answers out loud, orchestrating specialists silently behind the scenes. Orb pulses on listen, speak, and think. One voice, always.</p>
         <div class="aria-prompts">
           <button class="aria-chip" onclick="openChat('aria','members')">How many new members this month?</button>
           <button class="aria-chip" onclick="openChat('aria','sponsor')">Draft a sponsor thank-you.</button>
@@ -212,13 +213,13 @@
 
     <div class="amg-banner">
       <div>
-        <div class="amg-banner-kicker">Ten Chamber agents — Chamber-branded, Chamber-scoped, Chamber-owned</div>
-        <div class="amg-banner-main">Atlas plus nine specialists, all running on production infrastructure under Revere Chamber's own subdomain. Agents activate by bundle — Essentials turns on four to five, Full Operational seven to eight, Maximum all ten.</div>
+        <div class="amg-banner-kicker">One voice · nine hands · one Chamber relationship</div>
+        <div class="amg-banner-main">Atlas is the voice. Eight specialists work silently behind. Ask for one thing — Atlas narrates one result. Ask for four things in one sentence — Atlas fires four concurrent lanes and comes back with everything on one screen. Essentials activates 4-5 specialists behind Atlas; Full Operational adds three more; Maximum runs all eight.</div>
       </div>
       <div class="amg-stats">
-        <div><b>10</b><span>Chamber agents</span></div>
-        <div><b>24/7</b><span>always on</span></div>
-        <div><b>&lt;2s</b><span>typical response</span></div>
+        <div><b>1</b><span>voice you talk to</span></div>
+        <div><b>8</b><span>specialists backstage</span></div>
+        <div><b>4×</b><span>parallel lanes max</span></div>
       </div>
     </div>
   </section>
@@ -454,7 +455,7 @@
       <div>
         <div class="view-kicker">Pro-tier add-on · included for Founding Partner</div>
         <h2>Chamber OS</h2>
-        <p class="view-sub">Three modules that ride on top of the ten-agent roster — the operating system the Chamber office uses to run the program day-to-day, coordinated by Atlas and delivered on the phone by Aria.</p>
+        <p class="view-sub">Three modules that ride on top of Atlas's nine-hand operating team — the operating system the Chamber office uses day-to-day. Athena drives Meeting Intelligence in the background, Atlas coordinates project delegation, and the voice orb IS Atlas speaking through your phone.</p>
       </div>
       <div class="view-head-right">
         <div class="badge badge-gold">Included · Founding Partner tier</div>
@@ -523,7 +524,7 @@
     <div class="amg-banner">
       <div>
         <div class="amg-banner-kicker">One unified platform, Chamber-specific surfaces</div>
-        <div class="amg-banner-main">Chamber OS isn't a separate product — it's what happens when all ten agents get Chamber-specific surfaces: Athena for Meeting Intelligence, Atlas for project management, Aria for mobile admin.</div>
+        <div class="amg-banner-main">Chamber OS isn't a separate product — it's what happens when Atlas gets Chamber-specific surfaces for Meeting Intelligence (Athena drives it), project management (Atlas orchestrates), and mobile admin (Atlas speaks through the voice orb).</div>
       </div>
       <button class="btn-gold" onclick="switchView('dashboard')">Back to Agent Command</button>
     </div>
