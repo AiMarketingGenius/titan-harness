@@ -1662,6 +1662,14 @@ def _revere_atlas_response(low: str) -> dict | None:
         cards:   [{title, rows, footer}, ...]  # one per invoked specialist
       }
     Returns None when no scripted path matches (caller falls through to LLM).
+
+    Unit-tested on VPS python3.10 2026-04-17T14:47Z:
+      - single-lane "ask cleopatra to draft a gala flyer" -> 1 card backstage=['cleopatra']
+      - parallel "draft gala flyer plus call lapsed members and prep board minutes"
+        -> 3 cards backstage=['cleopatra','artemis','athena'] parallel=true
+      - atlas self-reply "atlas status check this week" -> backstage=[] no cards
+      - gibberish "asdf qwerty" -> None (LLM fallback)
+    Re-run via: python3 -c "from atlas_api import _revere_atlas_response; print(_revere_atlas_response('<probe>'))"
     """
     lanes = _detect_lanes(low)
 
@@ -1699,7 +1707,9 @@ def _revere_atlas_response(low: str) -> dict | None:
     cards = []
     backstage = []
     for specialist, intent in lanes:
-        lane = _REVERE_SPECIALIST_LANES[specialist]
+        lane = _REVERE_SPECIALIST_LANES.get(specialist)
+        if lane is None:  # defensive skip if trigger table drifts from lane table
+            continue
         verb_map = {
             "cleopatra": "on the creative",
             "artemis":   "on the outbound calls",
