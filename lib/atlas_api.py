@@ -3822,6 +3822,126 @@ async def outbound_email_enqueue(request: Request) -> JSONResponse:
         return _mobile_error_response(exc, status_code=500)
 
 
+# ─── Step 8: AIMG extension POST-output fact-check ───────────────────────────
+# Takes LLM-generated text (from Claude, GPT, whatever agent surface), asks a
+# verification model to identify factual claims + score verifiability + flag
+# suspicion. AIMG extension UI overlays visual indicators (green check / yellow
+# warn / red fail) per claim using the response shape.
+#
+# Design rationale: post-output fact-check instead of pre-output constraint
+# because pre-output constraints often hurt fluency; post-output allows the
+# primary LLM to produce naturally + a second pass catches hallucinations.
+
+_AIMG_FACT_CHECK_SYSTEM = """You are a factual-claim auditor for marketing content. Your job:
+1. Scan the submitted text for atomic factual claims (dates, statistics, named entities, citations, cause-effect assertions, quantitative comparisons).
+2. For each claim, assign a verifiability score 0-10 and a status label:
+   - VERIFIED (9-10): claim aligns with widely-known facts; high confidence.
+   - PLAUSIBLE (6-8): claim is reasonable but would require source lookup to confirm.
+   - SUSPICIOUS (3-5): claim conflicts with common knowledge or is too specific to be a safe bet.
+   - LIKELY_FALSE (0-2): claim contradicts well-known facts.
+3. Include a terse rationale + suggested verification source for each claim.
+4. Return STRICT JSON (no prose outside JSON): {"claims": [{"text": "...", "status": "VERIFIED|PLAUSIBLE|SUSPICIOUS|LIKELY_FALSE", "score": X, "rationale": "...", "suggested_source": "..."}], "overall_verification_score": X, "claim_count": N, "summary": "1-sentence"}
+
+Do NOT include opinions, style issues, tone critiques. Facts only."""
+
+
+@app.post("/api/aimg/fact-check")
+async def aimg_fact_check(request: Request) -> JSONResponse:
+    """Verify factual claims in AIMG-generated content. Consumed by the AIMG
+    Chrome extension for inline visual indicators (green/yellow/red chips).
+
+    Body: {text: "<content>", context?: "<optional brand/topic context>", model?: "sonar-pro|claude-sonnet-4-6"}
+    Returns: JSON with per-claim status + overall score.
+    Rate-limited 20/min per tenant (single operator spend guard)."""
+    tenant_id = "00000000-0000-0000-0000-000000000001"  # Step 7.2-b middleware TBD
+    _tenant_rate_check(tenant_id, "fact-check", max_per_min=20)
+
+    try:
+        body = await request.json()
+        text = str(body.get("text", "")).strip()
+        if not text or len(text) > 12000:
+            return _mobile_error_response(
+                ValueError("text 1-12000 chars required"), status_code=400
+            )
+        context = str(body.get("context", "")).strip()
+        model_choice = str(body.get("model", "sonar-pro")).strip()
+
+        # Route to LiteLLM gateway (sonar-pro preferred for web-backed fact checks;
+        # claude-sonnet-4-6 fallback for pure-reasoning checks with no retrieval).
+        if not LITELLM_BASE or not LITELLM_KEY:
+            return JSONResponse(status_code=503, content={
+                "error": "litellm_gateway_not_configured",
+                "hint": "LITELLM_BASE + LITELLM_KEY env vars required",
+            })
+
+        user_prompt = f"CONTENT TO FACT-CHECK:\n\n{text}"
+        if context:
+            user_prompt = f"CONTEXT: {context}\n\n{user_prompt}"
+
+        if httpx is None:
+            return JSONResponse(status_code=500, content={"error": "httpx missing"})
+
+        llm_body = {
+            "model": model_choice,
+            "messages": [
+                {"role": "system", "content": _AIMG_FACT_CHECK_SYSTEM},
+                {"role": "user", "content": user_prompt},
+            ],
+            "temperature": 0.1,
+            "max_tokens": 4000,
+        }
+        async with httpx.AsyncClient(timeout=90.0) as client:
+            r = await client.post(
+                f"{LITELLM_BASE}/v1/chat/completions",
+                json=llm_body,
+                headers={
+                    "Authorization": f"Bearer {LITELLM_KEY}",
+                    "Content-Type": "application/json",
+                },
+            )
+            if r.status_code != 200:
+                return JSONResponse(status_code=502, content={
+                    "error": f"llm_gateway_{r.status_code}",
+                    "detail": r.text[:500],
+                })
+            llm_data = r.json()
+        content = llm_data["choices"][0]["message"]["content"]
+        # Tolerate code-fenced JSON
+        content_clean = content.strip()
+        if content_clean.startswith("```"):
+            content_clean = content_clean.split("```", 2)[1]
+            if content_clean.startswith("json"):
+                content_clean = content_clean[4:]
+            content_clean = content_clean.rsplit("```", 1)[0].strip()
+        try:
+            parsed = json.loads(content_clean)
+        except json.JSONDecodeError:
+            # Return raw if parsing failed so extension can fall back to a warning chip
+            return JSONResponse(content={
+                "raw": content,
+                "parsed": None,
+                "parse_error": "response was not valid JSON",
+                "claims": [],
+                "overall_verification_score": 0,
+            })
+        # Ensure the shape the extension expects
+        parsed.setdefault("claims", [])
+        parsed.setdefault("overall_verification_score", 0)
+        parsed.setdefault("claim_count", len(parsed.get("claims", [])))
+        import datetime as _dt_iso
+        parsed["_meta"] = {
+            "model": model_choice,
+            "tenant_id": tenant_id,
+            "ts": _dt_iso.datetime.now(_dt_iso.timezone.utc).isoformat(),
+            "text_len": len(text),
+        }
+        return JSONResponse(content=parsed)
+    except HTTPException:
+        raise
+    except Exception as exc:  # noqa: BLE001
+        return _mobile_error_response(exc, status_code=500)
+
+
 @app.post("/api/outbound/voice")
 async def outbound_voice_enqueue(request: Request) -> JSONResponse:
     """Enqueue an outbound voice AI call. Worker dials + runs the script.
