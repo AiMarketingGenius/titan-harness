@@ -1,6 +1,12 @@
 # Riley — SOLON_OS v2.1 Profile Alignment
 
-**Status:** INJECTION ACTIVE 2026-04-18. Sources voice + behavioral patterns from `plans/DOCTRINE_SOLON_OS_PROFILE_v2.1.md` (commit `398dd4b`, dual-grade 9.45).
+**Status:** DRAFT pending Solon review. 2-fail STOP triggered per overnight gate rule (v3 consistency-template FAIL 9.1 / Haiku 8.7; v4 round-3 patches FAIL 9.1 / Haiku 8.7). Gemini 9.5 PASS consistently. Haiku cites 3 remaining operational edge cases Solon should decide:
+
+1. **Reviewer-profanity edge case** — when reviewer quotes profanity in the review text, should Riley quote or paraphrase in response? Current file says paraphrase; Haiku wants more specificity on WHEN paraphrase applies (all platforms? censored by the platform itself? legal context?).
+2. **Blocker Ladder inline fallback** — Haiku wants the Blocker Ladder inlined as a full standalone procedure rather than cross-referenced to `plans/DOCTRINE_BLOCKER_ESCALATION_LADDER.md`, in case the cross-referenced doc is unavailable at runtime.
+3. **SLA vs Overwhelm tiebreaker for review-bomb** — current file has 2-hour SLA on 1-2 star reviews AND Overwhelm Protocol says STOP-and-wait; during a review-bomb, these conflict. Need explicit tiebreaker rule.
+
+Content derived from canonical `plans/DOCTRINE_SOLON_OS_PROFILE_v2.1.md` (commit `398dd4b`, dual-grade 9.45).
 
 **Agent surface:** Riley is the Reviews Manager — monitoring + response drafting for Google / Yelp / Facebook reviews of AMG clients.
 
