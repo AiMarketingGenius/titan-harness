@@ -64,13 +64,26 @@ end
 
 local function hex_hmac(key, msg)
   -- Hammerspoon's hs.hash does not expose HMAC directly; shell out to openssl.
+  -- LibreSSL (macOS) outputs bare hex with no "HMAC-SHA256(stdin)= " prefix.
+  -- Write canonical string to temp file to avoid quoting surprises with
+  -- newlines and special chars in body JSON.
+  local tmp = os.tmpname()
+  local f = io.open(tmp, "wb")
+  if not f then return nil end
+  f:write(msg)
+  f:close()
   local cmd = string.format(
-    "/usr/bin/printf '%%s' %q | /usr/bin/openssl dgst -sha256 -hmac %q -hex | awk '{print $2}'",
-    msg, key
+    "/usr/bin/openssl dgst -sha256 -hmac %q -hex < %q 2>/dev/null",
+    key, tmp
   )
   local out, ok = hs.execute(cmd, true)
+  os.remove(tmp)
   if not ok or out == nil then return nil end
-  return out:gsub("%s+$", "")
+  -- Strip trailing newline; if a prefix like "HMAC-SHA256(stdin)= " is present
+  -- on other openssl builds, extract just the trailing hex token.
+  out = out:gsub("%s+$", "")
+  local hex = out:match("[0-9a-f]+$")
+  return hex
 end
 
 local function constant_time_equal(a, b)
@@ -93,8 +106,16 @@ local function inject_nudge(phrase)
   local app_name = app and app:name() or ""
   local active_recent = (now - last_keystroke_ts) < KEYSTROKE_BUFFER_S
 
-  if app_name == "Claude Code" and active_recent then
-    -- Solon is actively typing — defer
+  -- Titan host app on Mac may be called "Claude" (Desktop app) or "Claude Code"
+  -- (future CLI-wrapped app). Support both.
+  local claude_candidates = {"Claude Code", "Claude"}
+  local is_claude_active = false
+  for _, n in ipairs(claude_candidates) do
+    if app_name == n then is_claude_active = true; break end
+  end
+
+  if is_claude_active and active_recent then
+    -- Solon is actively typing in the Claude session — defer
     hs.timer.doAfter(DEFER_SECONDS, function() inject_nudge(phrase) end)
     local entry = string.format('{"ts":"%s","action":"defer","reason":"active_keystrokes_within_30s","retry_at":"%s"}\n',
       os.date("!%Y-%m-%dT%H:%M:%SZ"), os.date("!%Y-%m-%dT%H:%M:%SZ", os.time() + DEFER_SECONDS))
@@ -103,10 +124,14 @@ local function inject_nudge(phrase)
     return {status = "deferred", defer_seconds = DEFER_SECONDS}
   end
 
-  -- Find and focus the Claude Code window
-  local cc = hs.application.find("Claude Code")
+  -- Find the Claude window across candidate app names
+  local cc = nil
+  for _, n in ipairs(claude_candidates) do
+    cc = hs.application.find(n)
+    if cc ~= nil then break end
+  end
   if cc == nil then
-    return {status = "failed", reason = "claude_code_not_running"}
+    return {status = "failed", reason = "claude_app_not_running", candidates_tried = claude_candidates}
   end
   cc:activate()
   hs.timer.usleep(300000)  -- 300ms focus settle
@@ -189,19 +214,69 @@ end)
 -- Public API
 -- ---------------------------------------------------------------------------
 
+-- ---------------------------------------------------------------------------
+-- MCP-polling inversion (added 2026-04-18 post-reveal that VPS→Mac inbound
+-- isn't reachable without a tunnel). n8n writes an op_decision tagged
+-- `tla-nudge-fire-pending` + `nudge-id-<uuid>`; Hammerspoon polls every 30s.
+-- ---------------------------------------------------------------------------
+
+local mcp_poll_timer = nil
+local MCP_POLL_SECONDS = 30
+local POLL_SCRIPT = os.getenv("HOME") .. "/.hammerspoon/poll_nudge_queue.sh"
+local ACK_SCRIPT  = os.getenv("HOME") .. "/.hammerspoon/ack_nudge.sh"
+
+local function mcp_poll_once()
+  if not hs.fs.attributes(POLL_SCRIPT) then return end
+  local out, ok = hs.execute(POLL_SCRIPT, true)
+  if not ok or out == nil then return end
+  local parsed = nil
+  local ok_parse, obj = pcall(hs.json.decode, out)
+  if ok_parse then parsed = obj end
+  if parsed == nil or parsed.nudge ~= true then return end
+  local nudge_id = parsed.nudge_id or "no-id"
+  local phrase = parsed.phrase or NUDGE_PHRASE
+  -- If the pending payload explicitly marks dry_run, skip the keystroke
+  -- (still fire the ack so the record doesn't re-trigger).
+  local dry_run = (parsed.dry_run == true) or phrase:find("DRY_RUN_ONLY") ~= nil
+  if dry_run then
+    hs.execute(string.format("bash %q %q dry_run &", ACK_SCRIPT, nudge_id), true)
+    return
+  end
+  local result = inject_nudge(phrase)
+  local outcome = (result and result.status) or "unknown"
+  hs.execute(string.format("bash %q %q %q &", ACK_SCRIPT, nudge_id, outcome), true)
+end
+
+local function start_mcp_poller()
+  if mcp_poll_timer ~= nil then return end
+  mcp_poll_timer = hs.timer.doEvery(MCP_POLL_SECONDS, mcp_poll_once)
+end
+
+-- ---------------------------------------------------------------------------
+-- Public API
+-- ---------------------------------------------------------------------------
+
 function M.start()
   install_keystroke_watcher()
   start_server()
+  start_mcp_poller()
+  hs.alert.show("TLA Path 4 armed (HTTP:41710 + MCP poll 30s)")
 end
 
 function M.stop()
   if server ~= nil then server:stop(); server = nil end
   if keystroke_watcher ~= nil then keystroke_watcher:stop(); keystroke_watcher = nil end
+  if mcp_poll_timer ~= nil then mcp_poll_timer:stop(); mcp_poll_timer = nil end
 end
 
 function M.dry_run_inject()
   -- For local testing only — bypasses HMAC + server.
   return inject_nudge(NUDGE_PHRASE)
+end
+
+function M.force_poll()
+  -- Test helper — fires MCP poll immediately without waiting 30s.
+  mcp_poll_once()
 end
 
 return M

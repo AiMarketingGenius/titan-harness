@@ -1,0 +1,12 @@
+[Unit]
+Description=TLA Path 4 idle detector timer — every 60s
+
+[Timer]
+OnBootSec=2min
+OnUnitActiveSec=60s
+AccuracySec=5s
+Persistent=false
+Unit=tla-idle-detector.service
+
+[Install]
+WantedBy=timers.target

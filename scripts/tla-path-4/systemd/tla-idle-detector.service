@@ -1,0 +1,12 @@
+[Unit]
+Description=TLA Path 4 idle detector — writes tla-nudge-fire-pending MCP decision when Titan idle + queue non-empty
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/opt/amg-security/tla_idle_detector.sh
+StandardOutput=append:/var/log/tla-idle-detector.log
+StandardError=append:/var/log/tla-idle-detector.log
+User=root
+Nice=10
