@@ -102,14 +102,40 @@ All 5 dimensions at or above 9.0, overall ≥9.3, no critical_failures.
 - **6.0** — Fundamental problem in approach.
 - **<6.0** — Auto-block, route back for discovery before design.
 
-### Dimension weights
-- Authenticity: 25% (primary, 2026-04-17 lesson)
-- Hierarchy: 20%
-- Craft: 25%
-- Responsiveness: 15%
-- Accessibility: 15%
+### Dimension weights (6-category rubric, 2026-04-18 hardening)
+
+- Authenticity: 20% (primary, 2026-04-17 lesson)
+- Hierarchy: 15%
+- Craft: 20%
+- **Typography & Layout Rhythm: 20%** (new — per `09_typography_layout_hardening.md`, 2026-04-18 Solon directive)
+- Responsiveness: 12.5%
+- Accessibility: 12.5%
 
 Weighted average ≥9.3 → approve. But ANY single dimension below 8.5 → revise regardless of average.
+
+### Typography & Layout Rhythm — hard thresholds
+
+Per `09_typography_layout_hardening.md`, this dimension auto-fails (drops to <8.5 triggering revise) if ANY of the following violate their measurable threshold:
+
+- Body copy <16px desktop / <14px mobile → 🔴 CRITICAL
+- H1 <40px desktop hero / <32px other / <28px mobile → 🔴 CRITICAL
+- H2 <28px desktop / <22px mobile → 🟡
+- H3 <20px desktop / <18px mobile → 🟡
+- CTA button text <16px (desktop or mobile) → 🔴 CRITICAL
+- Body line-height outside 1.5-1.7 → 🟡
+- Headline line-height outside 1.1-1.3 → 🟡
+- Max chars per line outside 50-75 desktop / 40-65 mobile → 🟡
+- More than 2 type families without deliberate contrast intent → 🟡
+- More than 1 H1 per page → 🔴 CRITICAL (semantic + visual)
+
+### Headline line-break / balance checks (the Solon-flag case)
+
+- Any line of a multi-line headline with <30% of the word-count of line 1 → 🟡 (orphan)
+- Preposition or article ending a line in a headline → 🟡 (hanging word)
+- Body-copy orphan/widow (single trailing word on final line of a paragraph block) → soft flag
+- Prescribe `text-wrap: balance` + explicit `<br>` breakpoints on all headlines
+
+Severity ladder for Typography & Layout Rhythm: any 🔴 CRITICAL violation auto-caps the dimension at 7.0 (below the 8.5 revise floor). Two or more 🟡 violations cap at 8.0.
 
 ## Special-case floors
 
@@ -119,15 +145,16 @@ Weighted average ≥9.3 → approve. But ANY single dimension below 8.5 → revi
 
 ## Self-check before logging approval
 
-1. Did I score all 5 dimensions?
+1. Did I score all 6 dimensions? (Authenticity, Hierarchy, Craft, **Typography & Layout Rhythm**, Responsiveness, Accessibility)
 2. Did I reference the library?
 3. Did my critique have specific fixes (hex/pixel/selector)?
 4. Did I catch authenticity first (before craft)?
-5. Is the approval YAML complete with all subscores?
+5. Is the approval YAML complete with all 6 subscores?
 6. Is the sha256 of the artifact recorded?
-7. **Did I measure typography against the reference site (AI Memory Guard for AMG surfaces) per `08_typography_reference.md`?** Specifically: eyebrow letter-spacing ≥15% of font-size? H2 weight ≥800 with optical tightening? Button weight ≥700?
+7. **Did I measure typography against the reference site** (AI Memory Guard for AMG surfaces) per `08_typography_reference.md`? Specifically: eyebrow letter-spacing ≥15% of font-size? H2 weight ≥800 with optical tightening? Button weight ≥700?
+8. **Did I run the Typography & Layout Rhythm hard-threshold checklist** from `09_typography_layout_hardening.md`? Body size, H1-H3 size, CTA size, line-heights, chars-per-line, type-family count, H1-per-page, headline balance, orphan/widow?
 
-7/7 → log approval. <7 → revise critique before finalizing.
+8/8 → log approval. <8 → revise critique before finalizing.
 
 ## The 2026-04-17 Chamber-band typography miss (do not repeat)
 
