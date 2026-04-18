@@ -1,0 +1,101 @@
+/* AMG Mobile Command — brand tokens.
+ * Source of truth for brand identity, mirrors deploy/amg-chatbot-widget/demo.html
+ * plus operator-only dark variant (slate background) for long-session comfort.
+ */
+
+:root {
+  --brand-navy: #0B2572;
+  --brand-navy-600: #1434a0;
+  --brand-navy-300: #4a62b8;
+  --brand-gold: #d4a627;
+  --brand-gold-dim: #9c7817;
+  --brand-ivory: #fbf9f3;
+  --brand-ink: #1c2433;
+  --brand-muted: #6c7687;
+
+  /* Operator dark variant — long-session comfort, lower eye fatigue. */
+  --bg: #0b0f1a;
+  --bg-elev: #141a2c;
+  --bg-card: #1a2138;
+  --border: rgba(212, 166, 39, 0.18);
+  --border-strong: rgba(212, 166, 39, 0.35);
+  --text: #eef1f8;
+  --text-dim: #9ba7c1;
+  --text-muted: #6c7687;
+
+  --accent: var(--brand-gold);
+  --accent-bg: rgba(212, 166, 39, 0.12);
+  --success: #4ade80;
+  --warn: #facc15;
+  --danger: #f87171;
+  --info: #60a5fa;
+
+  --radius: 14px;
+  --radius-sm: 8px;
+  --shadow: 0 6px 24px rgba(0, 0, 0, 0.32);
+  --shadow-lg: 0 12px 48px rgba(11, 37, 114, 0.55);
+
+  --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --font-mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+
+  --header-h: 56px;
+  --footer-h: 70px;
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html, body, #root {
+  height: 100%;
+  width: 100%;
+}
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-sans);
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  -webkit-tap-highlight-color: transparent;
+  overscroll-behavior: none;
+}
+
+button {
+  font-family: inherit;
+  cursor: pointer;
+  border: none;
+  background: none;
+  color: inherit;
+}
+
+input, textarea {
+  font-family: inherit;
+  color: inherit;
+}
+
+a {
+  color: var(--accent);
+  text-decoration: none;
+}
+
+a:active { opacity: 0.7; }
+
+/* iOS safe-area insets — critical for PWA home-screen install */
+#root {
+  padding-top: env(safe-area-inset-top);
+  padding-bottom: env(safe-area-inset-bottom);
+  padding-left: env(safe-area-inset-left);
+  padding-right: env(safe-area-inset-right);
+}
+
+/* Screen-reader-only helper */
+.sr-only {
+  position: absolute;
+  width: 1px; height: 1px;
+  padding: 0; margin: -1px;
+  overflow: hidden; clip: rect(0, 0, 0, 0);
+  border: 0;
+}

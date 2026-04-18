@@ -705,3 +705,51 @@ Every session-end extends §11's flush-state with:
 - Verify `plans/agents/kb/titan/` mtime newer than last-Solon-correction recorded in MCP (if Solon corrected something, the correction lands in KB before power-off)
 - Verify pre-commit hook chain still 4-layer intact (`grep -c "pre-commit-tradesecret-scan.sh" .git/hooks/pre-commit` == 1 AND `grep -c "pre-commit-lumina-gate.sh" .git/hooks/pre-commit` == 1)
 - Verify mirror cascade confirms commits landed on HostHatch + Beast + GitHub
+
+---
+
+## 19. TITAN AS DOCUMENT KEEPER — permanent operating pattern (added 2026-04-18, EOM supplement directive Task C)
+
+**Hard rule, non-bypassable.** Solon does not manage files. All EOM-generated docs (doctrines, runbooks, templates, research briefs, evidence packages) are filed canonically by Titan on the VPS + R2-mirrored + MCP-registered. Retrieval is by natural language against MCP, not by path recall.
+
+### 19.1 Canonical filing tree (on VPS)
+
+| Doc class | Canonical path |
+|---|---|
+| Doctrines | `/opt/amg-docs/doctrines/` |
+| Runbooks | `/opt/amg-docs/runbooks/` |
+| Call scripts / templates | `/opt/amg-docs/templates/` |
+| Research briefs | `/opt/amg-docs/research/` |
+| Evidence packages | `/evidence/<case-name>/<YYYY-MM-DD>[_<slug>]/` |
+
+Back-compat symlink: `/opt/amg-docs/doctrine -> doctrines` (legacy path kept pointing at canonical).
+
+### 19.2 Filing flow
+
+1. **Solon pastes** an EOM-generated doc to Titan in Claude Code chat.
+2. **Titan classifies** by doc class (per 19.1) and chooses the canonical path + filename. Filename convention: UPPER-SNAKE-CASE slug + `_vX_Y[_DRAFT|_FINAL]` where applicable (e.g., `DR-AMG-SOCIAL-ENGINEERING-01_v0_1_DRAFT.md`).
+3. **Titan writes** the file on VPS at the canonical path (via `ssh root@<vps> 'cat > <path>'` or equivalent).
+4. **Titan mirrors** to R2 via `/opt/amg-security/amg-docs-mirror.sh` (rsyncs `/opt/amg-docs/` + `/evidence/` → `r2:amg-storage/{amg-docs,evidence}/`). Mirror runs immediately on filing + periodic cron for safety.
+5. **Titan MCP-registers** via `log_decision`:
+   - `project_source="EOM"` (or "titan" for Titan-authored)
+   - `text` includes the full canonical path + 1-sentence description + status markers (DRAFT/FINAL/SUPERSEDED) + cross-references to any other filed docs this one supersedes or depends on
+   - `tags` MUST include `doc-filed` + `<doc-class>` + `<doc-slug>` for searchability
+6. **Titan confirms to Solon** in one line: `Filed at <path>, MCP-registered.`
+
+### 19.3 Retrieval flow
+
+- Any future query about a filed doc → MCP `search_memory` for the `doc-filed` tag + topical keyword → retrieve canonical path → fetch content → answer inline.
+- Solon never needs to recall paths or filenames.
+- EOM asks Titan for content when composing strategy — Titan retrieves via MCP, pastes back.
+
+### 19.4 Hard constraints
+
+- **Solon never files anything directly.** Any EOM or external doc flows Solon → Titan → canonical path.
+- **EOM never asks Solon to save, file, or organize a document.** EOM either asks Solon to paste to Titan, or (when Claude.ai file-sharing to VPS is live) fetches from `/mnt/user-data/outputs/` directly.
+- **No doc lives only in chat.** Every pasted doc is filed before Titan responds with substance on it.
+- **Superseded doctrines keep a pointer.** When `v2` of a doctrine lands, `v1` stays filed with a `SUPERSEDED_BY:` marker in its frontmatter + an MCP log_decision marking the supersession.
+- **R2 mirror is best-effort-immediate + daily cron.** If R2 is unreachable at filing time, the local VPS copy still lands + Titan retries mirror on next invocation; MCP registration reflects the mirror status.
+
+### 19.5 Existing docs — retro-file pass
+
+Titan back-registers any pre-§19 EOM-delivered docs it finds in `/opt/amg-docs/doctrines/` (or other canonical paths) into MCP as part of the first §19 filing pass. Initial retro scope: `BABY_ATLAS_V1_ARCHITECTURE.md`, `CREATIVE_ENGINE_ARCHITECTURE.md`, `CT-0417-28_FOUR_DOCTRINES_STATUS.md` (the three docs migrated during Task C).

@@ -1,0 +1,15 @@
+{
+  "name": "AMG Mobile Command",
+  "short_name": "AMG Command",
+  "description": "AI Marketing Genius operator-only mobile command surface.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#0b0f1a",
+  "theme_color": "#0B2572",
+  "categories": ["productivity", "business"],
+  "icons": [
+    { "src": "/favicon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }
+  ]
+}

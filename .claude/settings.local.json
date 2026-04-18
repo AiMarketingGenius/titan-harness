@@ -52,7 +52,10 @@
       "mcp__0f44c9ec-a530-47dc-a8b8-4db51c221197__agent_context_loader",
       "mcp__0f44c9ec-a530-47dc-a8b8-4db51c221197__generate_carryover",
       "mcp__Claude_in_Chrome__find",
-      "mcp__Claude_in_Chrome__file_upload"
+      "mcp__Claude_in_Chrome__file_upload",
+      "mcp__scheduled-tasks__create_scheduled_task",
+      "mcp__45c3b09d-1aea-4843-9256-fb5e962fc522__create_draft",
+      "mcp__45c3b09d-1aea-4843-9256-fb5e962fc522__list_drafts"
     ]
   }
 }
