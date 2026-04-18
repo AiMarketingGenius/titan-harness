@@ -1,0 +1,133 @@
+# AMG Atlas — daily spend ceiling configuration
+#
+# Read by: lib/cost_kill_switch.py (Step 4.2 module, extension wiring post-CRM Step 7)
+# Spec:    Solon directive 2026-04-18 — date-boundary sprint window + steady-state
+#          + demo-mode overlay. No manual Monday flip.
+#
+# CEILING RESOLUTION ORDER (applied on every cost-check call):
+#   1. If now() < sprint_window.active_until        → use sprint_window.aggregate_ceiling
+#   2. Else                                          → use steady_state formula
+#      (Layer 1 internal ops + Σ Layer 2 subscriber × tier multiplier)
+#   3. If demo_mode.active AND demo_mode.expires_at > now()
+#                                                    → add demo_mode boost to #1 or #2
+#   4. safety_max hard ceiling                      → NEVER exceed, regardless of mode
+#
+# EXAMPLES (steady-state projections — pre-seeded, enforced from 2026-04-21T04:00Z):
+#   # Tue 2026-04-21 (no demo, 3 AMG_PRO clients):
+#   #   $3 internal + (3 × $5) = $18/day
+#   #
+#   # Tue + demo for Chamber pitch:
+#   #   $18 + $50 (demo_mode_boost) = $68/day for 24h, auto-reverts to $18
+#   #
+#   # 6 months out, 15 mixed clients, active demo:
+#   #   $3 internal + varied Layer 2 subscriber sum + $50 demo = ~$100/day
+#
+# Version history:
+#   v1 — 2026-04-18 Solon directive. Initial config. MCP tag daily-spend-ceiling-v1.
+
+version: 1
+last_updated: "2026-04-18T11:02:00Z"
+last_updated_by: titan-operator
+source_directive: "Solon 2026-04-18 daily spend ceiling + demo-mode overlay"
+
+# ─────────────────────────────────────────────────────────────────
+# SPRINT WINDOW — auto-expires, no manual intervention needed.
+# Active NOW through 2026-04-21T04:00Z (Tue 2026-04-21 00:00 ET).
+# After sprint_window.active_until, system auto-falls-through to steady_state.
+# ─────────────────────────────────────────────────────────────────
+sprint_window:
+  active_until: "2026-04-21T04:00:00Z"
+  aggregate_ceiling_usd: 150.00
+  perplexity_sub_cap_usd: 30.00
+  purpose: "MP-1/MP-2/Atlas + FOCUS v2 Items 2-5 completion sprint"
+
+# ─────────────────────────────────────────────────────────────────
+# STEADY STATE — activates automatically at sprint_window.active_until.
+# Daily ceiling = layer_1 + Σ(active_subscriber × layer_2[tier]).
+# ─────────────────────────────────────────────────────────────────
+steady_state:
+  # Layer 1 — Internal Ops (flat baseline regardless of subscriber count)
+  layer_1:
+    soft_alert_usd: 3.00
+    hard_stop_usd: 5.00
+
+  # Layer 2 — Per-Subscriber Delivery (CRM-indexed, auto-scales via webhook
+  # wired when CRM Step 7 multi-tenant generalization ships). Each active
+  # subscriber adds their tier value to the daily aggregate ceiling.
+  layer_2:
+    AMG_STARTER:       2.00
+    AMG_GROWTH:        3.00
+    AMG_PRO:           5.00
+    CHAMBER_FOUNDING:  4.00
+    CHAMBER_STANDARD:  3.00
+    SHIELD_STANDALONE: 0.50
+
+  # Layer 3 — Per-Vendor Sub-Caps (percent of computed daily_total, applied
+  # after sprint/steady-state/demo resolution to limit any single vendor's
+  # blast radius on the daily budget).
+  layer_3_vendor_pct:
+    anthropic_direct: 40
+    perplexity:       20
+    elevenlabs:       10
+    deepgram:          5
+    grok:             10
+    gemini:            5
+    openai:           10
+
+# ─────────────────────────────────────────────────────────────────
+# DEMO MODE — overlay. Stacks on top of the current ceiling (sprint OR
+# steady_state) for the configured duration. Auto-reverts when expires_at
+# passes. No off-command required; idempotent activation.
+# ─────────────────────────────────────────────────────────────────
+demo_mode:
+  active: false
+  activated_at: null
+  expires_at: null
+  reason: null
+  boost_subscribers: 10
+  boost_tier: AMG_PRO         # allocation = tier × boost_subscribers = $5 × 10 = +$50/day
+  max_duration_hours: 24
+  max_activations_per_7d: 3
+  # Activation CLI (or EOM MCP call):
+  #   titan demo-mode start --reason "Revere Chamber Board pitch" --hours 24
+  # Effect: writes activated_at=now(), expires_at=now()+hours*3600, reason=<str>,
+  # active=true. System auto-applies boost until expires_at.
+  # Log every activation to MCP with tag demo-mode-activation + reason + hours
+  # + computed ceiling delta ($).
+
+# ─────────────────────────────────────────────────────────────────
+# SAFETY MAX — immutable hard ceiling. Cannot be exceeded by any mode
+# (sprint override, steady-state expansion, demo stacking, or subscriber
+# count miscalculation). Protects against config corruption + multi-demo
+# overlap + runaway scenarios.
+#
+# If a computed daily ceiling would exceed safety_max, the system:
+#   1. Caps at safety_max instead of the computed value.
+#   2. Logs a SEV-1 incident to MCP.
+#   3. Alerts Solon (chat, per 2026-04-18 channel rule — NOT Slack).
+#   4. Rejects further cost-check requests for the day once safety_max
+#      is reached (cold-stop).
+# ─────────────────────────────────────────────────────────────────
+safety_max:
+  daily_usd: 500.00
+  cold_stop_on_hit: true
+  notify_channel: "chat-mcp-paste"  # Solon reads MCP on wake, not Slack (2026-04-18 rule)
+
+# ─────────────────────────────────────────────────────────────────
+# DASHBOARD BADGE HINTS (consumed by services/amg-vps/operator-dashboard/
+# atlas-admin.html when Step 4.6 portal gets live feeds)
+# ─────────────────────────────────────────────────────────────────
+dashboard_display:
+  badges:
+    - SPRINT
+    - STEADY
+    - DEMO_ACTIVE
+  metrics_to_show:
+    - active_ceiling_usd
+    - today_burn_usd
+    - today_burn_pct_of_ceiling
+    - runway_hours_at_current_rate
+    - per_vendor_state
+    - demo_mode_status_with_countdown
+    - active_subscriber_count
+    - subscriber_tier_distribution
