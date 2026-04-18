@@ -26,7 +26,7 @@ local NUDGE_PHRASE = "«MCP_QUEUE_POLL» poll MCP queue for pending tasks tagged
 local DEFER_SECONDS = 120
 local KEYSTROKE_BUFFER_S = 30
 local MCP_DECISION_LOG = "/tmp/tla_nudge_invocations.ndjson"
-local MCP_LOG_HELPER = "/opt/titan-harness/scripts/tla-path-4/bin/log_mcp_invocation.sh"
+local MCP_LOG_HELPER = os.getenv("HOME") .. "/titan-harness/scripts/tla-path-4/bin/log_mcp_invocation.sh"
 
 -- ---------------------------------------------------------------------------
 -- Recent-keystroke buffer (tracks when user last typed into Claude Code)
