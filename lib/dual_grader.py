@@ -36,10 +36,25 @@ XAI_API_BASE = 'https://api.x.ai/v1'
 GROK_MODEL = os.environ.get('GROK_GRADER_MODEL', 'grok-4-fast-reasoning')
 GROK_TIMEOUT = 60
 
+# AUTONOMY_GUARDRAILS 2026-04-17 Part 1 — standing Titan phase-gate grader pair
+# is Haiku 4.5 + Gemini 2.5 Flash Lite (~$0.0076/artifact vs Grok pair at ~$0.02).
+# Secondary grader routed through LiteLLM gateway (Bedrock/Vertex bearer tokens
+# bypass the direct-Anthropic workspace cap).
+SECONDARY_GRADER = os.environ.get('DUAL_SECONDARY_GRADER', 'haiku').lower()
+HAIKU_MODEL = os.environ.get('HAIKU_GRADER_MODEL', 'claude-haiku-4-5')
+LITELLM_BASE = os.environ.get('LITELLM_BASE_URL', 'http://127.0.0.1:4000').rstrip('/')
+LITELLM_KEY = os.environ.get('LITELLM_MASTER_KEY', '').strip()
+HAIKU_TIMEOUT = 90
+
 DEFAULT_FLOOR = 9.3
-DEFAULT_SCOPE_TIER = 'amg_growth'  # Gemini 2.5 Flash — P10 2026-04-17 tier-downgrade rule
+# AUTONOMY_GUARDRAILS 2026-04-17 Part 1 — phase-gate grading uses Gemini 2.5
+# Flash Lite (aimg tier in grader.py TIER_ROUTING). amg_growth (Flash) and
+# amg_pro (Flash + Gemini 2.5 Pro) remain available via explicit scope_tier.
+DEFAULT_SCOPE_TIER = os.environ.get('DUAL_DEFAULT_TIER', 'aimg')  # Flash Lite
 GROK_PRICING_PER_MTOK_IN = 20   # cents, approx for grok-4-fast
 GROK_PRICING_PER_MTOK_OUT = 80
+HAIKU_PRICING_PER_MTOK_IN = 100   # $1.00/M
+HAIKU_PRICING_PER_MTOK_OUT = 500  # $5.00/M
 
 # ---------------------------------------------------------------------------
 # Premium escalation DISCIPLINE — P10 PERMANENT 2026-04-17 (Solon correction)
@@ -218,7 +233,7 @@ def _grok_grade(content: str, artifact_type: str, context: str = '') -> dict[str
     return parsed
 
 
-def _skip(reason: str) -> dict[str, Any]:
+def _skip(reason: str, grader: str = 'grok') -> dict[str, Any]:
     return {
         'artifact_type': 'unknown',
         'decision': 'pending_review',
@@ -227,9 +242,95 @@ def _skip(reason: str) -> dict[str, Any]:
         'subscores': {k: 0.0 for k in ('requirements_fit','correctness','risk_safety','operability','doctrine_compliance')},
         'critical_failures': [],
         'required_revisions': [],
-        'grade_reasoning': f'grok skipped: {reason}',
-        '_meta': {'grader': 'grok', 'skipped': True, 'reason': reason},
+        'grade_reasoning': f'{grader} skipped: {reason}',
+        '_meta': {'grader': grader, 'skipped': True, 'reason': reason},
     }
+
+
+HAIKU_SYSTEM_PROMPT = GROK_SYSTEM_PROMPT  # identical rubric — model-agnostic
+
+
+def _haiku_grade(content: str, artifact_type: str, context: str = '') -> dict[str, Any]:
+    """Call Claude Haiku 4.5 via LiteLLM gateway for independent grade.
+
+    LiteLLM at 127.0.0.1:4000 routes through Bedrock/Vertex bearer tokens
+    (per-vendor, bypasses the Anthropic direct workspace usage cap).
+    Returns the same schema as _grok_grade for dualGrade consumption.
+    """
+    if not LITELLM_KEY:
+        # Try /root/.titan-env path as fallback
+        try:
+            env_text = Path('/root/.titan-env').read_text()
+            for line in env_text.splitlines():
+                if line.startswith('LITELLM_MASTER_KEY='):
+                    globals()['LITELLM_KEY'] = line.split('=', 1)[1].strip().strip('"').strip("'")
+                    break
+        except Exception:
+            pass
+    if not LITELLM_KEY:
+        return _skip('no LITELLM_MASTER_KEY available', grader='haiku')
+
+    user_msg = f"Artifact type: {artifact_type}\nContext: {context or 'n/a'}\n\n---ARTIFACT START---\n{content[:100000]}\n---ARTIFACT END---"
+    body = {
+        'model': HAIKU_MODEL,
+        'messages': [
+            {'role': 'system', 'content': HAIKU_SYSTEM_PROMPT},
+            {'role': 'user', 'content': user_msg},
+        ],
+        'temperature': 0.2,
+        'max_tokens': 800,
+        'response_format': {'type': 'json_object'},
+    }
+    req = urllib.request.Request(
+        f'{LITELLM_BASE}/v1/chat/completions',
+        data=json.dumps(body).encode(),
+        headers={
+            'Authorization': f'Bearer {LITELLM_KEY}',
+            'Content-Type': 'application/json',
+            'Accept': 'application/json',
+        },
+        method='POST',
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=HAIKU_TIMEOUT) as r:
+            resp = json.loads(r.read())
+    except (urllib.error.HTTPError, urllib.error.URLError, TimeoutError) as e:
+        return _skip(f'haiku LiteLLM API error: {e}', grader='haiku')
+
+    try:
+        msg = resp['choices'][0]['message']['content']
+        # Strip accidental markdown fences or prose prefix — Haiku sometimes wraps JSON in ```json fences
+        msg = msg.strip()
+        if msg.startswith('```'):
+            msg = msg.split('\n', 1)[1] if '\n' in msg else msg
+            if msg.endswith('```'):
+                msg = msg.rsplit('```', 1)[0]
+        parsed = json.loads(msg)
+    except (KeyError, ValueError, IndexError) as e:
+        return _skip(f'haiku response parse: {e}', grader='haiku')
+
+    for k in ('overall_score_10', 'decision', 'subscores'):
+        if k not in parsed:
+            return _skip(f'haiku missing field: {k}', grader='haiku')
+
+    parsed.setdefault('critical_failures', [])
+    parsed.setdefault('required_revisions', [])
+    parsed.setdefault('confidence_0_1', 0.8)
+    parsed.setdefault('grade_reasoning', '')
+    parsed.setdefault('artifact_type', artifact_type)
+    parsed['_meta'] = {'grader': 'haiku', 'model': HAIKU_MODEL, 'ts': time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime())}
+    return parsed
+
+
+def _secondary_grade(content: str, artifact_type: str, context: str = '') -> dict[str, Any]:
+    """Dispatch secondary grader per DUAL_SECONDARY_GRADER env var.
+
+    Default 'haiku' per AUTONOMY_GUARDRAILS 2026-04-17 Part 1 standing pair.
+    'grok' available as fallback (retains Grok 4 Fast via direct xAI API).
+    """
+    if SECONDARY_GRADER == 'grok':
+        return _grok_grade(content, artifact_type, context)
+    return _haiku_grade(content, artifact_type, context)
 
 
 def dualGrade(content: str, artifact_type: str, scope_tier: str,
@@ -276,8 +377,8 @@ def dualGrade(content: str, artifact_type: str, scope_tier: str,
     gem_score = gemini_result.get('overall_score_10', 0)
     gem_skipped = gemini_result.get('_meta', {}).get('skipped', False)
 
-    # --- GROK -------------------------------------------------------------
-    grok_result = _grok_grade(content, artifact_type, context)
+    # --- SECONDARY (Haiku 4.5 via LiteLLM by default; Grok 4 Fast if DUAL_SECONDARY_GRADER=grok) -----
+    grok_result = _secondary_grade(content, artifact_type, context)
     grok_score = grok_result.get('overall_score_10', 0)
     grok_skipped = grok_result.get('_meta', {}).get('skipped', False)
 
