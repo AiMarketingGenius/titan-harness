@@ -84,15 +84,27 @@ async def _execute_task(task: dict, *, retry: int = 0, base_backoff_ms: int = 25
                 raise RuntimeError(
                     f"model_router has no resolve_model or route_model method"
                 )
+            # llm_client exposes synchronous complete(prompt, model_group).
+            # We run it off-loop to keep the event loop responsive.
             if hasattr(llm_client, "call_async"):
                 result = await llm_client.call_async(
                     model=model, prompt=task["prompt"], task_type=task["type"]
                 )
-            else:
+            elif hasattr(llm_client, "complete"):
+                loop = asyncio.get_event_loop()
+                result = await loop.run_in_executor(
+                    None,
+                    lambda: llm_client.complete(task["prompt"], model_group=model),
+                )
+            elif hasattr(llm_client, "call"):
                 loop = asyncio.get_event_loop()
                 result = await loop.run_in_executor(
                     None,
                     lambda: llm_client.call(model=model, prompt=task["prompt"], task_type=task["type"]),
+                )
+            else:
+                raise RuntimeError(
+                    "llm_client has no call_async, complete, or call method"
                 )
             finished = time.time()
             return {
