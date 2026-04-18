@@ -31,6 +31,8 @@ plans/review_bundles/
 !plans/research/**
 !plans/doctrine/
 !plans/doctrine/**
+!plans/wip-archive/
+!plans/wip-archive/**
 var/log/
 var/
 
