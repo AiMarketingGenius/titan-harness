@@ -52,6 +52,7 @@ from typing import Any
 
 try:
     from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException, Request
+    from fastapi.middleware.cors import CORSMiddleware
     from fastapi.responses import HTMLResponse, JSONResponse, FileResponse, Response, RedirectResponse
     from fastapi.staticfiles import StaticFiles
 except ImportError as exc:  # pragma: no cover
@@ -271,6 +272,19 @@ async def kokoro_synthesize(text: str, *, voice: str = "am_michael", speed: floa
 # ─── FastAPI app ───────────────────────────────────────────────────────────────
 
 app = FastAPI(title="Atlas API shim (Hermes Phase A sprint)")
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[
+        "https://aimarketinggenius.io",
+        "https://www.aimarketinggenius.io",
+        "https://aimarketinggenius.lovable.app",
+        "https://bb3956c8-4312-44cf-a779-251e48d04799.lovableproject.com",
+    ],
+    allow_credentials=False,
+    allow_methods=["GET", "POST", "OPTIONS"],
+    allow_headers=["*"],
+)
 
 
 @app.get("/api/status")
