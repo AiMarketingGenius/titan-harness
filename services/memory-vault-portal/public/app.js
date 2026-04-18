@@ -1,7 +1,25 @@
 // Memory Vault Portal — AMG AI Memory Guard
 // Supabase-auth-gated SPA. RLS isolates per consumer_uid.
 
-const CFG = window.AIMG_CONFIG;
+const CFG = window.AIMG_CONFIG || {};
+
+// Defensive: if config is broken, make it VISIBLE instead of silently dead.
+function showFatal(msg) {
+  const el = document.createElement('div');
+  el.style.cssText = 'position:fixed;top:0;left:0;right:0;padding:14px 20px;background:#C62828;color:#fff;z-index:9999;font:14px -apple-system,sans-serif;';
+  el.textContent = 'Memory Vault failed to load: ' + msg + '. Hard-refresh (Cmd+Shift+R) or tell Titan.';
+  (document.body || document.documentElement).appendChild(el);
+}
+
+if (!CFG.supabaseUrl || !CFG.supabaseAnonKey) {
+  showFatal('Supabase config missing');
+  throw new Error('AIMG_CONFIG missing supabaseUrl/anonKey');
+}
+if (typeof window.supabase === 'undefined' || !window.supabase.createClient) {
+  showFatal('Supabase JS library not loaded (CDN blocked?)');
+  throw new Error('supabase-js CDN failed');
+}
+
 const sb = window.supabase.createClient(CFG.supabaseUrl, CFG.supabaseAnonKey);
 
 // ─── State ───
