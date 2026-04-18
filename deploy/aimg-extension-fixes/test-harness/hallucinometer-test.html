@@ -79,7 +79,7 @@
 </head>
 <body>
 
-<h1>Hallucinometer Test Harness · Doc 10 Thresholds</h1>
+<h1>Hallucinometer + Einstein Fact Checker · Test Harness</h1>
 <p class="lede">
 Verifies the depth-26 popup (warn) and depth-36 modal (urgent) render with canonical
 copy. Simulate exchange counts via the buttons below; the left-edge meter stays live.
@@ -111,6 +111,15 @@ copy. Simulate exchange counts via the buttons below; the left-edge meter stays 
   Canonical thresholds (Chamber AI Advantage Encyclopedia v1.4.1 §22):
   🟢 FRESH 1-15 · 🟡 WARM 16-25 · 🟠 HOT 26-35 · 🔴 DANGER 36+.
   Meter renders pinned to the left viewport edge. Hover/expand the rail to see the full legend.
+</div>
+
+<h2 style="margin-top:48px;margin-bottom:4px;font-size:22px;">Einstein Fact Checker · Summary Badge Variants</h2>
+<p class="lede" style="margin-bottom:18px;">Simulate service-worker firing EINSTEIN_VERIFIED_SUMMARY with different variants. Badge renders top-right, auto-dismisses green @9s / amber @15s / red @30s. Click card to open Vault Portal (mocked here).</p>
+<div class="controls">
+  <button id="ev-green">&#x2713; Green · 3 verified (demo-mock)</button>
+  <button id="ev-amber">&#x26A0; Amber · 1 flagged (needs source)</button>
+  <button id="ev-red">&#x2717; Red · 2 unverified</button>
+  <button id="ev-mixed">Mixed · 2 verified + 1 flagged</button>
 </div>
 
 <script>
@@ -163,6 +172,7 @@ window.__AIMEMORY_PLATFORM = { platform: 'harness', threadId: 'harness-thread-1'
 </script>
 
 <script src="../ui/thread-health.js"></script>
+<script src="../ui/einstein-summary.js"></script>
 
 <script>
 function refresh() {
@@ -193,6 +203,49 @@ document.getElementById('reset').addEventListener('click', () => {
 });
 
 setInterval(refresh, 500);
+
+function emitEinstein(payload) {
+  // Fire into the content-script's own onMessage listener by invoking listeners directly.
+  for (const fn of _listeners) {
+    try { fn({ type: 'EINSTEIN_VERIFIED_SUMMARY', ...payload }); } catch (e) { console.error(e); }
+  }
+  // Also call the exported render directly as a belt-and-suspenders hook.
+  if (window.__AIMEMORY_EINSTEIN_SUMMARY) {
+    window.__AIMEMORY_EINSTEIN_SUMMARY.render({ type: 'EINSTEIN_VERIFIED_SUMMARY', ...payload });
+  }
+}
+
+document.getElementById('ev-green').addEventListener('click', () => emitEinstein({
+  verified: 3, flagged: 0, unverified: 0, source: 'demo-mock', platform: 'claude',
+  claims: [
+    { id: 'revere-board-chair', state: 'verified', confidence: 0.97, badge_copy: 'Don Martelli · Revere Chamber Board Chair verified' },
+    { id: 'revere-member-count', state: 'verified', confidence: 0.92, badge_copy: 'Revere Chamber · 280 member businesses verified' },
+    { id: 'revere-gala', state: 'verified', confidence: 0.88, badge_copy: 'Revere Chamber annual gala verified' },
+  ],
+}));
+document.getElementById('ev-amber').addEventListener('click', () => emitEinstein({
+  verified: 0, flagged: 1, unverified: 0, source: 'demo-mock', platform: 'chatgpt',
+  claims: [
+    { id: 'chamber-ai-agency-quote', state: 'flagged', confidence: 0.61,
+      flag_reason: 'Industry range — agency pricing varies by region + service scope.',
+      badge_copy: 'Agency pricing range · needs additional source' },
+  ],
+}));
+document.getElementById('ev-red').addEventListener('click', () => emitEinstein({
+  verified: 0, flagged: 0, unverified: 2, source: 'live-check', platform: 'perplexity',
+  claims: [
+    { id: 'synthetic-unverified-1', state: 'unverified', confidence: 0.25 },
+    { id: 'synthetic-unverified-2', state: 'unverified', confidence: 0.18 },
+  ],
+}));
+document.getElementById('ev-mixed').addEventListener('click', () => emitEinstein({
+  verified: 2, flagged: 1, unverified: 0, source: 'live-check', platform: 'gemini',
+  claims: [
+    { id: 'revere-board-chair', state: 'verified', confidence: 0.97 },
+    { id: 'revere-member-count', state: 'verified', confidence: 0.92 },
+    { id: 'chamber-ai-agency-quote', state: 'flagged', confidence: 0.61 },
+  ],
+}));
 </script>
 
 </body>

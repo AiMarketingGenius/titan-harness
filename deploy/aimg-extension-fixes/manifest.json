@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "AI Memory Guard",
-  "version": "0.1.3",
-  "description": "Persistent memory + fact-checking + hallucination protection across the 7 AI chat platforms. HARDCODED ALLOWLIST — captures ONLY from the 7 listed AI platforms; all other sites are INVISIBLE to the extension by design (no banking, email, medical, social, chamber sites — ever).",
+  "version": "0.1.4",
+  "description": "Persistent memory + fact-checking + hallucination protection across the 7 AI chat platforms. HARDCODED ALLOWLIST \u2014 captures ONLY from the 7 listed AI platforms; all other sites are INVISIBLE to the extension by design (no banking, email, medical, social, chamber sites \u2014 ever).",
   "permissions": [
     "storage",
     "activeTab",
@@ -28,7 +28,9 @@
   },
   "content_scripts": [
     {
-      "matches": ["https://claude.ai/*"],
+      "matches": [
+        "https://claude.ai/*"
+      ],
       "js": [
         "platform-detector.js",
         "claude.js",
@@ -37,6 +39,7 @@
         "ui/carryover.js",
         "ui/warning-bar.js",
         "ui/einstein-warning.js",
+        "ui/einstein-summary.js",
         "ui/onboarding.js"
       ],
       "run_at": "document_idle",
@@ -49,7 +52,10 @@
       ]
     },
     {
-      "matches": ["https://chatgpt.com/*", "https://chat.openai.com/*"],
+      "matches": [
+        "https://chatgpt.com/*",
+        "https://chat.openai.com/*"
+      ],
       "js": [
         "platform-detector.js",
         "chatgpt.js",
@@ -58,6 +64,7 @@
         "ui/carryover.js",
         "ui/warning-bar.js",
         "ui/einstein-warning.js",
+        "ui/einstein-summary.js",
         "ui/onboarding.js"
       ],
       "run_at": "document_idle",
@@ -70,7 +77,9 @@
       ]
     },
     {
-      "matches": ["https://gemini.google.com/*"],
+      "matches": [
+        "https://gemini.google.com/*"
+      ],
       "js": [
         "platform-detector.js",
         "gemini.js",
@@ -79,6 +88,7 @@
         "ui/carryover.js",
         "ui/warning-bar.js",
         "ui/einstein-warning.js",
+        "ui/einstein-summary.js",
         "ui/onboarding.js"
       ],
       "run_at": "document_idle",
@@ -91,7 +101,9 @@
       ]
     },
     {
-      "matches": ["https://grok.com/*"],
+      "matches": [
+        "https://grok.com/*"
+      ],
       "js": [
         "platform-detector.js",
         "grok.js",
@@ -100,6 +112,7 @@
         "ui/carryover.js",
         "ui/warning-bar.js",
         "ui/einstein-warning.js",
+        "ui/einstein-summary.js",
         "ui/onboarding.js"
       ],
       "run_at": "document_idle",
@@ -112,7 +125,9 @@
       ]
     },
     {
-      "matches": ["https://www.perplexity.ai/*"],
+      "matches": [
+        "https://www.perplexity.ai/*"
+      ],
       "js": [
         "platform-detector.js",
         "perplexity.js",
@@ -121,6 +136,7 @@
         "ui/carryover.js",
         "ui/warning-bar.js",
         "ui/einstein-warning.js",
+        "ui/einstein-summary.js",
         "ui/onboarding.js"
       ],
       "run_at": "document_idle",
@@ -133,7 +149,9 @@
       ]
     },
     {
-      "matches": ["https://copilot.microsoft.com/*"],
+      "matches": [
+        "https://copilot.microsoft.com/*"
+      ],
       "js": [
         "platform-detector.js",
         "copilot.js",
@@ -142,6 +160,7 @@
         "ui/carryover.js",
         "ui/warning-bar.js",
         "ui/einstein-warning.js",
+        "ui/einstein-summary.js",
         "ui/onboarding.js"
       ],
       "run_at": "document_idle",
@@ -166,5 +185,15 @@
     "16": "icons/icon-16.png",
     "48": "icons/icon-48.png",
     "128": "icons/icon-128.png"
-  }
+  },
+  "web_accessible_resources": [
+    {
+      "resources": [
+        "einstein-demo-claims.json"
+      ],
+      "matches": [
+        "<all_urls>"
+      ]
+    }
+  ]
 }

@@ -102,6 +102,13 @@ function handleNewResponse(msg) {
     receivedAt: Date.now()
   });
 
+  // Demo selective-mock pass — runs FIRST, before the real Haiku call. If incoming content
+  // matches a pre-scripted Chamber demo claim, the summary badge fires immediately with a
+  // canned verified/flagged result. Ensures the Monday Don demo gets deterministic Einstein
+  // badges on Beat 2b even if the live Haiku/Sonar round-trip stalls. Per Solon directive
+  // 2026-04-18T19:58Z (selective-mock permitted on demo hero beats).
+  runEinsteinDemoCheck(msg).catch(err => console.warn('[SW] Einstein demo check error:', err));
+
   // Einstein Fact Checker — fire-and-forget. The function self-gates on settings, auth, and
   // daily cap, so calling it on every response is safe; a no-op costs ~0ms.
   runEinsteinFactCheck(msg).catch(err => console.warn('[SW] Einstein check error:', err));
@@ -711,6 +718,122 @@ chrome.alarms.create('flush-qe-metrics', { periodInMinutes: 1440 });
 chrome.alarms.onAlarm.addListener((alarm) => {
   if (alarm.name === 'flush-qe-metrics') flushQEMetrics();
 });
+
+// ─── EINSTEIN DEMO SELECTIVE-MOCK INTERCEPTOR ───────────────
+//
+// Loads /einstein-demo-claims.json (bundled with the extension), tests incoming
+// captured-message content against each claim's pattern_keywords + require_any gates,
+// and fires EINSTEIN_VERIFIED_SUMMARY to the originating tab when matches found.
+// Deterministic, no API round-trip, <10ms. Used to guarantee Monday Don demo's Beat 2b
+// Einstein badge ("Einstein verified 3 claims, saved to vault") fires reliably on
+// captures from the Revere Chamber page, regardless of live Haiku/Sonar latency.
+// Runs in parallel with the real runEinsteinFactCheck(); both paths coexist safely.
+
+let _einsteinDemoClaimsCache = null;
+
+async function loadEinsteinDemoClaims() {
+  if (_einsteinDemoClaimsCache) return _einsteinDemoClaimsCache;
+  try {
+    const url = chrome.runtime.getURL('einstein-demo-claims.json');
+    const res = await fetch(url);
+    if (!res.ok) return (_einsteinDemoClaimsCache = { claims: [] });
+    _einsteinDemoClaimsCache = await res.json();
+    return _einsteinDemoClaimsCache;
+  } catch (e) {
+    console.warn('[SW] loadEinsteinDemoClaims failed:', e);
+    return (_einsteinDemoClaimsCache = { claims: [] });
+  }
+}
+
+function _claimMatches(claim, text) {
+  const lower = (text || '').toLowerCase();
+  const requireAny = claim.require_any || [];
+  if (requireAny.length === 0) return false;
+  // Every inner group must have ≥1 keyword hit.
+  for (const group of requireAny) {
+    const gLower = (group || []).map(k => String(k).toLowerCase());
+    const hit = gLower.some(k => lower.includes(k));
+    if (!hit) return false;
+  }
+  return true;
+}
+
+async function runEinsteinDemoCheck(msg) {
+  try {
+    if (!msg?.content || msg.content.length < 20) return;
+    const { settings } = await chrome.storage.local.get('settings');
+    if (settings?.disableDemoMock === true) return;
+
+    const db = await loadEinsteinDemoClaims();
+    if (!db?.claims?.length) return;
+
+    const matches = [];
+    for (const claim of db.claims) {
+      if (_claimMatches(claim, msg.content)) {
+        matches.push(claim);
+      }
+    }
+    if (matches.length === 0) return;
+
+    const verified = matches.filter(c => c.state === 'verified');
+    const flagged  = matches.filter(c => c.state === 'flagged');
+    const unverified = matches.filter(c => c.state === 'unverified');
+
+    // Persist demo-matched items into the hot cache so agent_context_loader / agent retrieval
+    // surfaces them on the next query. Mirrors the real Einstein pipeline's vault-write
+    // behavior, tagged source='einstein-demo-mock' for audit.
+    const now = new Date().toISOString();
+    for (const c of matches) {
+      hotCache.push({
+        id: `einstein-demo-${c.id}-${Date.now()}`,
+        content: c.canonical_claim,
+        type: 'fact',
+        confidence: c.confidence || 0.85,
+        verification_status: c.state,
+        qe_status: c.state === 'verified' ? 'verified' : (c.state === 'flagged' ? 'flagged' : 'unverified'),
+        sources: c.sources || [],
+        provenance: {
+          platform: msg.platform,
+          thread_id: msg.provenance?.thread_id,
+          captured_at: now,
+          verified_by: 'einstein-demo-mock',
+          demo_claim_id: c.id,
+        },
+      });
+    }
+    trackQEMetric('einstein_checks_run', 1);
+
+    // Fire the summary badge to the originating tab.
+    try {
+      const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
+      for (const tab of tabs) {
+        try {
+          await chrome.tabs.sendMessage(tab.id, {
+            type: 'EINSTEIN_VERIFIED_SUMMARY',
+            verified: verified.length,
+            flagged:  flagged.length,
+            unverified: unverified.length,
+            claims: matches.map(c => ({
+              id: c.id,
+              canonical_claim: c.canonical_claim,
+              state: c.state,
+              badge_copy: c.badge_copy,
+              confidence: c.confidence,
+              flag_reason: c.flag_reason || null,
+            })),
+            source: 'demo-mock',
+            platform: msg.platform,
+          });
+        } catch { /* tab may not have content script yet */ }
+      }
+    } catch (e) { /* ignore */ }
+
+    console.log(`[SW] Einstein demo-mock matched ${matches.length} claim(s):`,
+                matches.map(c => `${c.id}(${c.state})`).join(', '));
+  } catch (err) {
+    console.warn('[SW] runEinsteinDemoCheck threw:', err);
+  }
+}
 
 // ─── EINSTEIN FACT CHECKER CLIENT ───────────────────────────
 //
