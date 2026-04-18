@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "AI Memory Guard",
-  "version": "0.1.4",
+  "version": "0.1.5",
   "description": "Persistent memory + fact-checking + hallucination protection across the 7 AI chat platforms. HARDCODED ALLOWLIST \u2014 captures ONLY from the 7 listed AI platforms; all other sites are INVISIBLE to the extension by design (no banking, email, medical, social, chamber sites \u2014 ever).",
   "permissions": [
     "storage",
@@ -40,6 +40,7 @@
         "ui/warning-bar.js",
         "ui/einstein-warning.js",
         "ui/einstein-summary.js",
+        "ui/cross-llm-inject.js",
         "ui/onboarding.js"
       ],
       "run_at": "document_idle",
@@ -65,6 +66,7 @@
         "ui/warning-bar.js",
         "ui/einstein-warning.js",
         "ui/einstein-summary.js",
+        "ui/cross-llm-inject.js",
         "ui/onboarding.js"
       ],
       "run_at": "document_idle",
@@ -89,6 +91,7 @@
         "ui/warning-bar.js",
         "ui/einstein-warning.js",
         "ui/einstein-summary.js",
+        "ui/cross-llm-inject.js",
         "ui/onboarding.js"
       ],
       "run_at": "document_idle",
@@ -113,6 +116,7 @@
         "ui/warning-bar.js",
         "ui/einstein-warning.js",
         "ui/einstein-summary.js",
+        "ui/cross-llm-inject.js",
         "ui/onboarding.js"
       ],
       "run_at": "document_idle",
@@ -137,6 +141,7 @@
         "ui/warning-bar.js",
         "ui/einstein-warning.js",
         "ui/einstein-summary.js",
+        "ui/cross-llm-inject.js",
         "ui/onboarding.js"
       ],
       "run_at": "document_idle",
@@ -161,6 +166,7 @@
         "ui/warning-bar.js",
         "ui/einstein-warning.js",
         "ui/einstein-summary.js",
+        "ui/cross-llm-inject.js",
         "ui/onboarding.js"
       ],
       "run_at": "document_idle",

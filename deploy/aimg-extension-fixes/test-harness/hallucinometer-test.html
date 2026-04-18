@@ -113,6 +113,17 @@ copy. Simulate exchange counts via the buttons below; the left-edge meter stays 
   Meter renders pinned to the left viewport edge. Hover/expand the rail to see the full legend.
 </div>
 
+<h2 style="margin-top:48px;margin-bottom:4px;font-size:22px;">Cross-LLM Context Injection</h2>
+<p class="lede" style="margin-bottom:10px;">Simulates new-thread detection. Offer card slides up bottom-center. "Inject" writes context block into the faux-input below. Tests platform switch across claude / chatgpt / gemini / perplexity.</p>
+<div class="controls">
+  <button id="inj-claude">Offer on claude</button>
+  <button id="inj-chatgpt">Offer on chatgpt</button>
+  <button id="inj-gemini">Offer on gemini</button>
+  <button id="inj-perplexity">Offer on perplexity</button>
+  <button id="inj-clear">Clear</button>
+</div>
+<textarea id="faux-input" placeholder="Faux LLM input (inject writes here)" style="width:100%;max-width:840px;min-height:120px;padding:14px;border-radius:10px;border:1px solid rgba(148,163,184,0.3);background:#0b1220;color:#e2e8f0;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:13px;margin-bottom:22px;"></textarea>
+
 <h2 style="margin-top:48px;margin-bottom:4px;font-size:22px;">Einstein Fact Checker · Summary Badge Variants</h2>
 <p class="lede" style="margin-bottom:18px;">Simulate service-worker firing EINSTEIN_VERIFIED_SUMMARY with different variants. Badge renders top-right, auto-dismisses green @9s / amber @15s / red @30s. Click card to open Vault Portal (mocked here).</p>
 <div class="controls">
@@ -161,6 +172,7 @@ window.chrome = {
       console.log('[harness] sendMessage', msg);
       cb && cb({ ok: true });
     },
+    getURL: (path) => new URL('/' + path.replace(/^\//, ''), window.location.origin).toString(),
     lastError: null,
   },
   offscreen: {
@@ -173,6 +185,7 @@ window.__AIMEMORY_PLATFORM = { platform: 'harness', threadId: 'harness-thread-1'
 
 <script src="../ui/thread-health.js"></script>
 <script src="../ui/einstein-summary.js"></script>
+<script src="../ui/cross-llm-inject.js"></script>
 
 <script>
 function refresh() {
@@ -246,6 +259,37 @@ document.getElementById('ev-mixed').addEventListener('click', () => emitEinstein
     { id: 'chamber-ai-agency-quote', state: 'flagged', confidence: 0.61 },
   ],
 }));
+
+// Cross-LLM injection sim: swap platform + clear session-offered flag + call offer()
+async function simInjectOffer(platform) {
+  // Clear any prior offer + session flag for the current URL path
+  document.querySelectorAll('.mg-inject-offer').forEach(el => el.remove());
+  for (const k of Object.keys(_sessionStore)) {
+    if (k.startsWith('aimg-inject-offered:')) delete _sessionStore[k];
+  }
+  window.__AIMEMORY_PLATFORM = { platform, threadId: null };
+  // Point the inject module at our faux-input via a selector override: wrap document.querySelector
+  const inputEl = document.getElementById('faux-input');
+  // Temporarily add a matching selector the inject code looks for per platform
+  inputEl.id = 'prompt-textarea'; // ChatGPT id
+  inputEl.setAttribute('contenteditable', 'false');
+  if (window.__AIMEMORY_CROSS_LLM_INJECT) {
+    await window.__AIMEMORY_CROSS_LLM_INJECT.offer();
+  }
+}
+document.getElementById('inj-claude').addEventListener('click', () => simInjectOffer('claude'));
+document.getElementById('inj-chatgpt').addEventListener('click', () => simInjectOffer('chatgpt'));
+document.getElementById('inj-gemini').addEventListener('click', () => simInjectOffer('gemini'));
+document.getElementById('inj-perplexity').addEventListener('click', () => simInjectOffer('perplexity'));
+document.getElementById('inj-clear').addEventListener('click', () => {
+  document.querySelectorAll('.mg-inject-offer').forEach(el => el.remove());
+  document.getElementById('prompt-textarea')?.setAttribute('value', '');
+  const ta = document.getElementById('prompt-textarea');
+  if (ta) ta.value = '';
+  for (const k of Object.keys(_sessionStore)) {
+    if (k.startsWith('aimg-inject-offered:')) delete _sessionStore[k];
+  }
+});
 </script>
 
 </body>
