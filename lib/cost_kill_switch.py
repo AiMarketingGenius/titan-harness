@@ -62,8 +62,11 @@ DEFAULT_LEDGER_PATH = Path(
 )
 
 
-# Per-vendor default daily caps in USD. Override via constructor or env var
-# TITAN_COST_CAP_<VENDOR>=N.NN (e.g. TITAN_COST_CAP_PERPLEXITY=10.00).
+# Per-vendor default daily caps in USD. Override via constructor or env var.
+# - Global override:  TITAN_COST_CAP_<VENDOR>=N.NN
+# - Per-tenant:       TITAN_COST_CAP_TENANT_<TENANT>_<VENDOR>=N.NN
+#   Example:          TITAN_COST_CAP_TENANT_REVERE_ANTHROPIC=50.00
+# Per-tenant env wins over vendor-global env wins over DEFAULT_DAILY_CAPS_USD.
 DEFAULT_DAILY_CAPS_USD = {
     'perplexity': 5.0,
     'anthropic':  10.0,
@@ -82,7 +85,14 @@ def _sha256_hex(s: str) -> str:
 
 
 class KillSwitch:
-    """One instance per (vendor, scope). Cheap to construct. Thread-safe via sqlite."""
+    """One instance per (vendor, scope, tenant). Cheap to construct. Thread-safe via sqlite.
+
+    tenant_id='global' (default) = pre-existing single-tenant behavior. Set to
+    a specific slug (e.g. 'revere', 'boston_chamber') to enforce per-Chamber /
+    per-subscriber daily caps and spend tracking. Each tenant has independent
+    cap enforcement + independent ledger totals. Same artifact cached
+    separately per tenant.
+    """
 
     def __init__(
         self,
@@ -91,20 +101,34 @@ class KillSwitch:
         scope: str = 'grading',
         ledger_path: Optional[Path] = None,
         fail_non_blocking: bool = True,
+        tenant_id: str = 'global',
     ):
         self.vendor = vendor.lower()
         self.scope = scope
+        self.tenant_id = tenant_id.lower()
         self.ledger_path = ledger_path or DEFAULT_LEDGER_PATH
         self.fail_non_blocking = fail_non_blocking
 
-        # Resolve daily cap: explicit arg > env > default
-        env_key = f'TITAN_COST_CAP_{self.vendor.upper()}'
-        env_val = os.environ.get(env_key)
+        # Resolve daily cap (priority order, first-match wins):
+        #   1. explicit daily_cap_usd arg
+        #   2. TITAN_COST_CAP_TENANT_<TENANT>_<VENDOR>=... (per-tenant override)
+        #   3. TITAN_COST_CAP_<VENDOR>=... (global vendor override)
+        #   4. DEFAULT_DAILY_CAPS_USD[vendor]
+        #   5. 1.0 USD absolute fallback
+        tenant_env_key = f'TITAN_COST_CAP_TENANT_{self.tenant_id.upper()}_{self.vendor.upper()}'
+        global_env_key = f'TITAN_COST_CAP_{self.vendor.upper()}'
+        tenant_env_val = os.environ.get(tenant_env_key)
+        global_env_val = os.environ.get(global_env_key)
         if daily_cap_usd is not None:
             self.daily_cap_usd = daily_cap_usd
-        elif env_val:
+        elif tenant_env_val:
             try:
-                self.daily_cap_usd = float(env_val)
+                self.daily_cap_usd = float(tenant_env_val)
+            except ValueError:
+                self.daily_cap_usd = DEFAULT_DAILY_CAPS_USD.get(self.vendor, 1.0)
+        elif global_env_val:
+            try:
+                self.daily_cap_usd = float(global_env_val)
             except ValueError:
                 self.daily_cap_usd = DEFAULT_DAILY_CAPS_USD.get(self.vendor, 1.0)
         else:
@@ -115,40 +139,93 @@ class KillSwitch:
     # ---- DB setup -------------------------------------------------------
 
     def _init_db(self) -> None:
+        """Initialize the sqlite ledger. Fresh installs get the v2 schema with
+        tenant_id in the UNIQUE constraint. Existing v1 ledgers (schema without
+        tenant_id) get migrated in-place: rows rehomed as tenant_id='global'
+        and the UNIQUE constraint re-created to include tenant_id.
+
+        v1 schema limitation: UNIQUE(day, vendor, scope, artifact_sha) meant
+        two tenants calling the same artifact same day could silently drop
+        the second tenant's record. v2 migration fixes it by including
+        tenant_id in UNIQUE — each tenant gets an independent record.
+        """
         self.ledger_path.parent.mkdir(parents=True, exist_ok=True)
         with sqlite3.connect(self.ledger_path, timeout=5) as con:
-            con.execute("""
-                CREATE TABLE IF NOT EXISTS calls (
+            existing = con.execute(
+                "SELECT sql FROM sqlite_master WHERE type='table' AND name='calls'"
+            ).fetchone()
+
+            needs_migrate = False
+            if existing and existing[0]:
+                old_sql = existing[0]
+                # v1 schema signature: UNIQUE constraint WITHOUT tenant_id
+                if 'tenant_id' not in old_sql:
+                    needs_migrate = True
+
+            v2_schema = """
+                CREATE TABLE {name} (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     ts TEXT NOT NULL,
                     day TEXT NOT NULL,
                     vendor TEXT NOT NULL,
                     scope TEXT NOT NULL,
+                    tenant_id TEXT NOT NULL DEFAULT 'global',
                     artifact_sha TEXT NOT NULL,
                     cost_usd REAL NOT NULL,
                     result_json TEXT,
-                    UNIQUE(day, vendor, scope, artifact_sha)
+                    UNIQUE(day, vendor, scope, tenant_id, artifact_sha)
                 )
-            """)
+            """
+
+            if needs_migrate:
+                # In-place migration: create v2 under temp name, copy rows
+                # as tenant_id='global', drop old, rename temp -> calls.
+                con.execute(v2_schema.format(name='calls_v2'))
+                con.execute("""
+                    INSERT INTO calls_v2 (id, ts, day, vendor, scope, tenant_id,
+                                          artifact_sha, cost_usd, result_json)
+                    SELECT id, ts, day, vendor, scope, 'global',
+                           artifact_sha, cost_usd, result_json
+                    FROM calls
+                """)
+                con.execute('DROP TABLE calls')
+                con.execute('ALTER TABLE calls_v2 RENAME TO calls')
+            elif not existing:
+                # Fresh install — v2 schema directly.
+                con.execute(v2_schema.format(name='IF NOT EXISTS calls'))
+
+            # Indices are idempotent — safe to re-run every init.
             con.execute("""
                 CREATE INDEX IF NOT EXISTS idx_calls_day_vendor
                 ON calls(day, vendor)
+            """)
+            con.execute("""
+                CREATE INDEX IF NOT EXISTS idx_calls_day_vendor_tenant
+                ON calls(day, vendor, tenant_id)
+            """)
+            con.execute("""
+                CREATE INDEX IF NOT EXISTS idx_calls_cache_tenant
+                ON calls(day, vendor, scope, tenant_id, artifact_sha)
             """)
             con.commit()
 
     # ---- Public API -----------------------------------------------------
 
     def check_cache(self, artifact_text: str) -> Optional[Any]:
-        """If this exact artifact was already graded today (same vendor+scope),
-        return the cached result_json (decoded). Else None."""
+        """If this exact artifact was already graded today (same vendor+scope+tenant),
+        return the cached result_json (decoded). Else None.
+
+        Cache is isolated per tenant — two different tenants calling the same
+        artifact don't share cache because each tenant owes the API cost
+        separately. Single-tenant (tenant_id='global') users see prior behavior."""
         sha = _sha256_hex(artifact_text)
         day = _today_utc_str()
         with sqlite3.connect(self.ledger_path, timeout=5) as con:
             row = con.execute(
                 'SELECT result_json FROM calls '
-                'WHERE day=? AND vendor=? AND scope=? AND artifact_sha=? '
+                'WHERE day=? AND vendor=? AND scope=? AND tenant_id=? AND artifact_sha=? '
                 'LIMIT 1',
-                (day, self.vendor, self.scope, sha),
+                (day, self.vendor, self.scope, self.tenant_id, sha),
             ).fetchone()
         if row and row[0]:
             try:
@@ -158,12 +235,14 @@ class KillSwitch:
         return None
 
     def today_spend_usd(self) -> float:
+        """Sum of today's API cost for (vendor, tenant_id). Scope-agnostic —
+        a single daily cap governs ALL scopes for the tenant+vendor pair."""
         day = _today_utc_str()
         with sqlite3.connect(self.ledger_path, timeout=5) as con:
             row = con.execute(
                 'SELECT COALESCE(SUM(cost_usd), 0) FROM calls '
-                'WHERE day=? AND vendor=?',
-                (day, self.vendor),
+                'WHERE day=? AND vendor=? AND tenant_id=?',
+                (day, self.vendor, self.tenant_id),
             ).fetchone()
         return float(row[0] if row else 0.0)
 
@@ -172,17 +251,17 @@ class KillSwitch:
         with sqlite3.connect(self.ledger_path, timeout=5) as con:
             row = con.execute(
                 'SELECT COUNT(*) FROM calls '
-                'WHERE day=? AND vendor=?',
-                (day, self.vendor),
+                'WHERE day=? AND vendor=? AND tenant_id=?',
+                (day, self.vendor, self.tenant_id),
             ).fetchone()
         return int(row[0] if row else 0)
 
     def allow_call(self, estimated_cost_usd: float = 0.05) -> bool:
-        """Check daily cap. Returns True if call is allowed. False = denied."""
+        """Check daily cap for (vendor, tenant_id). True=allowed, False=denied."""
         spent = self.today_spend_usd()
         if spent + estimated_cost_usd > self.daily_cap_usd:
             self._write_audit_line(
-                f'DENIED vendor={self.vendor} scope={self.scope} '
+                f'DENIED vendor={self.vendor} tenant={self.tenant_id} scope={self.scope} '
                 f'spent_today=${spent:.4f} cap=${self.daily_cap_usd:.2f} '
                 f'attempted=${estimated_cost_usd:.4f}'
             )
@@ -208,13 +287,19 @@ class KillSwitch:
         with sqlite3.connect(self.ledger_path, timeout=5) as con:
             try:
                 con.execute(
-                    'INSERT INTO calls (ts, day, vendor, scope, artifact_sha, '
-                    'cost_usd, result_json) VALUES (?, ?, ?, ?, ?, ?, ?)',
-                    (ts, day, self.vendor, self.scope, sha, actual_cost_usd, result_json),
+                    'INSERT INTO calls (ts, day, vendor, scope, tenant_id, '
+                    'artifact_sha, cost_usd, result_json) '
+                    'VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+                    (ts, day, self.vendor, self.scope, self.tenant_id,
+                     sha, actual_cost_usd, result_json),
                 )
                 con.commit()
             except sqlite3.IntegrityError:
-                # Already recorded today — that's the whole point of dedupe.
+                # Same (day, vendor, scope, tenant_id, artifact_sha) already
+                # recorded today — harmless per-tenant dedup. v2 schema
+                # (post-2026-04-18 migration) isolates cache per tenant so
+                # two tenants calling the same artifact both get their own
+                # records billed independently.
                 pass
 
     def deny_response(self) -> dict[str, Any]:
@@ -225,6 +310,7 @@ class KillSwitch:
             'reason': 'daily_cap_hit',
             'vendor': self.vendor,
             'scope': self.scope,
+            'tenant_id': self.tenant_id,
             'today_spend_usd': self.today_spend_usd(),
             'cap_usd': self.daily_cap_usd,
             'fail_non_blocking': self.fail_non_blocking,
@@ -247,12 +333,13 @@ class KillSwitch:
 # ---------------------------------------------------------------------------
 
 def main(argv: list[str]) -> int:
-    """CLI: `python lib/cost_kill_switch.py [--vendor X] [--reset]`
+    """CLI: `python lib/cost_kill_switch.py [--vendor X] [--tenant Y] [--audit-tail N]`
 
-    Lists today's spend per vendor + recent denials. No API calls."""
+    Lists today's spend per (vendor, tenant, scope) + recent denials. No API calls."""
     import argparse
     p = argparse.ArgumentParser(prog='cost-kill-switch')
     p.add_argument('--vendor', help='filter by vendor name')
+    p.add_argument('--tenant', help='filter by tenant_id')
     p.add_argument('--ledger', default=str(DEFAULT_LEDGER_PATH),
                    help='ledger db path')
     p.add_argument('--audit-tail', type=int, default=20,
@@ -265,27 +352,47 @@ def main(argv: list[str]) -> int:
         return 0
 
     with sqlite3.connect(ledger, timeout=5) as con:
+        # Detect if v2 schema (tenant_id column present)
+        cols = {r[1] for r in con.execute("PRAGMA table_info(calls)").fetchall()}
+        has_tenant = 'tenant_id' in cols
+
         day = _today_utc_str()
+        where_parts = ['day=?']
+        where_args: list[Any] = [day]
         if args.vendor:
+            where_parts.append('vendor=?')
+            where_args.append(args.vendor.lower())
+        if args.tenant and has_tenant:
+            where_parts.append('tenant_id=?')
+            where_args.append(args.tenant.lower())
+        where_clause = ' AND '.join(where_parts)
+
+        if has_tenant:
             rows = con.execute(
-                'SELECT vendor, scope, COUNT(*), SUM(cost_usd) FROM calls '
-                'WHERE day=? AND vendor=? GROUP BY vendor, scope',
-                (day, args.vendor.lower()),
+                f'SELECT tenant_id, vendor, scope, COUNT(*), SUM(cost_usd) FROM calls '
+                f'WHERE {where_clause} GROUP BY tenant_id, vendor, scope '
+                f'ORDER BY SUM(cost_usd) DESC',
+                tuple(where_args),
             ).fetchall()
         else:
             rows = con.execute(
-                'SELECT vendor, scope, COUNT(*), SUM(cost_usd) FROM calls '
-                'WHERE day=? GROUP BY vendor, scope ORDER BY SUM(cost_usd) DESC',
-                (day,),
+                f'SELECT vendor, scope, COUNT(*), SUM(cost_usd) FROM calls '
+                f'WHERE {where_clause} GROUP BY vendor, scope '
+                f'ORDER BY SUM(cost_usd) DESC',
+                tuple(where_args),
             ).fetchall()
 
     print(f'=== Today ({day}) ===')
     if not rows:
         print('  (no calls recorded)')
+    elif has_tenant:
+        print(f'  {"tenant":<15} {"vendor":<12} {"scope":<18} {"calls":>8} {"spend_usd":>12}')
+        for tenant, vendor, scope, count, spend in rows:
+            print(f'  {tenant:<15} {vendor:<12} {scope:<18} {count:>8} ${spend:>11.4f}')
     else:
-        print(f'  {"vendor":<12} {"scope":<12} {"calls":>8} {"spend_usd":>12}')
+        print(f'  {"vendor":<12} {"scope":<18} {"calls":>8} {"spend_usd":>12}')
         for vendor, scope, count, spend in rows:
-            print(f'  {vendor:<12} {scope:<12} {count:>8} ${spend:>11.4f}')
+            print(f'  {vendor:<12} {scope:<18} {count:>8} ${spend:>11.4f}')
 
     audit_log = ledger.with_suffix('.audit.log')
     if audit_log.exists() and args.audit_tail > 0:
