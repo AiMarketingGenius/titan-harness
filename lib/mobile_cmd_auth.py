@@ -451,7 +451,17 @@ def webauthn_authenticate_verify(
     credential_store: Any,
     challenge_store: Any,
 ) -> dict[str, Any]:
-    """Verify a WebAuthn authentication response + update sign_count."""
+    """Verify a WebAuthn authentication response + update sign_count.
+
+    Step 7.0-c: lenient sign_count handling for iOS / passkey providers.
+    Apple platform authenticators frequently return sign_count=0 (always) or
+    occasionally stale counts — treating every regression as a cloned-credential
+    attack would brick real users. Per Sonar Pro audit 2026-04-18:
+    - Accept the assertion if cryptographic verification passes
+    - On regression (new < stored), log an audit event + update to max(stored, new)
+    - Hard-fail only on BOTH-ZERO without progress over multiple signs AND
+      user-agent mismatch (TODO: that heavier check rides with multi-tenant UA tracking)
+    """
     _require_webauthn()
     expected_challenge = challenge_store.pop(f"webauthn:auth:{operator_id}")
     if expected_challenge is None:
@@ -464,17 +474,51 @@ def webauthn_authenticate_verify(
     if stored is None:
         raise MobileCmdAuthError("unknown credential for operator")
 
-    verification = verify_authentication_response(
-        credential=credential_response,
-        expected_challenge=expected_challenge,
-        expected_origin=expected_origin,
-        expected_rp_id=expected_rp_id,
-        credential_public_key=stored["public_key"],
-        credential_current_sign_count=stored["sign_count"],
-        require_user_verification=True,
-    )
-    credential_store.update_sign_count(stored["id"], verification.new_sign_count)
-    return {"status": "ok", "new_sign_count": verification.new_sign_count}
+    try:
+        verification = verify_authentication_response(
+            credential=credential_response,
+            expected_challenge=expected_challenge,
+            expected_origin=expected_origin,
+            expected_rp_id=expected_rp_id,
+            credential_public_key=stored["public_key"],
+            credential_current_sign_count=stored["sign_count"],
+            require_user_verification=True,
+        )
+        new_count = verification.new_sign_count
+        credential_store.update_sign_count(stored["id"], new_count)
+        return {"status": "ok", "new_sign_count": new_count, "sign_count_mode": "advanced"}
+    except Exception as exc:
+        # The webauthn library raises on sign_count regression. Detect by error
+        # class name + message substring (library API varies across versions).
+        err_class = type(exc).__name__
+        err_msg = str(exc).lower()
+        is_counter_regression = (
+            "counter" in err_msg or "sign_count" in err_msg or "sign count" in err_msg
+        )
+        if not is_counter_regression:
+            raise MobileCmdAuthError(f"webauthn verification failed: {err_class}: {exc}") from exc
+
+        # Lenient path — re-run verification with credential_current_sign_count=0
+        # (disables the counter check on the library side), then update the stored
+        # count to the max observed so we only regress forward, never backward.
+        verification = verify_authentication_response(
+            credential=credential_response,
+            expected_challenge=expected_challenge,
+            expected_origin=expected_origin,
+            expected_rp_id=expected_rp_id,
+            credential_public_key=stored["public_key"],
+            credential_current_sign_count=0,
+            require_user_verification=True,
+        )
+        new_count = verification.new_sign_count
+        observed_max = max(stored["sign_count"], new_count)
+        credential_store.update_sign_count(stored["id"], observed_max)
+        return {
+            "status": "ok",
+            "new_sign_count": observed_max,
+            "sign_count_mode": "lenient",
+            "audit_note": f"sign_count regression accepted (stored={stored['sign_count']}, observed={new_count}); common on iOS/passkey",
+        }
 
 
 # ---------------------------------------------------------------------------

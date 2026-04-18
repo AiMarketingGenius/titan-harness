@@ -1107,9 +1107,41 @@ async def _card_ct_lookup(ct_id: str) -> dict:
     }
 
 
+# ─── Step 7.0-a: voice-endpoint rate-limit (CRITICAL from Step 6.6 Sonar Pro audit) ──
+# In-memory token bucket per IP. Protects /api/titan/voice-in (Whisper cost-grief) +
+# /api/titan/tts (ElevenLabs quota-grief) from anonymous abuse. Bearer-auth layer
+# (per-operator bucket) will stack on top once /titan legacy page is deprecated.
+_VOICE_RATE_BUCKETS: dict[str, list[float]] = {}
+
+def _voice_rate_check(key: str, max_per_min: int) -> None:
+    """Raise HTTPException(429) if `key` exceeds `max_per_min` calls in the last 60s.
+    Prunes old entries on each call. Zero deps; fine for a single-uvicorn-worker deploy."""
+    now = time.time()
+    window_start = now - 60
+    bucket = _VOICE_RATE_BUCKETS.setdefault(key, [])
+    # Drop entries older than 60s in-place
+    bucket[:] = [t for t in bucket if t > window_start]
+    if len(bucket) >= max_per_min:
+        raise HTTPException(429, f"rate limit: {max_per_min}/min per IP on this endpoint")
+    bucket.append(now)
+
+def _client_ip(request: Request) -> str:
+    """Best-effort client IP from standard proxy headers. Caddy sets X-Forwarded-For."""
+    xff = request.headers.get("x-forwarded-for", "").split(",")[0].strip()
+    if xff:
+        return xff
+    real = request.headers.get("x-real-ip", "").strip()
+    if real:
+        return real
+    return (request.client.host if request.client else "unknown")
+
+
 @app.get("/api/titan/tts")
-async def api_titan_tts(text: str, voice: str = "alex") -> Response:
-    """Stream ElevenLabs TTS audio for Titan's reply text."""
+async def api_titan_tts(text: str, voice: str = "alex", request: Request = None) -> Response:  # type: ignore[assignment]
+    """Stream ElevenLabs TTS audio for Titan's reply text.
+    Rate-limited 30/min per IP (Step 7.0-a)."""
+    if request is not None:
+        _voice_rate_check(f"tts:{_client_ip(request)}", max_per_min=30)
     if not ELEVENLABS_API_KEY:
         raise HTTPException(503, "ElevenLabs not configured")
     if not text or len(text) > 2000:
@@ -1140,7 +1172,9 @@ async def api_titan_tts(text: str, voice: str = "alex") -> Response:
 
 @app.post("/api/titan/voice-in")
 async def api_titan_voice_in(request: Request) -> JSONResponse:
-    """Audio in → Whisper transcript → /api/titan/message pipeline."""
+    """Audio in → Whisper transcript → /api/titan/message pipeline.
+    Rate-limited 10/min per IP (Step 7.0-a)."""
+    _voice_rate_check(f"voicein:{_client_ip(request)}", max_per_min=10)
     from fastapi import UploadFile, File, Form
     form = await request.form()
     audio = form.get("audio")
