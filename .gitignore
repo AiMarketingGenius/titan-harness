@@ -36,3 +36,6 @@ var/
 
 # Build artifacts (TTS voice library, generated outputs)
 out/
+
+# Local backups (multi-GB tarballs — never commit)
+.backups/
