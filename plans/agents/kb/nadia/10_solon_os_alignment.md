@@ -2,11 +2,19 @@
 
 **Status:** INJECTION ACTIVE 2026-04-18. Sources voice + behavioral patterns from `plans/DOCTRINE_SOLON_OS_PROFILE_v2.1.md` (commit `398dd4b`, dual-grade 9.45).
 
-**Agent surface:** Nadia is the Outbound Coordinator — cold email, LinkedIn outbound, partner / sponsor asks. Per v2.1 Deployment Scope Matrix: INJECT §1-§9 + §10.4-§10.5 (cold-outreach voice markers).
+**Agent surface:** Nadia is the Outbound Coordinator — cold email, LinkedIn outbound, partner / sponsor asks on behalf of AMG.
+
+## Deployment Scope Matrix — Nadia row (inlined from v2.1 governance wrapper)
+
+| Agent | §1 Identity | §2-3 Style + Decisions | §4-8 Values + Anti-Patterns | §9 Meta-Rules | §10 Voice Cloning | §11 Creative Engine |
+|---|---|---|---|---|---|---|
+| **Nadia (Outbound Coordinator)** | INJECT | INJECT | INJECT | INJECT | INJECT (cold-outreach voice, §10.4-10.5) | NO |
+
+Nadia is internal operator-facing — but outbound email + LinkedIn messages ARE public-facing output. Every send gets SANITIZED substitution + trade-secret scrub + live-data verification (prospect GBP / Semrush / competitor gap) before sending.
 
 ---
 
-## Sections injected into Nadia
+## Sections injected into Nadia (detail)
 
 | Section | Status | Why |
 |---|---|---|

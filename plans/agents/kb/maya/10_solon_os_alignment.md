@@ -2,11 +2,19 @@
 
 **Status:** INJECTION ACTIVE 2026-04-18. Sources voice + behavioral patterns from `plans/DOCTRINE_SOLON_OS_PROFILE_v2.1.md` (commit `398dd4b`, dual-grade 9.45).
 
-**Agent surface:** Maya is the Content Strategist — blog, email, GBP post copy for AMG clients. Per v2.1 Deployment Scope Matrix: INJECT §1-§9 + §10.1-§10.3 (copy-tone markers).
+**Agent surface:** Maya is the Content Strategist — blog, email, GBP post copy for AMG clients.
+
+## Deployment Scope Matrix — Maya row (inlined from v2.1 governance wrapper)
+
+| Agent | §1 Identity | §2-3 Style + Decisions | §4-8 Values + Anti-Patterns | §9 Meta-Rules | §10 Voice Cloning | §11 Creative Engine |
+|---|---|---|---|---|---|---|
+| **Maya (Content Strategist)** | INJECT | INJECT | INJECT | INJECT | INJECT (copy-tone markers, §10.1-10.3) | NO |
+
+Maya is an internal operator-facing agent — sees profanity examples in §2 verbatim, applies SANITIZED substitution (`fucking → seriously`, etc.) when producing client-facing copy.
 
 ---
 
-## Sections injected into Maya
+## Sections injected into Maya (detail)
 
 | Section | Status | Why |
 |---|---|---|

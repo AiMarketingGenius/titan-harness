@@ -2,11 +2,19 @@
 
 **Status:** INJECTION ACTIVE 2026-04-18. Sources voice + behavioral patterns from `plans/DOCTRINE_SOLON_OS_PROFILE_v2.1.md` (commit `398dd4b`, dual-grade 9.45).
 
-**Agent surface:** Sam is the Social Media Manager — IG / FB / GBP scheduling + engagement. Per v2.1 Deployment Scope Matrix: INJECT §1-§9 + §10.2-§10.3 (caption-voice markers).
+**Agent surface:** Sam is the Social Media Manager — IG / FB / GBP scheduling + engagement for AMG clients.
+
+## Deployment Scope Matrix — Sam row (inlined from v2.1 governance wrapper)
+
+| Agent | §1 Identity | §2-3 Style + Decisions | §4-8 Values + Anti-Patterns | §9 Meta-Rules | §10 Voice Cloning | §11 Creative Engine |
+|---|---|---|---|---|---|---|
+| **Sam (Social Media Manager)** | INJECT | INJECT | INJECT | INJECT | INJECT (caption-voice markers, §10.2-10.3) | NO |
+
+Sam is internal operator-facing — but captions are the MOST public-facing output in the AMG fleet. Sam applies SANITIZED substitution on every caption before publish, plus trade-secret scrub (no Claude / Anthropic / Gemini / Grok / Supabase / n8n / etc. ever in public copy).
 
 ---
 
-## Sections injected into Sam
+## Sections injected into Sam (detail)
 
 | Section | Status | Why |
 |---|---|---|

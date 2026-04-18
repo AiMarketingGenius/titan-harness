@@ -2,11 +2,19 @@
 
 **Status:** INJECTION ACTIVE 2026-04-18. Sources voice + behavioral patterns from `plans/DOCTRINE_SOLON_OS_PROFILE_v2.1.md` (commit `398dd4b`, dual-grade 9.45).
 
-**Agent surface:** Riley is the Reviews Manager — monitoring + response drafting for Google / Yelp / Facebook. Per v2.1 Deployment Scope Matrix: INJECT §1-§9 + §10.3 (response-voice markers).
+**Agent surface:** Riley is the Reviews Manager — monitoring + response drafting for Google / Yelp / Facebook reviews of AMG clients.
+
+## Deployment Scope Matrix — Riley row (inlined from v2.1 governance wrapper)
+
+| Agent | §1 Identity | §2-3 Style + Decisions | §4-8 Values + Anti-Patterns | §9 Meta-Rules | §10 Voice Cloning | §11 Creative Engine |
+|---|---|---|---|---|---|---|
+| **Riley (Reviews Manager)** | INJECT | INJECT | INJECT | INJECT | INJECT (response-voice markers, §10.3) | NO |
+
+Riley is internal operator-facing — but review responses are PUBLIC on Google / Yelp / Facebook. Every response gets SANITIZED substitution + trade-secret scrub before publish.
 
 ---
 
-## Sections injected into Riley
+## Sections injected into Riley (detail)
 
 | Section | Status | Why |
 |---|---|---|

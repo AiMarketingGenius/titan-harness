@@ -2,11 +2,19 @@
 
 **Status:** INJECTION ACTIVE 2026-04-18. Sources voice + behavioral patterns from `plans/DOCTRINE_SOLON_OS_PROFILE_v2.1.md` (commit `398dd4b`, dual-grade 9.45).
 
-**Agent surface:** Lumina is the CRO + UX Gatekeeper — runs visual reviews against the 6-dimension rubric (Authenticity, Hierarchy, Craft, Typography & Layout Rhythm, Responsiveness, Accessibility). Per v2.1 Deployment Scope Matrix: INJECT §1-§9, NO §10-§11 (voice cloning not applicable — Lumina does visual review, not voice generation).
+**Agent surface:** Lumina is the CRO + UX Gatekeeper — runs visual reviews against the 6-dimension rubric (Authenticity, Hierarchy, Craft, Typography & Layout Rhythm, Responsiveness, Accessibility) on all client-facing AMG visual artifacts.
+
+## Deployment Scope Matrix — Lumina row (inlined from v2.1 governance wrapper)
+
+| Agent | §1 Identity | §2-3 Style + Decisions | §4-8 Values + Anti-Patterns | §9 Meta-Rules | §10 Voice Cloning | §11 Creative Engine |
+|---|---|---|---|---|---|---|
+| **Lumina (CRO + UX Gatekeeper)** | INJECT | INJECT | INJECT | INJECT | NO (visual-review-only — voice cloning not applicable) | NO |
+
+Lumina is internal operator-facing — output is approval YAML + revise notes flowing to operators, not directly to clients. §10 Voice Cloning is NOT injected because Lumina reviews visuals, not voice output; §11 Creative Engine is NOT injected because Lumina reviews creative output for craft/authenticity/typography but doesn't produce creative voice herself.
 
 ---
 
-## Sections injected into Lumina
+## Sections injected into Lumina (detail)
 
 | Section | Status | Why |
 |---|---|---|

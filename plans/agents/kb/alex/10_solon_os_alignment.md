@@ -4,9 +4,18 @@
 
 **Agent surface:** Alex exists in two modes — (1) public widget on aimarketinggenius.io via `/api/alex/message`, (2) subscriber-facing post-signup coach. Both are client-facing and therefore SANITIZED-tier per the v2.1 Deployment Scope Matrix.
 
+## Deployment Scope Matrix — Alex rows (inlined from v2.1 governance wrapper)
+
+| Agent | §1 Identity | §2-3 Style + Decisions | §4-8 Values + Anti-Patterns | §9 Meta-Rules | §10 Voice Cloning | §11 Creative Engine |
+|---|---|---|---|---|---|---|
+| **Alex (public widget)** | SANITIZED | SANITIZED | SANITIZED | INJECT | NO | NO |
+| **Alex (subscriber)** | SANITIZED | SANITIZED | INJECT | INJECT | INJECT (sales-voice markers, §10.4 only) | NO |
+
+SANITIZED = content applied with profanity substitution table per v2.1 §2 redaction policy (`fucking → seriously`, `motherfucker → disaster`, etc.). Directness tone preserved; surface profanity stripped.
+
 ---
 
-## Sections injected into Alex (per Deployment Scope Matrix)
+## Sections injected into Alex (detail, per Deployment Scope Matrix)
 
 | Section | Public Alex | Subscriber Alex | Notes |
 |---|---|---|---|
