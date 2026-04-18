@@ -73,7 +73,17 @@ async def _execute_task(task: dict, *, retry: int = 0, base_backoff_ms: int = 25
             last_error = f"llm_client/model_router unavailable: {e}"
             break
         try:
-            model = task.get("model") or model_router.route_model(task["type"])
+            # model_router exposes resolve_model(task_type, task) — earlier code
+            # referenced route_model which never existed; keep the fallback
+            # defensive in case the API name drifts again.
+            if hasattr(model_router, "resolve_model"):
+                model = task.get("model") or model_router.resolve_model(task["type"], task)
+            elif hasattr(model_router, "route_model"):
+                model = task.get("model") or model_router.route_model(task["type"])
+            else:
+                raise RuntimeError(
+                    f"model_router has no resolve_model or route_model method"
+                )
             if hasattr(llm_client, "call_async"):
                 result = await llm_client.call_async(
                     model=model, prompt=task["prompt"], task_type=task["type"]
