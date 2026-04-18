@@ -41,3 +41,9 @@ out/
 
 # Local backups (multi-GB tarballs — never commit)
 .backups/
+
+# Recurring boot-audit routine artifacts (local-config + auto-regenerated)
+# Per 2026-04-18T18:37Z handoff decision: these should never block boot exit 0
+.claude/settings.local.json
+MIRROR_STATUS.md
+RADAR.md
