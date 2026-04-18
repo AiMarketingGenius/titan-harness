@@ -1,0 +1,176 @@
+{
+  "name": "TLA Path 4 — Idle Heartbeat + Hammerspoon Nudge",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [{ "field": "seconds", "secondsInterval": 60 }]
+        }
+      },
+      "id": "cron-tick",
+      "name": "Cron tick — every 60s",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [240, 280]
+    },
+    {
+      "parameters": {
+        "url": "={{ $env.SUPABASE_URL }}/rest/v1/op_decisions?select=created_at,project_source&order=created_at.desc&limit=1&project_source=eq.titan",
+        "options": {},
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "apikey", "value": "={{ $env.SUPABASE_SERVICE_ROLE_KEY }}" },
+            { "name": "Authorization", "value": "Bearer {{ $env.SUPABASE_SERVICE_ROLE_KEY }}" }
+          ]
+        }
+      },
+      "id": "latest-titan-decision",
+      "name": "Latest Titan decision ts",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [460, 200]
+    },
+    {
+      "parameters": {
+        "url": "={{ $env.SUPABASE_URL }}/rest/v1/operator_task_queue?select=task_id,priority&status=eq.pending&approval=eq.pre_approved&order=created_at.asc&limit=10",
+        "options": {},
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "apikey", "value": "={{ $env.SUPABASE_SERVICE_ROLE_KEY }}" },
+            { "name": "Authorization", "value": "Bearer {{ $env.SUPABASE_SERVICE_ROLE_KEY }}" }
+          ]
+        }
+      },
+      "id": "pending-tasks",
+      "name": "Pending pre-approved tasks",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [460, 360]
+    },
+    {
+      "parameters": {
+        "url": "={{ $env.SUPABASE_URL }}/rest/v1/op_decisions?select=id&tags=cs.%7Btla-nudge-disabled%7D&limit=1",
+        "options": {},
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "apikey", "value": "={{ $env.SUPABASE_SERVICE_ROLE_KEY }}" },
+            { "name": "Authorization", "value": "Bearer {{ $env.SUPABASE_SERVICE_ROLE_KEY }}" }
+          ]
+        }
+      },
+      "id": "kill-switch-check",
+      "name": "Kill-switch check (tla-nudge-disabled or tla-disabled)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [460, 520]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Evaluate idle signal + pending work + kill-switch.\n// Respects:\n//   - idle threshold: 10 min (no titan-authored decisions in last 10 min)\n//   - pending work: at least one operator_task_queue row pending + pre_approved\n//   - kill-switch: skip if tla-nudge-disabled OR tla-disabled decision exists\n//   - dedupe: skip if same (idle-trigger-ts, queue-snapshot-hash) fired in last 15 min (unless urgent)\n//   - grace window: 5 min post any Path 1/2/3 restart invocation\n//   - urgent override: always fire for tasks with priority=urgent\nconst latestTitan = $input.first().json[0] || {};\nconst pending = $('Pending pre-approved tasks').first().json || [];\nconst killswitch = $('Kill-switch check (tla-nudge-disabled or tla-disabled)').first().json || [];\n\nconst now = Date.now();\nconst latestTitanTs = latestTitan.created_at ? new Date(latestTitan.created_at).getTime() : 0;\nconst idleMinutes = latestTitanTs === 0 ? 9999 : (now - latestTitanTs) / 60000;\nconst IDLE_THRESHOLD_MIN = 10;\nconst urgent = pending.some(t => (t.priority || '').toLowerCase() === 'urgent');\nconst killed = Array.isArray(killswitch) && killswitch.length > 0;\n\nif (killed) {\n  return [{ json: { should_fire: false, reason: 'kill_switch_active', idle_minutes: idleMinutes } }];\n}\nif (pending.length === 0) {\n  return [{ json: { should_fire: false, reason: 'queue_empty', idle_minutes: idleMinutes } }];\n}\nif (idleMinutes < IDLE_THRESHOLD_MIN && !urgent) {\n  return [{ json: { should_fire: false, reason: 'not_idle_yet', idle_minutes: idleMinutes, pending_count: pending.length } }];\n}\n\nconst queueHash = pending.map(t => t.task_id).sort().join(',');\nconst fireTs = Math.floor(now / 1000);\nconst phrase = '«MCP_QUEUE_POLL» poll MCP queue for pending tasks tagged today';\nreturn [{ json: { should_fire: true, ts: fireTs, phrase, queue_hash: queueHash, urgent, pending_count: pending.length, idle_minutes: idleMinutes } }];\n"
+      },
+      "id": "decide-fire",
+      "name": "Decide: fire nudge?",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [700, 360]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "typeValidation": "loose", "version": 2 },
+          "conditions": [{
+            "id": "fire-gate",
+            "leftValue": "={{ $json.should_fire }}",
+            "rightValue": true,
+            "operator": { "type": "boolean", "operation": "equals" }
+          }],
+          "combinator": "and"
+        }
+      },
+      "id": "fire-gate",
+      "name": "Gate",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [920, 360]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Build HMAC-signed POST body.\n// Canonical string: \"<ts>\\n<body>\"\n// Header: X-Titan-Sig = hex-encoded HMAC-SHA256(secret, canonical)\nconst crypto = require('crypto');\nconst incoming = $input.first().json;\nconst secret = $env.TLA_NUDGE_HMAC_SECRET;\nif (!secret) throw new Error('TLA_NUDGE_HMAC_SECRET env var missing');\nconst body = JSON.stringify({ phrase: incoming.phrase, urgent: !!incoming.urgent });\nconst canonical = `${incoming.ts}\\n${body}`;\nconst sig = crypto.createHmac('sha256', secret).update(canonical).digest('hex');\nreturn [{ json: { body, sig, ts: incoming.ts, queue_hash: incoming.queue_hash, urgent: incoming.urgent, pending_count: incoming.pending_count, idle_minutes: incoming.idle_minutes } }];\n"
+      },
+      "id": "sign-payload",
+      "name": "HMAC-sign payload",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1140, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.TLA_NUDGE_ENDPOINT || 'http://127.0.0.1:41710/nudge' }}",
+        "sendHeaders": true,
+        "sendBody": true,
+        "bodyContentType": "raw",
+        "rawContentType": "application/json",
+        "body": "={{ $json.body }}",
+        "options": { "timeout": 8000 },
+        "headerParameters": {
+          "parameters": [
+            { "name": "X-Titan-Sig", "value": "={{ $json.sig }}" },
+            { "name": "X-Titan-Ts", "value": "={{ $json.ts }}" }
+          ]
+        }
+      },
+      "id": "post-to-hammerspoon",
+      "name": "POST /nudge → Hammerspoon localhost",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1360, 300]
+    },
+    {
+      "parameters": {
+        "url": "={{ $env.SUPABASE_URL }}/rest/v1/op_decisions",
+        "method": "POST",
+        "sendHeaders": true,
+        "sendBody": true,
+        "bodyContentType": "json",
+        "jsonBody": "={{ JSON.stringify({ decision_text: `TLA-INVOCATION-PATH-4 nudge fired ${new Date().toISOString()} — phrase injected, pending_count=${$('sign-payload').first().json.pending_count}, urgent=${$('sign-payload').first().json.urgent}, idle_min=${$('sign-payload').first().json.idle_minutes.toFixed(1)}`, tags: ['tla-invocation-path-4', `path-4-ts-${$('sign-payload').first().json.ts}`, 'path-4-live'], project_source: 'titan', decision_type: 'execution', operator_id: 'OPERATOR_AMG' }) }}",
+        "headerParameters": {
+          "parameters": [
+            { "name": "apikey", "value": "={{ $env.SUPABASE_SERVICE_ROLE_KEY }}" },
+            { "name": "Authorization", "value": "Bearer {{ $env.SUPABASE_SERVICE_ROLE_KEY }}" },
+            { "name": "Prefer", "value": "return=minimal" }
+          ]
+        }
+      },
+      "id": "log-mcp-invocation",
+      "name": "Log MCP invocation",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1580, 300]
+    }
+  ],
+  "connections": {
+    "Cron tick — every 60s": {
+      "main": [[
+        { "node": "Latest Titan decision ts", "type": "main", "index": 0 },
+        { "node": "Pending pre-approved tasks", "type": "main", "index": 0 },
+        { "node": "Kill-switch check (tla-nudge-disabled or tla-disabled)", "type": "main", "index": 0 }
+      ]]
+    },
+    "Latest Titan decision ts": { "main": [[{ "node": "Decide: fire nudge?", "type": "main", "index": 0 }]] },
+    "Pending pre-approved tasks": { "main": [[{ "node": "Decide: fire nudge?", "type": "main", "index": 0 }]] },
+    "Kill-switch check (tla-nudge-disabled or tla-disabled)": { "main": [[{ "node": "Decide: fire nudge?", "type": "main", "index": 0 }]] },
+    "Decide: fire nudge?": { "main": [[{ "node": "Gate", "type": "main", "index": 0 }]] },
+    "Gate": { "main": [[{ "node": "HMAC-sign payload", "type": "main", "index": 0 }]] },
+    "HMAC-sign payload": { "main": [[{ "node": "POST /nudge → Hammerspoon localhost", "type": "main", "index": 0 }]] },
+    "POST /nudge → Hammerspoon localhost": { "main": [[{ "node": "Log MCP invocation", "type": "main", "index": 0 }]] }
+  },
+  "settings": { "executionOrder": "v1" },
+  "pinData": {},
+  "versionId": "1.1.0",
+  "meta": { "templateCredsSetupCompleted": false, "description": "TLA v1.1 Path 4 idle-nudge: every 60s, polls Supabase for last Titan decision + pending queue + kill-switch. Fires HMAC-signed POST to Hammerspoon localhost (Mac :41710) when idle >=10 min + queue non-empty (or urgent). Logs every invocation to MCP op_decisions. Requires env: SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, TLA_NUDGE_HMAC_SECRET, TLA_NUDGE_ENDPOINT (if not default)." },
+  "tags": ["tla", "path-4", "idle-nudge", "v1.1"]
+}
