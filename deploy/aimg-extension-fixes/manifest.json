@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "AI Memory Guard",
-  "version": "0.1.2",
-  "description": "Cross-platform persistent memory and quality enforcement for AI conversations (CT-0416-22 2026-04-17: grok.com host fix, perplexity.js recovered, copilot.microsoft.com added, strict allowlist)",
+  "version": "0.1.3",
+  "description": "Persistent memory + fact-checking + hallucination protection across the 7 AI chat platforms. HARDCODED ALLOWLIST — captures ONLY from the 7 listed AI platforms; all other sites are INVISIBLE to the extension by design (no banking, email, medical, social, chamber sites — ever).",
   "permissions": [
     "storage",
     "activeTab",
@@ -16,8 +16,11 @@
     "https://chat.openai.com/*",
     "https://gemini.google.com/*",
     "https://grok.com/*",
+    "https://perplexity.ai/*",
     "https://www.perplexity.ai/*",
-    "https://copilot.microsoft.com/*"
+    "https://copilot.microsoft.com/*",
+    "https://meta.ai/*",
+    "https://www.meta.ai/*"
   ],
   "background": {
     "service_worker": "service-worker.js",
