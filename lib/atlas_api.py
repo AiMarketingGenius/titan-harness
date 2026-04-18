@@ -1125,6 +1125,79 @@ def _voice_rate_check(key: str, max_per_min: int) -> None:
         raise HTTPException(429, f"rate limit: {max_per_min}/min per IP on this endpoint")
     bucket.append(now)
 
+
+# ─── Step 7.3: per-tenant rate-limit + brand resolver ────────────────────────
+# Generalizes 7.0-a IP-bucket into a per-tenant bucket keyed by JWT tenant_id
+# claim. Each tenant gets an independent bucket; rate-limit accounting doesn't
+# bleed across tenants. Brand resolver reads public.tenants.brand_config JSONB
+# on cold-cache miss + caches in-process for 60s.
+
+_TENANT_RATE_BUCKETS: dict[str, list[float]] = {}
+_TENANT_BRAND_CACHE: dict[str, tuple[float, dict]] = {}  # tenant_id -> (cached_at, brand_config)
+_TENANT_BRAND_TTL_SECONDS = 60
+
+
+def _tenant_rate_check(tenant_id: str, endpoint: str, max_per_min: int) -> None:
+    """Per-tenant + per-endpoint bucket. Example: different tenant, same endpoint,
+    independent rate-limit. Keyed by `<tenant_id>:<endpoint>` so one tenant abusing
+    /api/auth/refresh doesn't starve another tenant on the same endpoint."""
+    key = f"tenant:{tenant_id}:{endpoint}"
+    now = time.time()
+    window_start = now - 60
+    bucket = _TENANT_RATE_BUCKETS.setdefault(key, [])
+    bucket[:] = [t for t in bucket if t > window_start]
+    if len(bucket) >= max_per_min:
+        raise HTTPException(429, f"tenant rate limit: {max_per_min}/min on {endpoint}")
+    bucket.append(now)
+
+
+def _resolve_tenant_brand(tenant_id: str) -> dict:
+    """Return the tenant's brand_config JSON from public.tenants. Cached 60s
+    in-process to minimize DB chatter on every PWA asset request. Falls back
+    to amg-internal defaults on cache miss + DB error.
+
+    Consumed by future /api/tenants/{id}/brand endpoint + PWA manifest
+    per-tenant theming (Step 7.3 surface)."""
+    now = time.time()
+    cached = _TENANT_BRAND_CACHE.get(tenant_id)
+    if cached and (now - cached[0]) < _TENANT_BRAND_TTL_SECONDS:
+        return cached[1]
+    # Cache miss — fetch. Only read-only; safe outside auth context.
+    fallback = {
+        "name": "AMG Mobile Command",
+        "palette": {"navy": "#0B2572", "gold": "#d4a627", "ivory": "#fbf9f3", "ink": "#1c2433"},
+        "rp_name": "AMG Mobile Command",
+        "logo_url": None,
+    }
+    if not _MCS_AVAILABLE or _mcs is None:
+        return fallback
+    try:
+        # SupabaseRefreshTokenBackend's conn_factory is the only Supabase-connected
+        # helper currently in scope — reuse it as a read connection source.
+        ctx = _get_mobile_auth_ctx()
+        if ctx is None:
+            return fallback
+        conn_factory = ctx["refresh_store"]._backend._conn_factory  # type: ignore[attr-defined]
+        with conn_factory() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    "SELECT brand_config, name, webauthn_rp_name FROM public.tenants WHERE id = %s",
+                    (tenant_id,),
+                )
+                row = cur.fetchone()
+        if not row:
+            return fallback
+        brand_cfg = dict(row[0] or {})
+        brand_cfg.setdefault("name", row[1] or fallback["name"])
+        brand_cfg.setdefault("rp_name", row[2] or fallback["rp_name"])
+        # Merge palette defaults if tenant-specific palette is partial
+        brand_cfg.setdefault("palette", fallback["palette"])
+        _TENANT_BRAND_CACHE[tenant_id] = (now, brand_cfg)
+        return brand_cfg
+    except Exception as exc:
+        print(f"[atlas-api] brand resolve failed for {tenant_id}: {exc}", file=sys.stderr)
+        return fallback
+
 def _client_ip(request: Request) -> str:
     """Best-effort client IP from standard proxy headers. Caddy sets X-Forwarded-For."""
     xff = request.headers.get("x-forwarded-for", "").split(",")[0].strip()
@@ -3667,6 +3740,18 @@ async def mobile_push_unsubscribe(sub_id: str, request: Request) -> JSONResponse
         return JSONResponse(content={"action": "revoked", "id": sub_id})
     except Exception as exc:  # noqa: BLE001
         return _mobile_error_response(exc, status_code=500)
+
+
+# ─── Step 7.3: per-tenant brand endpoint ─────────────────────────────────────
+@app.get("/api/tenants/{tenant_id}/brand")
+async def tenant_brand(tenant_id: str, request: Request) -> JSONResponse:
+    """Return per-tenant brand config for PWA theming at runtime.
+    Rate-limited 60/min per tenant (mostly static, cached client-side).
+    Anonymous access by design — brand info is surfaced BEFORE login so the
+    login screen can theme per-tenant."""
+    _tenant_rate_check(tenant_id, "brand", max_per_min=60)
+    brand = _resolve_tenant_brand(tenant_id)
+    return JSONResponse(content={"tenant_id": tenant_id, "brand": brand})
 
 
 # --- LIFECYCLE — mobile session control -------------------------------------
