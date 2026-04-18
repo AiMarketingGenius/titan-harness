@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Atlas Layer 2 — Admin Portal</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    background: #0a0a0f;
+    color: #e0e0e0;
+    min-height: 100vh;
+    padding: 2rem;
+    line-height: 1.5;
+  }
+  header {
+    padding: 1.5rem 0;
+    border-bottom: 1px solid rgba(99, 102, 241, 0.2);
+    margin-bottom: 2rem;
+  }
+  header h1 { font-size: 1.75rem; font-weight: 800; color: #818cf8; letter-spacing: -0.02em; }
+  header .sub { margin-top: 0.5rem; font-size: 0.875rem; color: #6b7280; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(380px, 1fr)); gap: 1.25rem; }
+  .card {
+    background: #13131a;
+    border: 1px solid rgba(99, 102, 241, 0.15);
+    border-radius: 12px;
+    padding: 1.5rem;
+  }
+  .card h2 {
+    font-size: 1rem; font-weight: 700; color: #c7d2fe;
+    margin-bottom: 1rem; padding-bottom: 0.75rem;
+    border-bottom: 1px solid rgba(99, 102, 241, 0.15);
+    display: flex; justify-content: space-between; align-items: baseline;
+  }
+  .chip {
+    font-size: 0.7rem; font-weight: 600; padding: 2px 8px; border-radius: 999px;
+    background: rgba(74, 222, 128, 0.15); color: #4ade80;
+  }
+  .chip.warn { background: rgba(250, 204, 21, 0.15); color: #facc15; }
+  .chip.pending { background: rgba(148, 163, 184, 0.15); color: #94a3b8; }
+  .metric { display: flex; justify-content: space-between; padding: 0.5rem 0; font-size: 0.9rem; gap: 1rem; }
+  .metric .key { color: #94a3b8; flex-shrink: 0; }
+  .metric .val { color: #e0e0e0; font-weight: 600; font-family: ui-monospace, Menlo, monospace; text-align: right; }
+  .note { font-size: 0.8rem; color: #6b7280; margin-top: 0.75rem; line-height: 1.5; }
+  code { background: rgba(99, 102, 241, 0.1); padding: 1px 6px; border-radius: 4px; font-size: 0.85em; color: #c7d2fe; }
+  a { color: #818cf8; text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  footer { margin-top: 2rem; padding-top: 1rem; border-top: 1px solid rgba(99, 102, 241, 0.15); font-size: 0.75rem; color: #6b7280; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Atlas Layer 2 — Admin Portal</h1>
+  <div class="sub">FOCUS v2 Part 1 build state · rendered 2026-04-18 overnight per Solon auto-continue authorization</div>
+</header>
+
+<div class="grid">
+
+  <div class="card">
+    <h2>Dual-grader rubric <span class="chip">LIVE</span></h2>
+    <div class="metric"><span class="key">Standing pair</span><span class="val">Haiku 4.5 + Flash Lite</span></div>
+    <div class="metric"><span class="key">Secondary model</span><span class="val">claude-haiku-4-5</span></div>
+    <div class="metric"><span class="key">Primary model</span><span class="val">gemini-2.5-flash-lite</span></div>
+    <div class="metric"><span class="key">Gateway</span><span class="val">LiteLLM @ 127.0.0.1:4000</span></div>
+    <div class="metric"><span class="key">Floor</span><span class="val">9.3 (both engines)</span></div>
+    <div class="metric"><span class="key">Calibration lock</span><span class="val">5-dim only, no ops critique</span></div>
+    <div class="note">
+      Per DOCTRINE_TITAN_AUTONOMY_GUARDRAILS_v2 Part 1. Grok 4 Fast preserved as
+      fallback via <code>DUAL_SECONDARY_GRADER=grok</code> env. Commits
+      <code>1652d89</code> (swap) + <code>f52d7bd</code> (calibration lock).
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>Canonical PROFILE v2.1 <span class="chip">PASS 9.45</span></h2>
+    <div class="metric"><span class="key">File</span><span class="val">DOCTRINE_SOLON_OS_PROFILE_v2.1.md</span></div>
+    <div class="metric"><span class="key">Size</span><span class="val">1,378 lines · 81 KB</span></div>
+    <div class="metric"><span class="key">Gemini Flash Lite</span><span class="val">9.5 PASS</span></div>
+    <div class="metric"><span class="key">Haiku 4.5</span><span class="val">9.4 PASS</span></div>
+    <div class="metric"><span class="key">Substrate commit</span><span class="val">6be496e (v2.0)</span></div>
+    <div class="metric"><span class="key">Wrapped commit</span><span class="val">398dd4b (v2.1)</span></div>
+    <div class="note">
+      Triple-source MP-2 synthesis (Lane 1 Claude 1,294 convos + Lane 2
+      Perplexity index + Lane 3 creative-studio 8 files) with 2026-04-18
+      governance wrapper: version/rollback + deployment scope matrix +
+      consent/IP + INTERNAL-ONLY markers + provenance appendix.
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>Per-Chamber cost kill-switch <span class="chip">LIVE</span></h2>
+    <div class="metric"><span class="key">Module</span><span class="val">lib/cost_kill_switch.py</span></div>
+    <div class="metric"><span class="key">Schema</span><span class="val">v2 (tenant_id in UNIQUE)</span></div>
+    <div class="metric"><span class="key">Env pattern</span><span class="val">TITAN_COST_CAP_TENANT_X_VENDOR</span></div>
+    <div class="metric"><span class="key">Tests</span><span class="val">6/6 PASS</span></div>
+    <div class="metric"><span class="key">Commit</span><span class="val">a54d70d</span></div>
+    <div class="note">
+      Per-tenant daily caps with isolated spend tracking and cache. v1→v2
+      migration preserves legacy rows as <code>tenant_id=global</code>.
+      Example: <code>KillSwitch(vendor='anthropic', tenant_id='revere', scope='chamber_alex')</code>.
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>Sole-interface rule <span class="chip">ENFORCED</span></h2>
+    <div class="metric"><span class="key">Admin endpoint</span><span class="val">/api/revere/message</span></div>
+    <div class="metric"><span class="key">Orchestrator</span><span class="val">Atlas</span></div>
+    <div class="metric"><span class="key">Backstage specialists</span><span class="val">8 (Chamber-tier roster)</span></div>
+    <div class="metric"><span class="key">Specialist endpoints</span><span class="val">none exposed</span></div>
+    <div class="note">
+      Chamber admin talks only to Atlas. 8 specialists (Hermes, Artemis,
+      Penelope, Sophia, Iris, Athena, Echo, Cleopatra) narrated through
+      Atlas via internal keyword routing (atlas_api.py:1466-1613). External
+      phone boundary: Hermes + Artemis speak to external callers only,
+      never the Chamber admin.
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>5-lane parallel dispatch <span class="chip">5/5 PASS</span></h2>
+    <div class="metric"><span class="key">Test script</span><span class="val">scripts/test_5_lane_parallel.py</span></div>
+    <div class="metric"><span class="key">Result</span><span class="val">5/5 live LLM responses OK</span></div>
+    <div class="metric"><span class="key">Wall-clock</span><span class="val">655.7 ms</span></div>
+    <div class="metric"><span class="key">Sum of latencies</span><span class="val">2,621.9 ms</span></div>
+    <div class="metric"><span class="key">Effective speedup</span><span class="val">4.00× (5× ideal)</span></div>
+    <div class="metric"><span class="key">Pool ceiling</span><span class="val">10 workers</span></div>
+    <div class="note">
+      Near-perfect 5× parallelism via LiteLLM gateway. 2 infra bugs fixed
+      en route: <code>model_router.resolve_model</code> (was route_model)
+      and <code>llm_client.complete(prompt, model_group)</code> (was call).
+      Commits <code>392b4f4</code>, <code>56223e3</code>, <code>42609ab</code>.
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>Lumina 6-dim rubric <span class="chip">HARDENED</span></h2>
+    <div class="metric"><span class="key">KB path</span><span class="val">plans/agents/kb/lumina/</span></div>
+    <div class="metric"><span class="key">Rubric</span><span class="val">6 dimensions (was 5)</span></div>
+    <div class="metric"><span class="key">New dimension</span><span class="val">Typography &amp; Layout 20%</span></div>
+    <div class="metric"><span class="key">Floor</span><span class="val">9.3 weighted + each dim ≥8.5</span></div>
+    <div class="metric"><span class="key">Hard thresholds</span><span class="val">body ≥16/14, H1 ≥40/32/28, CTA ≥16</span></div>
+    <div class="metric"><span class="key">Commit</span><span class="val">f128d52</span></div>
+    <div class="note">
+      Self-check 8/8 gate: typography hard-thresholds + headline balance
+      checks must pass before approval. Body/H1-3/CTA size, line-heights,
+      chars-per-line, type-family count, 1-H1-per-page all enforced.
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>Live services <span class="chip">OK</span></h2>
+    <div class="metric"><span class="key">atlas-api (systemd)</span><span class="val">active, port 8081</span></div>
+    <div class="metric"><span class="key">n8n-caddy reverse-proxy</span><span class="val">Up 28h</span></div>
+    <div class="metric"><span class="key">LiteLLM gateway</span><span class="val">127.0.0.1:4000</span></div>
+    <div class="metric"><span class="key">MCP server</span><span class="val">memory.aimarketinggenius.io</span></div>
+    <div class="metric"><span class="key">Kokoro TTS</span><span class="val">titan-kokoro up 2d</span></div>
+    <div class="metric"><span class="key">Mirror cascade</span><span class="val">Mac → VPS → GitHub &lt; 5s</span></div>
+    <div class="note">
+      140-lane production total (70 HostHatch + 70 beast). Post-commit
+      auto-mirror confirmed via <code>/var/log/titan-harness-mirror.log</code>.
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>Deferred — Solon review <span class="chip pending">BLOCKED</span></h2>
+    <div class="metric"><span class="key">Mobile Command v2</span><span class="val">STEP 6 — conscious review</span></div>
+    <div class="metric"><span class="key">Full Solon OS UI</span><span class="val">blueprint phases 1-4 (~6-8 d)</span></div>
+    <div class="metric"><span class="key">Multi-tenant prompt param</span><span class="val">Step 4.3-EXT post-Monday</span></div>
+    <div class="metric"><span class="key">Lane 2 Perplexity full</span><span class="val">post-2026-05-01</span></div>
+    <div class="note">
+      Not started overnight per auto-continue STOP rules. Logged to MCP
+      for Solon's wake-up review.
+    </div>
+  </div>
+
+</div>
+
+<footer>
+  Atlas Layer 2 — Admin Portal · static snapshot of FOCUS v2 Part 1 build state.
+  Host: <code>operator.aimarketinggenius.io/atlas-admin.html</code> ·
+  basic-auth protected via <code>n8n-caddy-1</code>.
+  Live data feeds (<code>/api/admin/*</code>) and auto-refresh are post-Monday scope —
+  this is the static baseline rendering commit evidence + test results.
+</footer>
+
+</body>
+</html>
