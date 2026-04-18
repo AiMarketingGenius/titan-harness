@@ -278,7 +278,10 @@ def _haiku_grade(content: str, artifact_type: str, context: str = '') -> dict[st
             {'role': 'user', 'content': user_msg},
         ],
         'temperature': 0.2,
-        'max_tokens': 800,
+        # Haiku tends to emit longer reasoning + structured JSON than Grok; 800 tokens
+        # was too tight (JSON truncated mid-string on large artifacts). 2000 holds
+        # a full rubric + reasoning + revisions list cleanly.
+        'max_tokens': 2000,
         'response_format': {'type': 'json_object'},
     }
     req = urllib.request.Request(
