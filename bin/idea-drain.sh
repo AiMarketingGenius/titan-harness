@@ -119,23 +119,18 @@ except Exception:
 
       echo "[$(date -Iseconds)] OK id=$ROW_ID title=\"${ROW_TITLE:0:60}\"" >> "$DRAIN_LOG"
 
-      # Slack ping — after successful insert only
-      if [ -n "$IDEA_SLACK_WEBHOOK" ]; then
-        # Build ping payload via python to avoid shell escaping hell
-        # Env vars go BEFORE `python3` (bash prefix-assignment syntax).
-        SLACK_PAYLOAD=$(
-          ROW_TITLE_VAR="$ROW_TITLE" \
-          ROW_ID_VAR="$ROW_ID" \
-          TITAN_INSTANCE_VAR="$TITAN_INSTANCE" \
-          python3 -c "
+      # Idea-lock notification — routed via amg-slack-dispatcher chokepoint (P2 informational).
+      # High-volume source (≤60/day). Dispatcher applies 10-min dedup + 10/source/24h cap.
+      # Falls through to direct curl only if dispatcher not installed (dev / first boot).
+      MSG="Idea locked by $TITAN_INSTANCE: $ROW_TITLE (id: $ROW_ID)"
+      if command -v slack-dispatch >/dev/null 2>&1; then
+        slack-dispatch --severity P2 --source idea-drain \
+          --message "$MSG" --fingerprint "idea-$ROW_ID" > /dev/null 2>&1 || true
+      elif [ -n "$IDEA_SLACK_WEBHOOK" ]; then
+        SLACK_PAYLOAD=$(MSG_VAR="$MSG" python3 -c "
 import json, os, sys
-title = os.environ.get('ROW_TITLE_VAR', '')
-row_id = os.environ.get('ROW_ID_VAR', '')
-instance = os.environ.get('TITAN_INSTANCE_VAR', '')
-text = f'🔒 Idea locked by {instance}: *{title}*\n> id: {row_id}'
-sys.stdout.write(json.dumps({'text': text}))
+sys.stdout.write(json.dumps({'text': os.environ.get('MSG_VAR', '')}))
 ")
-
         curl -sS -m 4 -X POST "$IDEA_SLACK_WEBHOOK" \
           -H "Content-Type: application/json" \
           -d "$SLACK_PAYLOAD" > /dev/null 2>&1 || true

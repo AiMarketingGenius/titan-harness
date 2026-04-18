@@ -47,12 +47,18 @@ EOF
   echo "[install] created /etc/amg/slack-dispatcher.env — EDIT to populate SLACK_WEBHOOK_URL + SUPABASE_*"
 fi
 
-# Try to auto-populate SLACK_WEBHOOK_URL from existing security-watchdog.env if unset
-if ! grep -qE '^SLACK_WEBHOOK_URL="[^"]+' /etc/amg/slack-dispatcher.env 2>/dev/null; then
-  existing=$(grep -hE '^SLACK_SECURITY_WEBHOOK=|^SLACK_WATCHDOG_WEBHOOK=' /etc/amg/*.env 2>/dev/null | head -1 | cut -d= -f2- | tr -d '"')
-  if [[ -n "$existing" ]]; then
-    sed -i "s|^SLACK_WEBHOOK_URL=.*|SLACK_WEBHOOK_URL=\"${existing}\"|" /etc/amg/slack-dispatcher.env
-    echo "[install] auto-populated SLACK_WEBHOOK_URL from existing watchdog webhook"
+# Try to auto-populate SLACK_WEBHOOK_URL from any existing AMG env that contains a hooks.slack.com URL
+if ! grep -qE '^SLACK_WEBHOOK_URL="https://hooks\.slack\.com' /etc/amg/slack-dispatcher.env 2>/dev/null; then
+  existing=$(grep -rhE '^[A-Z_]*SLACK[A-Z_]*=https://hooks\.slack\.com[^"]+' /etc/amg/ /opt/amg/.env 2>/dev/null | head -1 | cut -d= -f2-)
+  existing="${existing#\"}"; existing="${existing%\"}"
+  if [[ ${#existing} -gt 20 ]]; then
+    python3 -c "
+import re
+with open('/etc/amg/slack-dispatcher.env') as f: c = f.read()
+c = re.sub(r'^SLACK_WEBHOOK_URL=.*\$', 'SLACK_WEBHOOK_URL=\"${existing}\"', c, flags=re.M)
+with open('/etc/amg/slack-dispatcher.env', 'w') as f: f.write(c)
+"
+    echo "[install] auto-populated SLACK_WEBHOOK_URL from existing webhook (len ${#existing})"
   fi
 fi
 
