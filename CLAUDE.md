@@ -138,6 +138,23 @@ Examples:
 - **Drift warning is a separate prefix line** (per §10), emitted only if drift was actually detected + fixed.
 - **If the boot audit fails** (e.g. `harness-preflight.sh` exit 10/11/12), replace the greeting with `Boot FAILED: <reason>. Fix: <concrete next action>.` and stop.
 
+### Resume-source priority (TLA v1.0 bug #2 fix, locked 2026-04-18)
+
+When deciding what to put in `Now:` and `Next:`, Titan MUST parse the `RESUME_SOURCE:` line emitted by `bin/titan-boot-audit.sh` and honor this priority order. Inverting this order is a **P0 protocol failure** (2026-04-18T16:13Z test exposed the bug: cold-boot pulled `CT-0410-01 Shop UNIS extras` from stale `NEXT_TASK.md` dated 2026-04-10 instead of the fresh MCP `RESTART_HANDOFF` decision tagged `commit-d5e538c` from 2026-04-18T15:53Z).
+
+**Priority order (highest to lowest):**
+1. **`RESUME_SOURCE: mcp-handoff`** — pull `Now:` + `Next:` from the MCP handoff's `decision_text` (specifically "NEXT ACTION ON RESUME" block or equivalent). Pull `Blocked on:` from the decision's "PENDING SOLON-SIDE" / "Blocked" section. `MCP_HANDOFF_COMMIT:` must resolve to a git-reachable commit (the boot audit validates this).
+2. **`RESUME_SOURCE: mcp-trigger-ready`** — same as above but sourced from a `tla-trigger-ready`-tagged decision (TLA automation fired the trigger).
+3. **`RESUME_SOURCE: next-task-md`** — fall back to `~/titan-session/NEXT_TASK.md` ONLY when the boot audit confirms NO valid MCP handoff exists OR the MCP handoff's commit hash fails validation (not resolvable in current repo). Titan does NOT silently prefer `NEXT_TASK.md` over MCP.
+4. **`RESUME_SOURCE: generic-queue`** — no MCP + no NEXT_TASK.md → fall through to §4 execution queue defaults.
+
+**Staleness guard (binding):** `bin/titan-boot-audit.sh` compares `NEXT_TASK.md` mtime vs latest MCP handoff `ts_unix`. If MCP is newer → NEXT_TASK.md is skipped as stale and `NEXT_TASK_SUMMARY:` is populated from MCP instead. The audit emits `MCP_HANDOFF_SUPERSEDED_BY_NEXT_TASK_MTIME: yes` only in the inverse case (rare; NEXT_TASK.md genuinely newer).
+
+**Implementation wiring:**
+- `bin/titan-boot-audit.sh` emits `RESUME_SOURCE:`, `MCP_HANDOFF_COMMIT:`, `MCP_HANDOFF_TS:`, `NEXT_TASK_SUMMARY:` (from the winning source).
+- `lib/mcp_latest_handoff.py` (stdlib-only) queries Supabase `op_decisions` table for the latest decision tagged `RESTART_HANDOFF` or `safe-restart-eligible` or `tla-trigger-ready`, extracts `commit_hash` from the `commit-<short>` tag, returns JSON.
+- Titan's greeting parser reads `RESUME_SOURCE` and populates the greeting fields accordingly.
+
 ### Mid-session resumes
 
 If the `SessionStart:resume` hook fires while Titan is already active in the same session, Titan treats it as idempotent: no new greeting, no re-audit, continue from the current task state. Only a genuinely new session triggers the full cold boot.
@@ -312,7 +329,7 @@ Titan and EOM v2.2 are **complementary roles** sharing MCP memory state on `memo
 Before responding to any message on a new Claude Code session on `~/titan-harness`, Titan MUST:
 1. Run `scripts/titan_reorientation.py` — queries open tasks, Hard Limit approvals, subsystem health, P0/P1 incidents, and posts reorientation summary to Slack
 2. Call `get_sprint_state` with `project_id=EOM`
-3. Call `get_recent_decisions` with `count=5`
+3. Call `get_recent_decisions` with `count=5` — **scan for `RESTART_HANDOFF` / `safe-restart-eligible` / `tla-trigger-ready` tags BEFORE reading `~/titan-session/NEXT_TASK.md`.** MCP handoff state with validated commit hash wins over the local file. See §7 "Resume-source priority" for the full priority order and staleness-guard rule. Inverting this order is a P0 protocol failure (see the 2026-04-18T16:13Z incident).
 
 This happens BEFORE the greeting line from §7 cold-boot. State is loaded, reorientation posted, then the one-line greeting is emitted. If Solon has already issued a concrete task in the same turn, skip the WHERE WE LEFT OFF block and go directly to execution — state is still loaded, just not surfaced.
 

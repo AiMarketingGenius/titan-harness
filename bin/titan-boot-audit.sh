@@ -138,18 +138,122 @@ else
   echo "BLOCKED_ON_SOLON: 0"
 fi
 
-# --- NEXT_TASK one-line summary ---
-if [ -f "$NEXT_TASK_PATH" ]; then
-  # Pull the first non-empty line after "FIRST MESSAGE TO SEND ME" block,
-  # or the "Immediate next actions" section, whichever appears first
-  SUMMARY=$(grep -m1 "^1\." "$NEXT_TASK_PATH" 2>/dev/null | sed 's/^1\. //' | head -c 200)
-  if [ -z "$SUMMARY" ]; then
-    SUMMARY=$(grep -m1 "^## " "$NEXT_TASK_PATH" 2>/dev/null | head -c 200)
+# --- Resume-source priority arbitration (TLA v1.0 bug #2 fix) ---
+#
+# Per CLAUDE.md §7 + §13.1 + §13.4 + DOCTRINE_TLA_BUG2 (locked 2026-04-18):
+# Cold-boot resume priority order is
+#   (1) MCP RESTART_HANDOFF / safe-restart-eligible decisions with validated commit hash
+#   (2) MCP tla-trigger-ready decision with validated commit hash
+#   (3) NEXT_TASK.md + generic task queue (tertiary fallback only)
+# If NEXT_TASK.md mtime < latest MCP RESTART_HANDOFF ts, NEXT_TASK.md is SKIPPED
+# as stale. Inverting this order is a P0 protocol failure per §13.4.
+#
+# This block emits:
+#   RESUME_SOURCE: mcp-handoff | mcp-trigger-ready | next-task-md | generic-queue | none
+#   MCP_HANDOFF_COMMIT: <short hash> | none
+#   MCP_HANDOFF_TS:     <iso8601>    | none
+#   NEXT_TASK_SUMMARY:  <one-line summary from winning source>
+
+MCP_HELPER="$REPO_ROOT/lib/mcp_latest_handoff.py"
+MCP_JSON=""
+MCP_FOUND="false"
+MCP_TS_UNIX=0
+MCP_COMMIT="none"
+MCP_ISO="none"
+MCP_HINT="none"
+MCP_TEXT=""
+
+if [ -x "$MCP_HELPER" ] || [ -f "$MCP_HELPER" ]; then
+  # Run helper in a subshell so env sourcing doesn't leak.
+  # Note: macOS lacks GNU `timeout`. The helper itself has a 10s urllib timeout,
+  # which is sufficient — don't rely on `timeout` binary.
+  MCP_JSON=$(
+    set -a
+    [ -f "$HOME/.titan-env" ] && source "$HOME/.titan-env" 2>/dev/null
+    set +a
+    python3 "$MCP_HELPER" 2>/dev/null || true
+  )
+  if [ -n "$MCP_JSON" ]; then
+    MCP_FOUND=$(printf '%s' "$MCP_JSON" | python3 -c 'import json,sys;
+try: print(json.load(sys.stdin).get("found",False))
+except: print("false")' 2>/dev/null || echo "false")
+    if [ "$MCP_FOUND" = "True" ] || [ "$MCP_FOUND" = "true" ]; then
+      MCP_TS_UNIX=$(printf '%s' "$MCP_JSON" | python3 -c 'import json,sys; print(json.load(sys.stdin).get("ts_unix",0))' 2>/dev/null || echo 0)
+      MCP_COMMIT=$(printf '%s' "$MCP_JSON" | python3 -c 'import json,sys; print(json.load(sys.stdin).get("commit_hash") or "none")' 2>/dev/null || echo "none")
+      MCP_ISO=$(printf '%s'    "$MCP_JSON" | python3 -c 'import json,sys; print(json.load(sys.stdin).get("iso_ts") or "none")' 2>/dev/null || echo "none")
+      MCP_HINT=$(printf '%s'   "$MCP_JSON" | python3 -c 'import json,sys; print(json.load(sys.stdin).get("resume_source_hint") or "mcp-handoff")' 2>/dev/null || echo "mcp-handoff")
+      MCP_TEXT=$(printf '%s'   "$MCP_JSON" | python3 -c 'import json,sys; print((json.load(sys.stdin).get("text_excerpt") or "").replace("\n"," ")[:180])' 2>/dev/null || echo "")
+    fi
   fi
-  echo "NEXT_TASK_SUMMARY: ${SUMMARY:-'no summary'}"
-else
-  echo "NEXT_TASK_SUMMARY: missing ($NEXT_TASK_PATH)"
 fi
+
+# NEXT_TASK.md mtime (macOS stat syntax; cold-boot runs on Solon's Mac).
+NT_MTIME=0
+if [ -f "$NEXT_TASK_PATH" ]; then
+  NT_MTIME=$(stat -f %m "$NEXT_TASK_PATH" 2>/dev/null || stat -c %Y "$NEXT_TASK_PATH" 2>/dev/null || echo 0)
+fi
+
+# Validate MCP commit hash against current git HEAD — if the handoff's commit is
+# present in our git log, treat as trustworthy.
+MCP_HASH_VALID="false"
+if [ "$MCP_COMMIT" != "none" ] && [ -n "$MCP_COMMIT" ]; then
+  if git -C "$REPO_ROOT" cat-file -e "$MCP_COMMIT^{commit}" 2>/dev/null; then
+    MCP_HASH_VALID="true"
+  fi
+fi
+
+# Decide RESUME_SOURCE
+RESUME_SOURCE="none"
+if [ "$MCP_FOUND" = "True" ] || [ "$MCP_FOUND" = "true" ]; then
+  if [ "$MCP_HASH_VALID" = "true" ]; then
+    if [ "$MCP_TS_UNIX" -gt "$NT_MTIME" ]; then
+      RESUME_SOURCE="$MCP_HINT"
+    else
+      # MCP present but NEXT_TASK.md is newer — respect the freshest state.
+      # Mark the staleness guard did NOT trigger this turn (for audit).
+      RESUME_SOURCE="next-task-md"
+      echo "MCP_HANDOFF_SUPERSEDED_BY_NEXT_TASK_MTIME: yes (mtime=$NT_MTIME mcp_ts=$MCP_TS_UNIX)"
+    fi
+  else
+    # Handoff commit not resolvable in local git — do NOT trust; fall through.
+    echo "MCP_HANDOFF_COMMIT_UNVERIFIED: $MCP_COMMIT (not in current repo)"
+    RESUME_SOURCE="next-task-md"
+  fi
+elif [ -f "$NEXT_TASK_PATH" ]; then
+  RESUME_SOURCE="next-task-md"
+else
+  RESUME_SOURCE="generic-queue"
+fi
+
+echo "RESUME_SOURCE: $RESUME_SOURCE"
+echo "MCP_HANDOFF_COMMIT: $MCP_COMMIT"
+echo "MCP_HANDOFF_TS: $MCP_ISO"
+
+# NEXT_TASK summary — source depends on RESUME_SOURCE
+case "$RESUME_SOURCE" in
+  mcp-handoff|mcp-trigger-ready)
+    # Pull the handoff's "NEXT ACTION ON RESUME" or first bullet line from the text
+    SUMMARY=$(printf '%s' "$MCP_TEXT" | grep -oE '(NEXT ACTION[^.]*\.[^.]*\.|RESTART_HANDOFF [^.]+\.|[A-Z][^|]{20,120})' | head -1 | head -c 200)
+    if [ -z "$SUMMARY" ]; then
+      SUMMARY=$(printf '%s' "$MCP_TEXT" | head -c 200)
+    fi
+    echo "NEXT_TASK_SUMMARY: $SUMMARY"
+    ;;
+  next-task-md)
+    if [ -f "$NEXT_TASK_PATH" ]; then
+      SUMMARY=$(grep -m1 "^1\." "$NEXT_TASK_PATH" 2>/dev/null | sed 's/^1\. //' | head -c 200)
+      if [ -z "$SUMMARY" ]; then
+        SUMMARY=$(grep -m1 "^## " "$NEXT_TASK_PATH" 2>/dev/null | head -c 200)
+      fi
+      echo "NEXT_TASK_SUMMARY: ${SUMMARY:-'no summary'}"
+    else
+      echo "NEXT_TASK_SUMMARY: missing ($NEXT_TASK_PATH)"
+    fi
+    ;;
+  *)
+    echo "NEXT_TASK_SUMMARY: missing (no MCP handoff + no NEXT_TASK.md)"
+    ;;
+esac
 
 # --- DOCTRINE_TITAN_AUTONOMY self-check (Layer 3) ---
 # Verify the 4-layer autonomy lock survived since last session. Auto-restore
