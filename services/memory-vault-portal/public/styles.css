@@ -213,90 +213,219 @@ input:focus, select:focus {
 .side-stat .label { font-size: 11px; color: var(--text-faint); text-transform: uppercase; letter-spacing: 0.5px; }
 .side-stat .value { font-size: 22px; font-weight: 600; color: var(--teal); font-variant-numeric: tabular-nums; }
 
-/* ─── FEED ─── */
-.feed { padding: 24px 28px; min-width: 0; }
+/* ─── FEED (max-width 800px centered, 16px gap) ─── */
+.feed { padding: 28px 20px 80px; max-width: 860px; margin: 0 auto; min-width: 0; }
 
 .feed-header {
   display: flex;
   justify-content: space-between;
   align-items: baseline;
-  margin-bottom: 18px;
+  margin-bottom: 14px;
+  gap: 16px;
+  flex-wrap: wrap;
 }
 .feed-header h2 {
-  font-size: 20px;
-  font-weight: 600;
+  font-size: 22px;
+  font-weight: 700;
   margin: 0;
-  letter-spacing: -0.3px;
+  letter-spacing: -0.4px;
+  color: var(--text);
 }
 
-.feed-controls { display: flex; gap: 8px; }
+.feed-controls { display: flex; gap: 8px; align-items: center; }
 
 .select-inline {
-  padding: 7px 10px;
+  padding: 8px 12px;
   font-size: 13px;
-  background: var(--bg-elev-2);
+  background: #0F1A2E;
   border: 1px solid var(--border);
-  border-radius: var(--radius);
+  border-radius: 10px;
+  color: var(--text);
+}
+.select-inline:hover { border-color: var(--teal); }
+
+/* Filter chips row */
+.filter-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 22px;
+  padding-bottom: 18px;
+  border-bottom: 1px solid var(--border);
+}
+.filter-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 14px;
+  border-radius: 999px;
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--text-dim);
+  font-size: 13px;
+  font-weight: 500;
+  font-family: inherit;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.filter-chip:hover { border-color: var(--teal); color: var(--text); }
+.filter-chip.active {
+  background: rgba(45, 180, 202, 0.12);
+  border-color: var(--teal);
+  color: var(--teal);
+}
+.filter-chip .chip-count {
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.08);
+  font-size: 11px;
+  font-weight: 600;
   color: var(--text-dim);
 }
+.filter-chip.active .chip-count { background: var(--teal); color: #032024; }
+.filter-chip.verify-chip.active { background: rgba(38, 198, 168, 0.12); border-color: var(--green); color: var(--green); }
+.filter-chip.verify-chip.active .chip-count { background: var(--green); color: #032D26; }
+.filter-chip.contradict-chip.active { background: rgba(232, 89, 96, 0.12); border-color: var(--red); color: var(--red); }
+.filter-chip.contradict-chip.active .chip-count { background: var(--red); color: #2A0609; }
 
 .feed-state {
   text-align: center;
-  padding: 48px 16px;
+  padding: 64px 16px;
   color: var(--text-dim);
 }
 
-#feed-empty h3 { color: var(--text); margin: 16px 0 8px; }
-#feed-empty p { max-width: 400px; margin: 0 auto; font-size: 14px; }
+#feed-empty h3 { color: var(--text); margin: 16px 0 8px; font-size: 20px; }
+#feed-empty p { max-width: 400px; margin: 0 auto; font-size: 14px; line-height: 1.55; }
 .empty-icon { font-size: 56px; color: var(--text-faint); margin-bottom: 16px; }
 
-/* ─── MEMORY CARD ─── */
+/* ─── MEMORY CARD (new polish pass) ─── */
 .memory-card {
-  background: var(--bg-elev);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  padding: 16px 18px;
-  margin-bottom: 12px;
+  background: #0F1A2E;
+  border: 1px solid rgba(45, 180, 202, 0.18);
+  border-radius: 14px;
+  padding: 20px 22px 18px;
+  margin-bottom: 16px;
   cursor: pointer;
-  transition: border-color 0.15s, transform 0.1s;
+  transition: border-color 0.15s, transform 0.1s, box-shadow 0.15s;
+  position: relative;
 }
-.memory-card:hover { border-color: var(--teal); transform: translateY(-1px); }
-.memory-card.selected { border-color: var(--teal); background: var(--bg-elev-2); }
+.memory-card:hover {
+  border-color: var(--teal);
+  transform: translateY(-1px);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25);
+}
+.memory-card.selected {
+  border-color: var(--teal);
+  background: #13223D;
+}
 
-.memory-head {
+.card-head {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+/* LLM source chips — per-platform colors */
+.llm-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 5px 12px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.3px;
+  text-transform: uppercase;
+  border: 1px solid transparent;
+}
+.llm-chip.llm-claude     { background: rgba(217, 119, 87, 0.14);  color: #E79764; border-color: rgba(217, 119, 87, 0.35); }
+.llm-chip.llm-chatgpt    { background: rgba(38, 198, 168, 0.14);  color: var(--green); border-color: rgba(38, 198, 168, 0.35); }
+.llm-chip.llm-gemini     { background: rgba(90, 140, 255, 0.16);  color: #8AA8FF; border-color: rgba(90, 140, 255, 0.38); }
+.llm-chip.llm-perplexity { background: rgba(45, 180, 202, 0.14);  color: var(--teal); border-color: rgba(45, 180, 202, 0.38); }
+.llm-chip.llm-grok       { background: rgba(154, 164, 191, 0.14); color: #B8C0D5; border-color: rgba(154, 164, 191, 0.32); }
+.llm-chip.llm-copilot    { background: rgba(90, 200, 230, 0.14);  color: #7FD4EC; border-color: rgba(90, 200, 230, 0.32); }
+.llm-chip.llm-amg-agents { background: rgba(243, 178, 76, 0.14);  color: var(--amber); border-color: rgba(243, 178, 76, 0.32); }
+
+/* Verification pill — top-right, unmissable */
+.verify-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border-radius: 999px;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  border: 1px solid transparent;
+  white-space: nowrap;
+}
+.verify-pill .glyph {
+  font-size: 14px;
+  font-weight: 800;
+  line-height: 1;
+}
+.verify-pill.verify-verified     { background: rgba(38, 198, 168, 0.15); color: var(--green); border-color: rgba(38, 198, 168, 0.45); }
+.verify-pill.verify-contradicted { background: rgba(232, 89, 96, 0.15);  color: var(--red);   border-color: rgba(232, 89, 96, 0.45); }
+.verify-pill.verify-unverified   { background: rgba(243, 178, 76, 0.12); color: var(--amber); border-color: rgba(243, 178, 76, 0.4); }
+
+/* Card body — readable, not truncated */
+.card-body {
+  font-size: 15px;
+  line-height: 1.58;
+  color: var(--text);
+  margin-bottom: 12px;
+}
+
+.card-meta-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
   margin-bottom: 10px;
   font-size: 12px;
   color: var(--text-dim);
 }
-.memory-head .left { display: flex; gap: 10px; align-items: center; }
-
-.platform-badge {
-  display: inline-flex;
-  align-items: center;
+.card-time { font-variant-numeric: tabular-nums; }
+.card-tenant {
+  display: inline-block;
   padding: 3px 9px;
   border-radius: 999px;
-  background: var(--bg-elev-2);
-  border: 1px solid var(--border);
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--text-dim);
   font-size: 11px;
   font-weight: 500;
-  color: var(--text);
+  letter-spacing: 0.3px;
 }
 
-.verify-badge {
-  display: inline-flex;
-  gap: 4px;
-  align-items: center;
-  padding: 2px 8px;
+/* Confidence bar — horizontal, banded */
+.conf-bar {
+  position: relative;
+  height: 8px;
+  background: rgba(255, 255, 255, 0.05);
   border-radius: 999px;
-  font-size: 11px;
-  font-weight: 500;
+  overflow: hidden;
+  margin-top: 6px;
 }
-.verify-badge.verified { background: rgba(38, 198, 168, 0.15); color: var(--green); border: 1px solid rgba(38, 198, 168, 0.3); }
-.verify-badge.unverified { background: rgba(243, 178, 76, 0.12); color: var(--amber); border: 1px solid rgba(243, 178, 76, 0.3); }
-.verify-badge.contradicted { background: rgba(232, 89, 96, 0.15); color: var(--red); border: 1px solid rgba(232, 89, 96, 0.3); }
+.conf-fill {
+  height: 100%;
+  border-radius: 999px;
+  transition: width 0.3s ease;
+}
+.conf-bar.conf-high .conf-fill { background: linear-gradient(90deg, var(--green-dark), var(--green)); }
+.conf-bar.conf-mid  .conf-fill { background: linear-gradient(90deg, #C88F2C, var(--amber)); }
+.conf-bar.conf-low  .conf-fill { background: linear-gradient(90deg, #B23B41, var(--red)); }
+.conf-bar.conf-none .conf-fill { background: rgba(154, 164, 191, 0.2); }
+.conf-bar .conf-label {
+  position: absolute;
+  right: 0;
+  top: -22px;
+  font-size: 11px;
+  color: var(--text-dim);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.2px;
+}
 
 .memory-body {
   font-size: 14px;

@@ -230,9 +230,68 @@ function applyFilters() {
   render();
 }
 
+// ─── Filter chips rendering ───
+function renderFilterChips() {
+  const chipsEl = document.getElementById('filter-chips-row');
+  if (!chipsEl) return;
+
+  const total = state.memories.length;
+  const verified = state.memories.filter(m => (m.verification_status || '').toLowerCase() === 'verified').length;
+  const contradicted = state.memories.filter(m => (m.verification_status || '').toLowerCase() === 'contradicted').length;
+
+  const activeVerify = state.filters.verified;
+  const activePlatform = state.filters.platform;
+  const activeTenant = state.filters.tenant;
+
+  const platforms = [
+    { k: '', label: 'All LLMs', n: total },
+    ...Array.from(new Set(state.memories.map(m => (m.platform || '').toLowerCase()).filter(Boolean)))
+      .map(p => ({ k: p, label: { claude: 'Claude', chatgpt: 'ChatGPT', perplexity: 'Perplexity', gemini: 'Gemini', grok: 'Grok', copilot: 'Copilot', 'amg-agents': 'AMG Agents' }[p] || p, n: state.memories.filter(m => (m.platform || '').toLowerCase() === p).length })),
+  ];
+
+  const tenants = Array.from(new Set(state.memories.map(m => m.project_id).filter(Boolean))).sort();
+
+  const html = [
+    `<button class="filter-chip ${!activeVerify && !activePlatform && !activeTenant ? 'active' : ''}" data-action="reset-all">All <span class="chip-count">${total}</span></button>`,
+    `<button class="filter-chip verify-chip ${activeVerify === 'verified' ? 'active' : ''}" data-action="verify" data-value="verified">✓ Verified <span class="chip-count">${verified}</span></button>`,
+    `<button class="filter-chip contradict-chip ${activeVerify === 'contradicted' ? 'active' : ''}" data-action="verify" data-value="contradicted">✗ Contradicted <span class="chip-count">${contradicted}</span></button>`,
+    '<span class="filter-chip-sep" style="color:var(--text-faint);padding:0 4px;align-self:center;">·</span>',
+    ...platforms.slice(1).map(p => `<button class="filter-chip llm-filter-chip ${activePlatform === p.k ? 'active' : ''}" data-action="platform" data-value="${escapeHtml(p.k)}">${escapeHtml(p.label)} <span class="chip-count">${p.n}</span></button>`),
+  ];
+  if (tenants.length > 0) {
+    html.push('<span class="filter-chip-sep" style="color:var(--text-faint);padding:0 4px;align-self:center;">·</span>');
+    html.push(...tenants.map(t => `<button class="filter-chip ${activeTenant === t ? 'active' : ''}" data-action="tenant" data-value="${escapeHtml(t)}">${escapeHtml(t)}</button>`));
+  }
+
+  chipsEl.innerHTML = html.join('');
+  chipsEl.querySelectorAll('.filter-chip').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const action = btn.dataset.action;
+      const value = btn.dataset.value || '';
+      if (action === 'reset-all') {
+        state.filters = { search: state.filters.search, platform: '', verified: '', tenant: '' };
+        els.filterPlatform.value = '';
+        els.filterVerified.value = '';
+        els.filterTenant.value = '';
+      } else if (action === 'verify') {
+        state.filters.verified = state.filters.verified === value ? '' : value;
+        els.filterVerified.value = state.filters.verified;
+      } else if (action === 'platform') {
+        state.filters.platform = state.filters.platform === value ? '' : value;
+        els.filterPlatform.value = state.filters.platform;
+      } else if (action === 'tenant') {
+        state.filters.tenant = state.filters.tenant === value ? '' : value;
+        els.filterTenant.value = state.filters.tenant;
+      }
+      applyFilters();
+    });
+  });
+}
+
 // ─── Render ───
 function render() {
   els.feedLoading.hidden = true;
+  renderFilterChips();
   if (state.filtered.length === 0) {
     els.feedEmpty.hidden = false;
     els.feedList.innerHTML = '';
@@ -265,32 +324,46 @@ function render() {
 
 function renderCard(m) {
   const vs = (m.verification_status || 'unverified').toLowerCase();
-  const vsLabel = vs === 'verified' ? '✓ verified' : vs === 'contradicted' ? '✗ contradicted' : '⚠ unverified';
-  const ts = m.source_timestamp ? new Date(m.source_timestamp).toLocaleString() : '—';
-  const platform = (m.platform || '—').toLowerCase();
+  const platform = (m.platform || '').toLowerCase();
   const platformLabel = {
-    'claude': 'Claude.ai', 'chatgpt': 'ChatGPT', 'perplexity': 'Perplexity',
+    'claude': 'Claude', 'chatgpt': 'ChatGPT', 'perplexity': 'Perplexity',
     'gemini': 'Gemini', 'grok': 'Grok', 'copilot': 'Copilot', 'amg-agents': 'AMG Agents'
-  }[platform] || (m.platform || '—');
+  }[platform] || (m.platform || 'Source');
+
+  const ts = m.source_timestamp ? new Date(m.source_timestamp).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) : '—';
   const body = (m.content || '').trim();
   const bodyHtml = escapeHtml(body);
-  const tenant = m.project_id ? `· ${escapeHtml(m.project_id)}` : '';
+
+  const conf = m.confidence != null ? parseFloat(m.confidence) : null;
+  const confPct = conf != null ? Math.max(0, Math.min(1, conf)) * 100 : 0;
+  const confBand = conf == null ? 'none' : conf >= 0.85 ? 'high' : conf >= 0.60 ? 'mid' : 'low';
+  const confLabel = conf != null ? `${Math.round(confPct)}% confidence` : 'No confidence score';
+
+  const pillMap = {
+    verified: { cls: 'verified', glyph: '✓', text: 'VERIFIED' },
+    contradicted: { cls: 'contradicted', glyph: '✗', text: 'CONTRADICTED' },
+    unverified: { cls: 'unverified', glyph: '⚠', text: 'UNVERIFIED' },
+  };
+  const pill = pillMap[vs] || pillMap.unverified;
+
+  const tenant = m.project_id ? `<span class="card-tenant">${escapeHtml(m.project_id)}</span>` : '';
 
   return `
-    <div class="memory-card${state.selectedId === m.id ? ' selected' : ''}" data-id="${escapeHtml(m.id)}">
-      <div class="memory-head">
-        <div class="left">
-          <span class="platform-badge">${escapeHtml(platformLabel)}</span>
-          <span class="verify-badge ${vs}">${vsLabel}</span>
-        </div>
-        <div>${escapeHtml(ts)}</div>
+    <article class="memory-card${state.selectedId === m.id ? ' selected' : ''}" data-id="${escapeHtml(m.id)}">
+      <header class="card-head">
+        <span class="llm-chip llm-${platform}">${escapeHtml(platformLabel)}</span>
+        <span class="verify-pill verify-${pill.cls}"><span class="glyph">${pill.glyph}</span>${pill.text}</span>
+      </header>
+      <div class="card-body">${bodyHtml}</div>
+      <div class="card-meta-row">
+        <span class="card-time">${escapeHtml(ts)}</span>
+        ${tenant}
       </div>
-      <div class="memory-body">${bodyHtml}</div>
-      <div class="memory-foot">
-        <span>conf ${m.confidence != null ? parseFloat(m.confidence).toFixed(2) : '—'} · exchange #${m.exchange_number ?? '—'} ${tenant}</span>
-        <span>→</span>
+      <div class="conf-bar conf-${confBand}" title="${escapeHtml(confLabel)}">
+        <div class="conf-fill" style="width:${confPct}%"></div>
+        <span class="conf-label">${escapeHtml(confLabel)}</span>
       </div>
-    </div>
+    </article>
   `;
 }
 
