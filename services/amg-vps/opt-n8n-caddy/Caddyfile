@@ -13,10 +13,32 @@ n8n.aimarketinggenius.io {
 }
 
 memory.aimarketinggenius.io {
+    # Atlas voice demo — CT-0415-21 — WebSocket + HTTP API + static orb PWA
+    @atlas_api path /api/ask /api/ask/* /api/status /api/agents /api/tts/* /api/backchannel/* /api/dashboard/* /api/alex /api/alex/* /api/chat /api/chat/*
+    handle @atlas_api {
+        reverse_proxy 172.18.0.1:8081
+    }
+    @atlas_ws path /ws/voice /ws/voice/* /ws/text /ws/text/*
+    handle @atlas_ws {
+        reverse_proxy 172.18.0.1:8081
+    }
+    @atlas_static path /atlas /atlas/* /titan /api/titan/*
+    handle @atlas_static {
+        reverse_proxy 172.18.0.1:8081
+    }
+    @kokoro path /kokoro /kokoro/*
+    handle @kokoro {
+        uri strip_prefix /kokoro
+        reverse_proxy 172.18.0.1:8880
+    }
+
+    # Existing MCP ingest
     @ingest path /ingest /ingest/*
     handle @ingest {
         reverse_proxy host.docker.internal:9977
     }
+
+    # Default — MCP stateless POST on port 3000
     handle {
         reverse_proxy host.docker.internal:3000 {
             flush_interval -1
@@ -84,14 +106,22 @@ messenger.aimarketinggenius.io {
 }
 
 checkout.aimarketinggenius.io {
-    root * /opt/amg-checkout
-    file_server
-    try_files {path} /index.html
     encode gzip
     header {
         X-Content-Type-Options nosniff
         X-Frame-Options DENY
         Referrer-Policy strict-origin-when-cross-origin
+    }
+    # Revere demo — fallback path while portal.aimarketinggenius.io DNS is pending
+    handle_path /revere-demo* {
+        root * /opt/amg-checkout/revere-demo
+        try_files {path} /index.html
+        file_server
+    }
+    handle {
+        root * /opt/amg-checkout
+        try_files {path} /index.html
+        file_server
     }
 }
 
@@ -107,4 +137,16 @@ gateway.aimarketinggenius.io {
             write_timeout 0
         }
     }
+}
+
+portal.aimarketinggenius.io {
+    encode gzip
+    header {
+        X-Content-Type-Options nosniff
+        X-Frame-Options DENY
+        Referrer-Policy strict-origin-when-cross-origin
+    }
+    root * /opt/amg-checkout/revere-demo
+    try_files {path} /index.html
+    file_server
 }
