@@ -372,6 +372,36 @@
   letter-spacing: 0.04em;
 }
 
+.transcript-card {
+  width: 100%;
+  max-width: 520px;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 0.9rem 1rem;
+  margin-top: 0.8rem;
+  text-align: left;
+}
+.reply-card {
+  border-color: rgba(212, 166, 39, 0.35);
+  box-shadow: 0 0 0 2px rgba(212, 166, 39, 0.05);
+}
+.transcript-label {
+  font-size: 0.7rem;
+  color: var(--text-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-weight: 700;
+  margin-bottom: 0.35rem;
+}
+.reply-card .transcript-label { color: var(--accent); }
+.transcript-text {
+  color: var(--text);
+  font-size: 0.95rem;
+  line-height: 1.5;
+  white-space: pre-wrap;
+}
+
 /* ─── Responsive ─────────────────────────────────────────────────── */
 
 @media (min-width: 640px) {

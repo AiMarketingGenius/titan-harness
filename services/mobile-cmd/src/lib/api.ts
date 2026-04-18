@@ -244,3 +244,49 @@ export const pushApi = {
       method: "DELETE", auth: true,
     }),
 };
+
+
+// ─── Voice I/O endpoints (Step 6.5) ────────────────────────────────────────
+// Wraps atlas-api's /api/titan/voice-in (STT + chat) + /api/titan/tts (TTS).
+// These endpoints sit OUTSIDE the /api/auth/* surface — they predate Mobile
+// Command v2 and are already live in atlas_api.py. No JWT required at this
+// layer (atlas-api protects them at the Caddy/nginx edge when deployed).
+
+export interface VoiceInResp {
+  transcript: string;
+  reply: string | null;
+  session_id?: string;
+  card?: unknown;
+}
+
+export const voiceApi = {
+  /**
+   * Send audio blob to STT + chat pipeline.
+   * Returns the transcript + LLM reply (or an intent-card for actionable replies).
+   */
+  async voiceIn(audio: Blob, sessionId = "mobile-cmd"): Promise<VoiceInResp> {
+    const form = new FormData();
+    form.append("audio", audio, "voice.webm");
+    form.append("session_id", sessionId);
+    const url = `${API_BASE}/titan/voice-in`;
+    const res = await fetch(url, { method: "POST", body: form, credentials: "same-origin" });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new ServerError(res.status, err?.detail ?? err?.error ?? res.statusText);
+    }
+    return res.json();
+  },
+
+  /**
+   * Fetch TTS audio for the given reply text. Returns a Blob playable via <audio>.
+   */
+  async tts(text: string, voice = "alex"): Promise<Blob> {
+    const url = `${API_BASE}/titan/tts?text=${encodeURIComponent(text)}&voice=${encodeURIComponent(voice)}`;
+    const res = await fetch(url, { credentials: "same-origin" });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new ServerError(res.status, err?.detail ?? err?.error ?? res.statusText);
+    }
+    return res.blob();
+  },
+};
