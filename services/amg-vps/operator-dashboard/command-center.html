@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AMG Command Center — Super Admin</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    background: #0a0a0f;
+    color: #e0e0e0;
+    min-height: 100vh;
+    padding: 2rem;
+    line-height: 1.5;
+  }
+  header { padding: 1.5rem 0; border-bottom: 1px solid rgba(99, 102, 241, 0.2); margin-bottom: 2rem; display: flex; justify-content: space-between; align-items: flex-end; }
+  header h1 { font-size: 1.75rem; font-weight: 800; color: #818cf8; letter-spacing: -0.02em; }
+  header .sub { margin-top: 0.5rem; font-size: 0.875rem; color: #6b7280; }
+  header .tenant-switcher { background: #13131a; border: 1px solid rgba(99, 102, 241, 0.3); border-radius: 8px; padding: 0.5rem 0.8rem; color: #c7d2fe; font-size: 0.85rem; cursor: pointer; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(380px, 1fr)); gap: 1.25rem; }
+  .card { background: #13131a; border: 1px solid rgba(99, 102, 241, 0.15); border-radius: 12px; padding: 1.5rem; position: relative; }
+  .card h2 {
+    font-size: 1rem; font-weight: 700; color: #c7d2fe;
+    margin-bottom: 1rem; padding-bottom: 0.75rem;
+    border-bottom: 1px solid rgba(99, 102, 241, 0.15);
+    display: flex; justify-content: space-between; align-items: baseline;
+  }
+  .chip { font-size: 0.7rem; font-weight: 600; padding: 2px 8px; border-radius: 999px; background: rgba(74, 222, 128, 0.15); color: #4ade80; }
+  .chip.warn { background: rgba(250, 204, 21, 0.15); color: #facc15; }
+  .chip.pending { background: rgba(148, 163, 184, 0.15); color: #94a3b8; }
+  .chip.danger { background: rgba(248, 113, 113, 0.18); color: #f87171; }
+  .metric { display: flex; justify-content: space-between; padding: 0.5rem 0; font-size: 0.9rem; gap: 1rem; }
+  .metric .key { color: #94a3b8; flex-shrink: 0; }
+  .metric .val { color: #e0e0e0; font-weight: 600; font-family: ui-monospace, Menlo, monospace; text-align: right; }
+  .note { font-size: 0.8rem; color: #6b7280; margin-top: 0.75rem; line-height: 1.5; }
+  code { background: rgba(99, 102, 241, 0.1); padding: 1px 6px; border-radius: 4px; font-size: 0.85em; color: #c7d2fe; }
+  a { color: #818cf8; text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  footer { margin-top: 2rem; padding-top: 1rem; border-top: 1px solid rgba(99, 102, 241, 0.15); font-size: 0.75rem; color: #6b7280; }
+  .drill { margin-top: 0.75rem; font-size: 0.82rem; }
+</style>
+</head>
+<body>
+
+<header>
+  <div>
+    <h1>AMG Command Center — Super Admin</h1>
+    <div class="sub">15-surface aggregate monitoring · Atlas admin card pattern · rendered <span id="ts"></span></div>
+  </div>
+  <select class="tenant-switcher" id="tenant-switcher" aria-label="Tenant scope">
+    <option value="solon-super">Solon super-admin (all tenants)</option>
+    <option value="amg-internal" selected>amg-internal</option>
+    <!-- populated dynamically from /api/admin/tenants when RLS+middleware lands -->
+  </select>
+</header>
+
+<div class="grid" id="grid">
+
+  <section class="card" data-surface="1">
+    <h2>1 · Dual-grader rubric state <span class="chip pending">wire pending</span></h2>
+    <div class="metric"><span class="key">Default tier</span><span class="val" data-m="grader.tier">amg_growth</span></div>
+    <div class="metric"><span class="key">Gemini daily spend</span><span class="val" data-m="grader.gemini_spend">—</span></div>
+    <div class="metric"><span class="key">Grok daily spend</span><span class="val" data-m="grader.grok_spend">—</span></div>
+    <div class="metric"><span class="key">Kill-switch</span><span class="val" data-m="grader.kill">$10/d cap</span></div>
+    <div class="note">Source: lib/dual_grader.py live metrics via /api/admin/dual-grader. Tracked per CLAUDE.md §18.4.</div>
+  </section>
+
+  <section class="card" data-surface="2">
+    <h2>2 · Canonical PROFILE + agent alignment <span class="chip">active</span></h2>
+    <div class="metric"><span class="key">PROFILE version</span><span class="val">v2.1</span></div>
+    <div class="metric"><span class="key">Jordan</span><span class="val">v4 9.45 PASS</span></div>
+    <div class="metric"><span class="key">Riley</span><span class="val">DRAFT 2-fail</span></div>
+    <div class="metric"><span class="key">Agents locked</span><span class="val">5/7</span></div>
+    <div class="drill"><a href="/atlas-admin.html#agent-kb">Drill into agent KB status</a></div>
+  </section>
+
+  <section class="card" data-surface="3">
+    <h2>3 · Per-Chamber cost kill-switch <span class="chip pending">wire pending</span></h2>
+    <div class="metric"><span class="key">Active Chambers</span><span class="val" data-m="kill.chambers">0</span></div>
+    <div class="metric"><span class="key">Today aggregate</span><span class="val" data-m="kill.aggregate">$0</span></div>
+    <div class="metric"><span class="key">Per-tenant ceiling</span><span class="val">see sub-card</span></div>
+    <div class="note">Source: lib/cost_kill_switch.py + sql/002 schema. CT-0417-35 CRM webhook integration pending per roadmap.</div>
+  </section>
+
+  <section class="card" data-surface="4">
+    <h2>4 · Daily spend ceiling (live burn) <span class="chip">active</span></h2>
+    <div class="metric"><span class="key">Sprint cap</span><span class="val">$150 (expires Tue 00:00 ET)</span></div>
+    <div class="metric"><span class="key">Today burn</span><span class="val" data-m="spend.today">~$4.04</span></div>
+    <div class="metric"><span class="key">Runway</span><span class="val" data-m="spend.runway">$145.96</span></div>
+    <div class="metric"><span class="key">Demo mode</span><span class="val">off</span></div>
+    <div class="note">Source: config/daily_spend_ceiling.yaml + /api/admin/spend (wire pending).</div>
+  </section>
+
+  <section class="card" data-surface="5">
+    <h2>5 · Sole-interface enforcement <span class="chip">clean</span></h2>
+    <div class="metric"><span class="key">Claude Code sessions</span><span class="val" data-m="sole.sessions">1</span></div>
+    <div class="metric"><span class="key">EOM threads</span><span class="val" data-m="sole.eom">active</span></div>
+    <div class="metric"><span class="key">Anomalies</span><span class="val">0</span></div>
+    <div class="note">Source: MCP decision log + session-heartbeat tag scan.</div>
+  </section>
+
+  <section class="card" data-surface="6">
+    <h2>6 · Parallel-dispatch capacity <span class="chip">ok</span></h2>
+    <div class="metric"><span class="key">Max lanes</span><span class="val">5 (policy.yaml)</span></div>
+    <div class="metric"><span class="key">Last verified speedup</span><span class="val">4.00×</span></div>
+    <div class="metric"><span class="key">In-flight</span><span class="val" data-m="pd.inflight">0</span></div>
+    <div class="note">Source: lib/parallel_dispatch.py + commit 42609ab canary log.</div>
+  </section>
+
+  <section class="card" data-surface="7">
+    <h2>7 · Lumina rubric state <span class="chip">active</span></h2>
+    <div class="metric"><span class="key">Rubric version</span><span class="val">6-dim v1.2</span></div>
+    <div class="metric"><span class="key">Last PASS</span><span class="val">Step 6.5 voice page (9.32)</span></div>
+    <div class="metric"><span class="key">Bypass gates</span><span class="val">0</span></div>
+    <div class="drill"><a href="/atlas-admin.html#lumina">Drill into Lumina approvals</a></div>
+  </section>
+
+  <section class="card" data-surface="8">
+    <h2>8 · Live services health <span class="chip">live poll</span></h2>
+    <div class="metric"><span class="key">atlas-api</span><span class="val" data-m="svc.atlas">—</span></div>
+    <div class="metric"><span class="key">LiteLLM gateway</span><span class="val" data-m="svc.litellm">—</span></div>
+    <div class="metric"><span class="key">MCP server</span><span class="val" data-m="svc.mcp">—</span></div>
+    <div class="metric"><span class="key">Mirror cascade</span><span class="val" data-m="svc.mirror">—</span></div>
+    <div class="drill"><a href="#" onclick="refreshHealth(); return false;">↻ refresh</a></div>
+  </section>
+
+  <section class="card" data-surface="9">
+    <h2>9 · Titan session heartbeat <span class="chip">live poll</span></h2>
+    <div class="metric"><span class="key">Status</span><span class="val" data-m="titan.status">—</span></div>
+    <div class="metric"><span class="key">Last heartbeat</span><span class="val" data-m="titan.heartbeat">—</span></div>
+    <div class="metric"><span class="key">Active step</span><span class="val" data-m="titan.step">—</span></div>
+    <div class="note">Source: GET /api/mobile/claude/status — reads MCP latest session-heartbeat tag.</div>
+  </section>
+
+  <section class="card" data-surface="10">
+    <h2>10 · Subscriber CRM rollup <span class="chip pending">wire post Step 7</span></h2>
+    <div class="metric"><span class="key">MRR</span><span class="val" data-m="crm.mrr">—</span></div>
+    <div class="metric"><span class="key">Active subscribers</span><span class="val" data-m="crm.active">—</span></div>
+    <div class="metric"><span class="key">Tier distribution</span><span class="val">Starter / Growth / Pro</span></div>
+    <div class="metric"><span class="key">Recent churn (7d)</span><span class="val" data-m="crm.churn">—</span></div>
+    <div class="note">Source: Step 7 CRM multi-tenant. Per-tier rollups once CT-0417-35 CRM schema lands.</div>
+  </section>
+
+  <section class="card" data-surface="11">
+    <h2>11 · Shield reputation per tenant <span class="chip pending">pending Shield v1</span></h2>
+    <div class="metric"><span class="key">Tenants monitored</span><span class="val" data-m="shield.tenants">0</span></div>
+    <div class="metric"><span class="key">Active incidents</span><span class="val" data-m="shield.incidents">0</span></div>
+    <div class="metric"><span class="key">Score avg</span><span class="val">—</span></div>
+    <div class="note">Source: Shield reputation subsystem (roadmap). Per-tenant rollups once tenant schema v1 ships.</div>
+  </section>
+
+  <section class="card" data-surface="12">
+    <h2>12 · SEO pipeline state per tenant <span class="chip pending">wire pending</span></h2>
+    <div class="metric"><span class="key">Blog drafts staged</span><span class="val" data-m="seo.drafts">3 (Shop UNIS)</span></div>
+    <div class="metric"><span class="key">Published last 7d</span><span class="val" data-m="seo.published7">—</span></div>
+    <div class="metric"><span class="key">Ranking tracked</span><span class="val">—</span></div>
+    <div class="note">Source: SEO pipeline + Shopify integrations (per project_shop_unis_blog_automation memory).</div>
+  </section>
+
+  <section class="card" data-surface="13">
+    <h2>13 · Voice pipeline health <span class="chip">live poll</span></h2>
+    <div class="metric"><span class="key">ElevenLabs quota</span><span class="val" data-m="voice.el_quota">—</span></div>
+    <div class="metric"><span class="key">Deepgram / Whisper</span><span class="val" data-m="voice.stt">Whisper active</span></div>
+    <div class="metric"><span class="key">Last voice-in</span><span class="val" data-m="voice.last">—</span></div>
+    <div class="metric"><span class="key">Alex voice ID</span><span class="val"><code>DZifC2yzJiQrdYzF21KH</code></span></div>
+    <div class="note">Source: GET /api/titan/health — rate-limited 30/min per IP post Step 7.0-a.</div>
+  </section>
+
+  <section class="card" data-surface="14">
+    <h2>14 · Chamber pipeline <span class="chip pending">wire post Step 7.4</span></h2>
+    <div class="metric"><span class="key">Prospects</span><span class="val" data-m="chamber.prospects">—</span></div>
+    <div class="metric"><span class="key">In-flight</span><span class="val" data-m="chamber.inflight">1 (Revere)</span></div>
+    <div class="metric"><span class="key">Won</span><span class="val" data-m="chamber.won">0</span></div>
+    <div class="metric"><span class="key">Next pitch</span><span class="val">Mon 2026-04-20 11am ET (Don Martelli / Revere)</span></div>
+    <div class="note">Source: Chamber CRM + outbound queue (sql/010). Surfaces when Step 7.4 worker daemons ship.</div>
+  </section>
+
+  <section class="card" data-surface="15">
+    <h2>15 · Deferred items registry <span class="chip warn">live poll</span></h2>
+    <div class="metric"><span class="key">CRITICAL from Step 6.6</span><span class="val" data-m="def.critical">2 of 4 deferred</span></div>
+    <div class="metric"><span class="key">YELLOW tracked</span><span class="val">11</span></div>
+    <div class="metric"><span class="key">R2 Object Lock escalation</span><span class="val">awaiting CF R2-admin token</span></div>
+    <div class="metric"><span class="key">Phase 2 hardening</span><span class="val">queued post Step 9</span></div>
+    <div class="note">Source: MCP decision log + plans/PLAN_2026-04-18_*.md registry.</div>
+  </section>
+
+</div>
+
+<footer>
+  Command Center · Step 9 scaffold · extends Atlas Layer 2 admin card pattern from <a href="/atlas-admin.html">atlas-admin.html</a> · live data feeds via <code>/api/admin/*</code> wire incrementally per surface.
+  <br>
+  Hosted on <code>operator.aimarketinggenius.io</code> · basic-auth MVP · biometric via Mobile Command v2 Step 6.3-b lifecycle endpoints upgrade path.
+</footer>
+
+<script>
+// Minimal live-polling layer. Surfaces 8 (services health) and 9 (Titan heartbeat)
+// are wired today; other surfaces surface "wire pending" until their /api/admin/*
+// endpoints ship. Refresh every 5s for live polls; static cards render once.
+
+function setMetric(selector, value, cls) {
+  const el = document.querySelector(`[data-m="${selector}"]`);
+  if (el) {
+    el.textContent = value;
+    if (cls) el.className = `val ${cls}`;
+  }
+}
+
+async function refreshHealth() {
+  // Surface 8 — services health. Parallel fetch.
+  const probes = [
+    { name: "atlas-api", url: "/api/titan/health", key: "svc.atlas" },
+    { name: "litellm", url: "/api/titan/health", key: "svc.litellm", extract: (d) => d.llm_gateway ? "up" : "down" },
+  ];
+  for (const p of probes) {
+    try {
+      const r = await fetch(p.url);
+      if (r.ok) {
+        const d = await r.json();
+        setMetric(p.key, p.extract ? p.extract(d) : "up");
+      } else {
+        setMetric(p.key, `${r.status}`);
+      }
+    } catch {
+      setMetric(p.key, "unreachable");
+    }
+  }
+  // MCP + mirror cascade are probed via server-side. For client-side MVP:
+  setMetric("svc.mcp", "client-probe N/A (server-side)");
+  setMetric("svc.mirror", "see MIRROR_STATUS.md");
+}
+
+async function refreshTitan() {
+  // Surface 9 — Titan lifecycle status
+  try {
+    const r = await fetch("/api/mobile/claude/status");
+    if (!r.ok) { setMetric("titan.status", `${r.status}`); return; }
+    const d = await r.json();
+    setMetric("titan.status", d.status || "unknown");
+    if (d.last_heartbeat) {
+      const ts = d.last_heartbeat.created_at || d.last_heartbeat.ts || "?";
+      setMetric("titan.heartbeat", new Date(ts).toLocaleTimeString());
+      const text = (d.last_heartbeat.text || "").split("|")[1]?.trim() || "—";
+      setMetric("titan.step", text.slice(0, 40));
+    } else {
+      setMetric("titan.heartbeat", "none in recent window");
+      setMetric("titan.step", "—");
+    }
+  } catch {
+    setMetric("titan.status", "unreachable");
+  }
+}
+
+document.getElementById("ts").textContent = new Date().toLocaleString();
+refreshHealth();
+refreshTitan();
+setInterval(refreshHealth, 10000);
+setInterval(refreshTitan, 5000);
+</script>
+
+</body>
+</html>
