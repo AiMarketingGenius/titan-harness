@@ -1,0 +1,13 @@
+[Unit]
+Description=Weekly MCP op_decisions export to R2 — Sunday 03:00 UTC
+Documentation=file:///opt/titan-harness/scripts/mcp-export/README
+
+[Timer]
+# Sunday at 03:00 UTC weekly
+OnCalendar=Sun *-*-* 03:00:00
+RandomizedDelaySec=600
+Persistent=true
+Unit=mcp-weekly-export.service
+
+[Install]
+WantedBy=timers.target

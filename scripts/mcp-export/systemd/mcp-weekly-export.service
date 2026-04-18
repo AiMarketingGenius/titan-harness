@@ -1,0 +1,14 @@
+[Unit]
+Description=Weekly MCP op_decisions export to R2 (verify-first)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/opt/amg-security/mcp_weekly_export.sh
+StandardOutput=append:/var/log/mcp-weekly-export.log
+StandardError=append:/var/log/mcp-weekly-export.log
+User=root
+Nice=10
+# Single concurrent run guard:
+RuntimeDirectory=mcp-weekly-export
