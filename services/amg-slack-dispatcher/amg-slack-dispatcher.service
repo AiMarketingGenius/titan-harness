@@ -1,0 +1,18 @@
+[Unit]
+Description=AMG Slack Dispatcher (P0-P3 severity router, dedup, rate-limit, kill-switch)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+EnvironmentFile=/etc/amg/slack-dispatcher.env
+ExecStart=/usr/bin/python3 /opt/amg-slack-dispatcher/dispatcher.py
+Restart=always
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+User=root
+Group=root
+
+[Install]
+WantedBy=multi-user.target
