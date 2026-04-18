@@ -379,3 +379,23 @@
   .orb { width: 220px; height: 220px; }
   .action-grid { gap: 1rem; }
 }
+
+@media (min-width: 1024px) {
+  .app-main { max-width: 640px; }
+  .action-grid { gap: 1.25rem; }
+}
+
+/* ─── Reduced motion (Lumina accessibility requirement) ───────────── */
+
+@media (prefers-reduced-motion: reduce) {
+  .orb-listening .orb-pulse,
+  .orb-thinking .orb-core {
+    animation: none;
+  }
+  .orb,
+  .action-btn,
+  .header-btn,
+  .nav-tab {
+    transition: none;
+  }
+}
