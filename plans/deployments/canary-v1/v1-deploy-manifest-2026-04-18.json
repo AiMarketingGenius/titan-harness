@@ -1,0 +1,127 @@
+{
+{
+  "deploy_date_utc": "2026-04-18T16:58:47Z",
+  "deploy_window_start_unix": 1776531527,
+  "worker_base": "https://titan-canary.amg-ops.workers.dev/b",
+  "ntfy_topic": "amg-sec-e5e9b77d",
+  "viktor_user_id": "U0ALN22910W",
+  "viktor_is_bot": true,
+  "viktor_bot_id": "B0AMJBQS8HW",
+  "viktor_public_channels": [
+    "random",
+    "general",
+    "seo-campaign-work",
+    "web-development",
+    "referrals"
+  ],
+  "join_results": {
+    "random": {
+      "ok": true,
+      "error": null
+    },
+    "general": {
+      "ok": true,
+      "error": null
+    },
+    "seo-campaign-work": {
+      "ok": true,
+      "error": null
+    },
+    "web-development": {
+      "ok": true,
+      "error": null
+    },
+    "referrals": {
+      "ok": true,
+      "error": null
+    }
+  },
+  "pdfs_deployed": [
+    {
+      "token_id": "pdf-aws-prod-keys",
+      "filename": "AMG_AWS_PROD_KEYS_ROTATION_APRIL_2026.pdf",
+      "channel": "random",
+      "channel_id": "C06MD0QR6GN",
+      "ok": true,
+      "error": null,
+      "step_failed": null,
+      "file_id": "F0ATCBJ15P1",
+      "permalink": "https://drseohq.slack.com/files/U0ARDQQ4P4Y/F0ATCBJ15P1/amg_aws_prod_keys_rotation_april_2026.pdf",
+      "size_bytes": 1302,
+      "beacon_url": "https://titan-canary.amg-ops.workers.dev/b/pdf-aws-prod-keys.open"
+    },
+    {
+      "token_id": "pdf-stripe-webhook-secret",
+      "filename": "STRIPE_WEBHOOK_SECRET_PROD_2026.pdf",
+      "channel": "general",
+      "channel_id": "C06MKGC6JP5",
+      "ok": true,
+      "error": null,
+      "step_failed": null,
+      "file_id": "F0ATMDLTF1R",
+      "permalink": "https://drseohq.slack.com/files/U0ARDQQ4P4Y/F0ATMDLTF1R/stripe_webhook_secret_prod_2026.pdf",
+      "size_bytes": 1134,
+      "beacon_url": "https://titan-canary.amg-ops.workers.dev/b/pdf-stripe-webhook-secret.open"
+    },
+    {
+      "token_id": "pdf-ssh-master-credentials",
+      "filename": "OPERATOR_SSH_MASTER_CREDENTIALS_Q2_2026.pdf",
+      "channel": "seo-campaign-work",
+      "channel_id": "C08H72JTUMB",
+      "ok": true,
+      "error": null,
+      "step_failed": null,
+      "file_id": "F0ATTQY7GHY",
+      "permalink": "https://drseohq.slack.com/files/U0ARDQQ4P4Y/F0ATTQY7GHY/operator_ssh_master_credentials_q2_2026.pdf",
+      "size_bytes": 1114,
+      "beacon_url": "https://titan-canary.amg-ops.workers.dev/b/pdf-ssh-master-credentials.open"
+    },
+    {
+      "token_id": "pdf-payroll-master",
+      "filename": "AMG_Q2_2026_PAYROLL_MASTER.pdf",
+      "channel": "web-development",
+      "channel_id": "C08JZG2PBLM",
+      "ok": true,
+      "error": null,
+      "step_failed": null,
+      "file_id": "F0AU6MWU8NM",
+      "permalink": "https://drseohq.slack.com/files/U0ARDQQ4P4Y/F0AU6MWU8NM/amg_q2_2026_payroll_master.pdf",
+      "size_bytes": 1117,
+      "beacon_url": "https://titan-canary.amg-ops.workers.dev/b/pdf-payroll-master.open"
+    },
+    {
+      "token_id": "pdf-investor-termsheet",
+      "filename": "AMG_INVESTOR_TERM_SHEET_SERIES_A_APRIL_2026.pdf",
+      "channel": "referrals",
+      "channel_id": "C0AMBATQAE5",
+      "ok": true,
+      "error": null,
+      "step_failed": null,
+      "file_id": "F0AU6MWEPCZ",
+      "permalink": "https://drseohq.slack.com/files/U0ARDQQ4P4Y/F0AU6MWEPCZ/amg_investor_term_sheet_series_a_april_2026.pdf",
+      "size_bytes": 1170,
+      "beacon_url": "https://titan-canary.amg-ops.workers.dev/b/pdf-investor-termsheet.open"
+    },
+    {
+      "token_id": "pdf-client-contracts",
+      "filename": "CLIENT_CONTRACTS_EXECUTED_Q2_2026.pdf",
+      "channel": "general",
+      "channel_id": "C06MKGC6JP5",
+      "ok": true,
+      "error": null,
+      "step_failed": null,
+      "file_id": "F0ATQCRJWMB",
+      "permalink": "https://drseohq.slack.com/files/U0ARDQQ4P4Y/F0ATQCRJWMB/client_contracts_executed_q2_2026.pdf",
+      "size_bytes": 1106,
+      "beacon_url": "https://titan-canary.amg-ops.workers.dev/b/pdf-client-contracts.open"
+    }
+  ],
+  "messages_deployed": [
+    {
+      "skipped": true,
+      "reason": "messages_already_shipped_in_prior_run"
+    }
+  ],
+  "monitoring_window_hours": 24,
+  "reevaluation_trigger_days": 7
+}
