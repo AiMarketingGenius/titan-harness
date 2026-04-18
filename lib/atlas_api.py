@@ -3754,6 +3754,133 @@ async def tenant_brand(tenant_id: str, request: Request) -> JSONResponse:
     return JSONResponse(content={"tenant_id": tenant_id, "brand": brand})
 
 
+# ─── Step 7.4: outbound queue enqueue endpoints ──────────────────────────────
+# ENQUEUE-only. Actual send/dial happens in separate worker daemons (to ship
+# in a follow-up session) reading public.outbound_email_queue /
+# outbound_voice_queue rows where status='queued'. atlas_api's role here is
+# to validate inputs + insert + return a job_id the operator can poll.
+
+@app.post("/api/outbound/email")
+async def outbound_email_enqueue(request: Request) -> JSONResponse:
+    """Enqueue an outbound email. Worker processes later.
+    Body: {from_alias, to[], cc?[], bcc?[], subject, body_plaintext, body_html?, scheduled_at?}
+    Returns: {job_id, status: "queued", scheduled_at}"""
+    if not _MCS_AVAILABLE:
+        return _mobile_dep_error("mobile_cmd_stores")
+    ctx = _get_mobile_auth_ctx()
+    if ctx is None:
+        return _mobile_ctx_error()
+    try:
+        body = await request.json()
+        required = ["from_alias", "to", "subject", "body_plaintext"]
+        missing = [k for k in required if k not in body]
+        if missing:
+            return _mobile_error_response(
+                KeyError(f"required fields missing: {missing}"), status_code=400
+            )
+        # For now: derive tenant_id + operator_id from request context. Once
+        # Step 7.2-b middleware plumbs JWT -> session GUC, this pulls from GUC.
+        # MVP: use amg-internal tenant + first operator.
+        tenant_id = "00000000-0000-0000-0000-000000000001"
+        operator_id = body.get("operator_id", "00000000-0000-0000-0000-000000000001")
+
+        conn_factory = ctx["refresh_store"]._backend._conn_factory  # type: ignore[attr-defined]
+        with conn_factory() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    INSERT INTO public.outbound_email_queue
+                        (tenant_id, operator_id, from_alias, to_recipients,
+                         cc_recipients, bcc_recipients, subject, body_plaintext,
+                         body_html, scheduled_at, metadata)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s,
+                            COALESCE(%s::timestamptz, now()), %s::jsonb)
+                    RETURNING id, status, scheduled_at
+                    """,
+                    (
+                        tenant_id, operator_id,
+                        str(body["from_alias"]),
+                        list(body["to"]),
+                        list(body.get("cc") or []),
+                        list(body.get("bcc") or []),
+                        str(body["subject"]),
+                        str(body["body_plaintext"]),
+                        body.get("body_html"),
+                        body.get("scheduled_at"),
+                        json.dumps(body.get("metadata") or {}),
+                    ),
+                )
+                row = cur.fetchone()
+            conn.commit()
+        return JSONResponse(content={
+            "job_id": str(row[0]),
+            "status": row[1],
+            "scheduled_at": row[2].isoformat() if row[2] else None,
+            "worker_note": "worker daemon TBD; row persists until processed",
+        })
+    except Exception as exc:  # noqa: BLE001
+        return _mobile_error_response(exc, status_code=500)
+
+
+@app.post("/api/outbound/voice")
+async def outbound_voice_enqueue(request: Request) -> JSONResponse:
+    """Enqueue an outbound voice AI call. Worker dials + runs the script.
+    Body: {to_phone, script_template, script_vars?, voice?, from_phone?,
+           max_duration_s?, scheduled_at?}
+    Returns: {job_id, status: "queued", scheduled_at}"""
+    if not _MCS_AVAILABLE:
+        return _mobile_dep_error("mobile_cmd_stores")
+    ctx = _get_mobile_auth_ctx()
+    if ctx is None:
+        return _mobile_ctx_error()
+    try:
+        body = await request.json()
+        required = ["to_phone", "script_template"]
+        missing = [k for k in required if k not in body]
+        if missing:
+            return _mobile_error_response(
+                KeyError(f"required fields missing: {missing}"), status_code=400
+            )
+        tenant_id = "00000000-0000-0000-0000-000000000001"
+        operator_id = body.get("operator_id", "00000000-0000-0000-0000-000000000001")
+
+        conn_factory = ctx["refresh_store"]._backend._conn_factory  # type: ignore[attr-defined]
+        with conn_factory() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    INSERT INTO public.outbound_voice_queue
+                        (tenant_id, operator_id, to_phone, from_phone,
+                         voice, script_template, script_vars, max_duration_s,
+                         scheduled_at, metadata)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s::jsonb, %s,
+                            COALESCE(%s::timestamptz, now()), %s::jsonb)
+                    RETURNING id, status, scheduled_at
+                    """,
+                    (
+                        tenant_id, operator_id,
+                        str(body["to_phone"]),
+                        body.get("from_phone"),
+                        str(body.get("voice", "alex")),
+                        str(body["script_template"]),
+                        json.dumps(body.get("script_vars") or {}),
+                        int(body.get("max_duration_s", 300)),
+                        body.get("scheduled_at"),
+                        json.dumps(body.get("metadata") or {}),
+                    ),
+                )
+                row = cur.fetchone()
+            conn.commit()
+        return JSONResponse(content={
+            "job_id": str(row[0]),
+            "status": row[1],
+            "scheduled_at": row[2].isoformat() if row[2] else None,
+            "worker_note": "worker daemon TBD (Telnyx integration follows); row persists until processed",
+        })
+    except Exception as exc:  # noqa: BLE001
+        return _mobile_error_response(exc, status_code=500)
+
+
 # --- LIFECYCLE — mobile session control -------------------------------------
 # These are wired live via lib/mobile_lifecycle (self-contained; MCP-backed,
 # stubbed at the actual claude-CLI-process-control level per 6.3-b).
