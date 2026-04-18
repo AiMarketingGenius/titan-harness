@@ -1,6 +1,17 @@
 // Memory Vault Portal — AMG AI Memory Guard
 // Supabase-auth-gated SPA. RLS isolates per consumer_uid.
 
+// LOAD HEARTBEAT — visible banner that proves app.js executed.
+// If you don't see this banner on page load, app.js never ran in your browser.
+(function heartbeat() {
+  const b = document.createElement('div');
+  b.id = 'aimg-heartbeat';
+  b.style.cssText = 'position:fixed;bottom:0;left:0;right:0;padding:6px 14px;background:#26C6A8;color:#032D26;z-index:99999;font:12px -apple-system,sans-serif;text-align:center;';
+  b.textContent = 'app.js loaded — build 2026-04-18T21:25Z — if you see this, JavaScript is running';
+  (document.body || document.documentElement).appendChild(b);
+  setTimeout(() => b.remove(), 6000);
+})();
+
 const CFG = window.AIMG_CONFIG || {};
 
 // Defensive: if config is broken, make it VISIBLE instead of silently dead.
@@ -89,25 +100,56 @@ async function showDashboard() {
   await loadMemories();
 }
 
+function setLoginStatus(msg, isError = false) {
+  els.loginError.hidden = false;
+  els.loginError.textContent = msg;
+  els.loginError.style.color = isError ? '#E85960' : '#9AA4BF';
+}
+
 els.loginForm.addEventListener('submit', async (e) => {
   e.preventDefault();
   els.loginBtn.disabled = true;
-  els.loginError.hidden = true;
-  els.loginError.textContent = '';
+  setLoginStatus('Connecting to Supabase…');
   try {
-    const { data, error } = await sb.auth.signInWithPassword({
-      email: els.email.value.trim(),
-      password: els.password.value,
-    });
-    if (error) throw error;
+    const email = els.email.value.trim();
+    const password = els.password.value;
+    if (!email || !password) {
+      setLoginStatus('Email + password required.', true);
+      els.loginBtn.disabled = false;
+      return;
+    }
+    setLoginStatus('Signing in…');
+    const { data, error } = await sb.auth.signInWithPassword({ email, password });
+    if (error) {
+      setLoginStatus(`Auth error: ${error.message}`, true);
+      els.loginBtn.disabled = false;
+      return;
+    }
+    if (!data || !data.user) {
+      setLoginStatus('Auth returned no user.', true);
+      els.loginBtn.disabled = false;
+      return;
+    }
+    setLoginStatus('Signed in. Loading memories…');
     state.user = data.user;
-    showDashboard();
+    await showDashboard();
   } catch (err) {
-    els.loginError.textContent = err.message || 'Sign-in failed.';
-    els.loginError.hidden = false;
-  } finally {
+    const m = err && err.message ? err.message : String(err);
+    setLoginStatus(`Unexpected: ${m}`, true);
+    console.error('login error:', err);
     els.loginBtn.disabled = false;
   }
+});
+
+// Surface any uncaught error as an on-page banner so button-does-nothing is impossible.
+window.addEventListener('error', (ev) => {
+  const msg = ev && ev.message ? ev.message : 'unknown runtime error';
+  try { showFatal('JS error: ' + msg); } catch (_) {}
+});
+window.addEventListener('unhandledrejection', (ev) => {
+  const r = ev && ev.reason;
+  const msg = r && r.message ? r.message : String(r);
+  try { showFatal('Promise rejection: ' + msg); } catch (_) {}
 });
 
 els.logoutBtn.addEventListener('click', async () => {
