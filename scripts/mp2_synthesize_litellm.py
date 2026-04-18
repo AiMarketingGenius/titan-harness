@@ -59,8 +59,8 @@ LITELLM_KEY = os.environ.get("LITELLM_MASTER_KEY", "").strip()
 CHUNK_MODEL = os.environ.get("MP2_CHUNK_MODEL", "claude-haiku-4-5")
 SYNTH_MODEL = os.environ.get("MP2_SYNTH_MODEL", "claude-sonnet-4-6")
 
-TIMEOUT = 300
-MAX_CHUNK_TOKENS = 2500      # compact analyses so 51 chunks fit Sonnet 200K context
+TIMEOUT = 900                # Sonnet on ~140K input tokens needs several minutes
+MAX_CHUNK_TOKENS = 2500      # compact analyses so 50 chunks fit Sonnet 200K context
 MAX_SYNTH_TOKENS = 16000     # Sonnet 4.6 supports up to 64K, 16K safe
 CREATIVE_CONVO_KEYWORDS = (
     "hit_maker", "creative", "music", "croon", "jingle", "solon_s_promoter",
