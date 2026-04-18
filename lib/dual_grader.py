@@ -247,7 +247,20 @@ def _skip(reason: str, grader: str = 'grok') -> dict[str, Any]:
     }
 
 
-HAIKU_SYSTEM_PROMPT = GROK_SYSTEM_PROMPT  # identical rubric — model-agnostic
+# Haiku-specific rubric — same 5-dimension scoring as Grok, but tighter brevity
+# constraints on reasoning + revision fields because Haiku emits more verbose
+# JSON than Grok and we've seen 2000 tok overflows on large artifacts.
+HAIKU_SYSTEM_PROMPT = GROK_SYSTEM_PROMPT + """
+
+BREVITY CONSTRAINTS (Haiku-specific):
+- grade_reasoning: max 2 sentences, hard cap 300 characters.
+- required_revisions: concise bullets, each under 20 words.
+- critical_failures: one-line descriptions.
+- Do NOT emit markdown code fences around the JSON.
+- Do NOT add prose before or after the JSON object.
+
+Keep output under 2000 tokens total.
+"""
 
 
 def _haiku_grade(content: str, artifact_type: str, context: str = '') -> dict[str, Any]:
@@ -278,10 +291,12 @@ def _haiku_grade(content: str, artifact_type: str, context: str = '') -> dict[st
             {'role': 'user', 'content': user_msg},
         ],
         'temperature': 0.2,
-        # Haiku tends to emit longer reasoning + structured JSON than Grok; 800 tokens
-        # was too tight (JSON truncated mid-string on large artifacts). 2000 holds
-        # a full rubric + reasoning + revisions list cleanly.
-        'max_tokens': 2000,
+        # Haiku 4.5 emits verbose JSON with long reasoning fields. 2000 tok still
+        # truncated on 80KB artifacts (JSON parse failed at char 6525). 4000 tok
+        # holds the rubric + reasoning + revisions list with headroom. Haiku
+        # supports 16K output max; 4000 stays well inside that while keeping
+        # per-call cost bounded (~$0.02/grade at $5/Mtok).
+        'max_tokens': 4000,
         'response_format': {'type': 'json_object'},
     }
     req = urllib.request.Request(
