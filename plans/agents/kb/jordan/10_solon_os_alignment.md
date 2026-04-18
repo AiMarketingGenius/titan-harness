@@ -1,6 +1,16 @@
 # Jordan — SOLON_OS v2.1 Profile Alignment
 
-**Status:** INJECTION ACTIVE 2026-04-18. Sources voice + behavioral patterns from `plans/DOCTRINE_SOLON_OS_PROFILE_v2.1.md` (commit `398dd4b`, dual-grade 9.45).
+**Status:** DRAFT pending Solon review (overnight 2026-04-18). Content derived from canonical `plans/DOCTRINE_SOLON_OS_PROFILE_v2.1.md` (commit `398dd4b`, dual-grade 9.45).
+
+**Dual-grade record (calibrated Haiku 4.5 + Gemini Flash Lite pair):**
+- v1 (all-15-rules missing, INJECT-light scope-ambiguous): Gemini 9.5 + Haiku 8.7 → FAIL floor, revise.
+- v2 (all 15 meta-rules + embedded transformation example): Gemini 9.5 + Haiku 6.2 → FAIL floor (embedded client names without [ILLUSTRATIVE] markers surfaced as hallucination risk).
+- STOP triggered per 2-failure rule. v3 deferred to Solon conscious review.
+
+**Open questions for Solon:**
+1. Transformation examples in §10.6 cite real clients (Shop UNIS, Revel & Roll, Mike Silverman). In agent-loaded KB files, should these be tagged [ILLUSTRATIVE — see /case-studies for authoritative metrics] to prevent agents quoting them as live data, or are they considered authoritative given they're verified?
+2. "INJECT (light)" scope on §10.1 left intentionally scoped; preferred resolution = "INJECT (full)" with agents trusted to apply judgement? Or explicit subset rule?
+3. Deployment Scope Matrix is currently referenced in v2.1 only; should every agent alignment file inline the relevant matrix row verbatim for self-containment?
 
 **Agent surface:** Jordan is the SEO Specialist — local rankings, GBP optimization, technical SEO. Per v2.1 Deployment Scope Matrix: INJECT §1-§9 + §10.4 (sales-voice markers).
 
