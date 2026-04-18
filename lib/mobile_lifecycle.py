@@ -10,24 +10,22 @@ decision tag `lifecycle-protocol-v1`):
 
 This module is the BACKEND helper that the mobile PWA surfaces via 4
 endpoints (wired in Step 6.3 atlas_api.py mount):
-- POST /api/mobile/claude/stop   → calls graceful_shutdown()
-- POST /api/mobile/claude/start  → spawns session + runs auto_resume()
+- POST /api/mobile/claude/stop   → calls graceful_shutdown() + stops claude CLI
+- POST /api/mobile/claude/start  → spawns claude CLI session + logs MOBILE_START
 - POST /api/mobile/claude/reset  → graceful_shutdown() + fresh-spawn + auto_resume()
 - GET  /api/mobile/claude/status → reads latest session-heartbeat from MCP
 
-Session-spawn / session-kill / fresh-boot mechanics (actual subprocess control
-of `claude` CLI) are SCOPED OUT of this module — returned as stubs that log to
-MCP for operator-visible observability. A follow-up module (`lib/claude_cli_ctl.py`)
-will implement actual process control after the architectural shape is proven.
-This keeps Step 6.3 atomic: endpoints mount + protocol routines wire + MCP
-source-of-truth-for-status, without coupling to the complex CLI-spawn subsystem.
+Step 6.3-b wired the actual subprocess control via `lib/claude_cli_ctl.py`:
+the stop/start/reset routines below now perform real SIGTERM + spawn against
+the in-flight claude session, while preserving the MCP-logging behavior that
+gives the operator-facing status endpoint a source of truth.
 
 MCP integration: calls the MCP memory server at the URL defined in
 MCP_BASE_URL env var (default memory.aimarketinggenius.io). Uses httpx for
 thin-wrapper HTTP calls to the MCP /decisions endpoint.
 
 Dependencies: httpx (already a transitive dep of atlas_api.py via existing
-lib/llm_client.py).
+lib/llm_client.py); claude_cli_ctl (pure-stdlib).
 """
 from __future__ import annotations
 
@@ -41,6 +39,15 @@ try:
     import httpx
 except ImportError:
     httpx = None  # tolerated for import-time; error at call if missing
+
+# claude_cli_ctl is pure-stdlib so this should always succeed; guarded for
+# defensive symmetry with the httpx pattern.
+try:
+    from lib import claude_cli_ctl as _ctl  # type: ignore
+    _CTL_AVAILABLE = True
+except Exception:  # pragma: no cover
+    _ctl = None  # type: ignore
+    _CTL_AVAILABLE = False
 
 
 MCP_BASE_URL = os.environ.get("MCP_BASE_URL", "https://memory.aimarketinggenius.io").rstrip("/")
@@ -349,50 +356,114 @@ def mobile_claude_status() -> dict[str, Any]:
 
 
 def mobile_claude_stop(operator_id: str, reason: str = "mobile_stop_endpoint") -> dict[str, Any]:
-    """POST /api/mobile/claude/stop handler — triggers Rule 2 graceful shutdown.
+    """POST /api/mobile/claude/stop handler — SIGTERM the live session + Rule 2 log.
 
-    This is a STUB at Step 6.3: logs the stop-request to MCP (so an operator
-    watching the status endpoint sees the stop), but does NOT actually kill
-    a running claude CLI process — that's follow-up Step 6.3-b (lib/claude_cli_ctl.py).
-
-    The real CLI-kill mechanism will: find the in-flight claude process via
-    systemd or pid-file, send SIGTERM, wait for orderly MCP-save, then log
-    the RESTART_HANDOFF. Until that ships, this endpoint logs the intent
-    + returns the expected shape.
+    Execution order (Step 6.3-b):
+    1. Probe live process state via claude_cli_ctl.status_claude()
+    2. If alive, SIGTERM via claude_cli_ctl.stop_claude(reason) — that triggers
+       the running session's own Rule 2 graceful_shutdown so the in-process
+       RESTART_HANDOFF is the authoritative one. SIGKILL fallback after timeout.
+    3. THIS handler also writes a Rule 2 RESTART_HANDOFF reflecting the kill
+       intent + actual outcome (so the mobile UI sees the action even if the
+       killed session was unable to write its own MCP entry).
     """
+    process_action = "no_op"
+    process_pid: int | None = None
+    process_error: str | None = None
+
+    if _CTL_AVAILABLE and _ctl is not None:
+        try:
+            current = _ctl.status_claude()
+            process_pid = current.pid
+            if current.alive:
+                ctl_result = _ctl.stop_claude(reason=reason)
+                process_action = ctl_result.get("action", "stop_requested")
+            else:
+                process_action = "no_live_process"
+        except _ctl.ProcessNotRunning as exc:
+            process_action = "no_live_process"
+            process_error = str(exc)
+        except _ctl.StopTimeout as exc:
+            process_action = "stop_timeout"
+            process_error = str(exc)
+        except Exception as exc:  # noqa: BLE001 — log + continue to MCP write
+            process_action = "ctl_error"
+            process_error = f"{type(exc).__name__}: {exc}"
+    else:
+        process_action = "ctl_unavailable"
+
     payload = ShutdownPayload(
-        step_status="mobile_stop_request_received",
-        commit_hash="<unknown-stub>",
-        next_action="await lib/claude_cli_ctl.py implementation for actual process control",
+        step_status=f"mobile_stop {process_action}",
+        commit_hash="<live>",
+        next_action="session restart available via /api/mobile/claude/start",
         tokens_remaining=None,
     )
     result = graceful_shutdown(payload, trigger=reason)
     return {
-        "action": "stop_requested",
+        "action": "stop",
         "operator_id": operator_id,
-        "stub_note": "process control not implemented yet — logged to MCP only",
+        "process": {
+            "action": process_action,
+            "pid": process_pid,
+            "error": process_error,
+        },
         **result,
     }
 
 
 def mobile_claude_start(operator_id: str) -> dict[str, Any]:
-    """POST /api/mobile/claude/start handler — spawns a fresh claude session.
+    """POST /api/mobile/claude/start handler — spawn a fresh claude session.
 
-    STUB at Step 6.3: returns expected shape + MCP log, actual spawn in 6.3-b.
+    Execution order (Step 6.3-b):
+    1. Spawn via claude_cli_ctl.start_claude(operator_id) — wrapper script
+       writes the new PID into TITAN_CLAUDE_PID_FILE; auto-resume rule fires
+       inside the spawned session (Rule 3: reads RESTART_HANDOFF from MCP).
+    2. Log MOBILE_START to MCP so the status endpoint shows the spawn event.
+    3. Return shape includes spawned pid + the auto-resume hint.
     """
+    process_action = "no_op"
+    spawned_pid: int | None = None
+    process_error: str | None = None
+
+    if _CTL_AVAILABLE and _ctl is not None:
+        try:
+            ctl_result = _ctl.start_claude(operator_id=operator_id)
+            process_action = ctl_result.get("action", "spawned")
+            spawned_pid = ctl_result.get("session_pid")
+        except _ctl.ProcessAlreadyRunning as exc:
+            process_action = "already_running"
+            process_error = str(exc)
+            current = _ctl.status_claude()
+            spawned_pid = current.pid
+        except _ctl.ConfigError as exc:
+            process_action = "ctl_config_error"
+            process_error = str(exc)
+        except Exception as exc:  # noqa: BLE001
+            process_action = "ctl_error"
+            process_error = f"{type(exc).__name__}: {exc}"
+    else:
+        process_action = "ctl_unavailable"
+
     try:
         _mcp_log_decision(
-            text=f"MOBILE_START requested by operator {operator_id} at {_now_iso()}. Stub handler — actual spawn pending lib/claude_cli_ctl.py.",
-            tags=["mobile-start-request", f"operator-{operator_id}"],
+            text=(
+                f"MOBILE_START requested by operator {operator_id} at {_now_iso()}. "
+                f"Process action: {process_action}. PID: {spawned_pid}."
+            ),
+            tags=["mobile-start-request", f"operator-{operator_id}", f"action-{process_action}"],
         )
         mcp_ok = True
     except MCPUnavailable:
         mcp_ok = False
 
     return {
-        "action": "start_requested",
+        "action": "start",
         "operator_id": operator_id,
-        "stub_note": "spawn not implemented yet — logged to MCP only",
+        "process": {
+            "action": process_action,
+            "pid": spawned_pid,
+            "error": process_error,
+        },
         "mcp_logged": mcp_ok,
     }
 
@@ -400,14 +471,15 @@ def mobile_claude_start(operator_id: str) -> dict[str, Any]:
 def mobile_claude_reset(operator_id: str) -> dict[str, Any]:
     """POST /api/mobile/claude/reset handler — stop + fresh-spawn + auto-resume.
 
-    STUB at Step 6.3: logs intent, returns expected shape.
+    Wraps mobile_claude_stop() + mobile_claude_start(). Each phase logs its own
+    MCP decision; this handler just stitches them together for the mobile
+    Reset button.
     """
     stop_result = mobile_claude_stop(operator_id, reason="mobile_reset_stop_phase")
     start_result = mobile_claude_start(operator_id)
     return {
-        "action": "reset_requested",
+        "action": "reset",
         "operator_id": operator_id,
-        "stub_note": "reset not implemented yet — stop + start stubs logged to MCP",
         "stop_phase": stop_result,
         "start_phase": start_result,
     }

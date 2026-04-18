@@ -3205,116 +3205,434 @@ except Exception as _mlc_exc:
     _MLC_AVAILABLE = False
     print(f"[atlas-api] mobile_lifecycle unavailable: {_mlc_exc}", file=sys.stderr)
 
+try:
+    from lib import mobile_cmd_stores as _mcs  # type: ignore
+    _MCS_AVAILABLE = True
+except Exception as _mcs_exc:
+    _mcs = None
+    _MCS_AVAILABLE = False
+    print(f"[atlas-api] mobile_cmd_stores unavailable: {_mcs_exc}", file=sys.stderr)
 
-def _mobile_dep_error(module_name: str) -> JSONResponse:
+
+def _mobile_dep_error(module_name: str, hint: str | None = None) -> JSONResponse:
     """Uniform 503 when a mobile-command dep is missing."""
     return JSONResponse(
         status_code=503,
         content={
             "error": "mobile_command_module_unavailable",
             "module": module_name,
-            "hint": "verify pip install webauthn pyjwt pywebpush httpx on the host + redeploy",
+            "hint": hint or "verify pip install webauthn pyjwt pywebpush psycopg2-binary httpx on the host + redeploy",
+        },
+    )
+
+
+# ---- Step 6.3-b: lazy-instantiated mobile auth context -----------------------
+# Stores + crypto keys are loaded on first request, then cached. Missing env
+# vars surface as a clear 503 + actionable hint rather than a crash at boot.
+
+_MOBILE_AUTH_CTX: dict | None = None
+
+
+def _read_pem_or_path(env_inline: str, env_path: str) -> str | None:
+    """Resolve a PEM key from either an inline env var or a file path env var.
+    Returns the PEM string, or None if neither is set."""
+    inline = os.environ.get(env_inline)
+    if inline:
+        return inline
+    path = os.environ.get(env_path)
+    if path:
+        try:
+            with open(path, "r", encoding="utf-8") as f:
+                return f.read()
+        except OSError as exc:
+            print(f"[atlas-api] failed to read {env_path}={path}: {exc}", file=sys.stderr)
+            return None
+    return None
+
+
+def _get_mobile_auth_ctx() -> dict | None:
+    """Build (and cache) the dict of stores + keys + RP config the auth
+    endpoints need. Returns None if essential config is missing — caller
+    should surface a 503."""
+    global _MOBILE_AUTH_CTX
+    if _MOBILE_AUTH_CTX is not None:
+        return _MOBILE_AUTH_CTX
+
+    if not (_MCA_AVAILABLE and _MCS_AVAILABLE):
+        return None
+
+    jwt_priv = _read_pem_or_path("JWT_RS256_PRIVATE_KEY", "JWT_RS256_PRIVATE_KEY_PATH")
+    jwt_pub  = _read_pem_or_path("JWT_RS256_PUBLIC_KEY",  "JWT_RS256_PUBLIC_KEY_PATH")
+    vapid_priv = _read_pem_or_path("VAPID_PRIVATE_KEY", "VAPID_PRIVATE_KEY_PATH")
+
+    db_url = os.environ.get("DATABASE_URL")
+    rp_id  = os.environ.get("WEBAUTHN_RP_ID", "operator.aimarketinggenius.io")
+    rp_name = os.environ.get("WEBAUTHN_RP_NAME", "AMG Mobile Command")
+    expected_origin = os.environ.get("WEBAUTHN_EXPECTED_ORIGIN", f"https://{rp_id}")
+    vapid_subject = os.environ.get("VAPID_SUBJECT", "mailto:solon@aimarketinggenius.io")
+
+    if not jwt_priv or not jwt_pub:
+        print("[atlas-api] JWT_RS256 keys not configured — auth endpoints will 503", file=sys.stderr)
+        return None
+    if not db_url:
+        print("[atlas-api] DATABASE_URL not configured — auth endpoints will 503", file=sys.stderr)
+        return None
+
+    conn_factory = _mcs.make_supabase_conn_factory(db_url)
+    _MOBILE_AUTH_CTX = {
+        "refresh_store": _mca.RefreshTokenStore(
+            backend=_mcs.SupabaseRefreshTokenBackend(conn_factory)
+        ),
+        "credential_store": _mcs.SupabaseWebAuthnCredentialBackend(conn_factory),
+        "push_store": _mcs.SupabasePushSubscriptionBackend(conn_factory),
+        "challenge_store": _mcs.InMemoryChallengeStore(),
+        "jwt_priv": jwt_priv,
+        "jwt_pub": jwt_pub,
+        "vapid_priv": vapid_priv,
+        "vapid_subject": vapid_subject,
+        "rp_id": rp_id,
+        "rp_name": rp_name,
+        "expected_origin": expected_origin,
+    }
+    return _MOBILE_AUTH_CTX
+
+
+def _mobile_ctx_error() -> JSONResponse:
+    return JSONResponse(
+        status_code=503,
+        content={
+            "error": "mobile_auth_context_unavailable",
+            "hint": (
+                "configure DATABASE_URL + JWT_RS256_{PRIVATE,PUBLIC}_KEY (or _PATH) "
+                "+ optional VAPID_PRIVATE_KEY + WEBAUTHN_RP_ID + WEBAUTHN_EXPECTED_ORIGIN "
+                "in /root/.titan-env on the host"
+            ),
+        },
+    )
+
+
+def _mobile_error_response(exc: Exception, status_code: int = 400) -> JSONResponse:
+    return JSONResponse(
+        status_code=status_code,
+        content={
+            "error": type(exc).__name__,
+            "detail": str(exc)[:300],
         },
     )
 
 
 # --- AUTH — WebAuthn enrollment ---------------------------------------------
+# Step 6.3-b: live handlers wired against Supabase backends + InMemoryChallengeStore.
+# Body schemas match @simplewebauthn/browser conventions (the React PWA Step 6.4
+# will use this library client-side).
+
+import uuid as _uuid
+
 
 @app.post("/api/auth/webauthn/register-begin")
 async def mobile_auth_register_begin(request: Request) -> JSONResponse:
     """Begin a WebAuthn platform-authenticator enrollment for an operator.
-
-    STUB at Step 6.3: returns a 501 until a Supabase-backed credential_store +
-    challenge_store adapter lands (follow-up 6.3-b). Handler wiring proves
-    the route is mounted + visible to the PWA client.
+    Body: {"operator_id": "<uuid>", "operator_name": "solon"}
+    Returns: PublicKeyCredentialCreationOptions JSON for navigator.credentials.create().
     """
     if not _MCA_AVAILABLE:
         return _mobile_dep_error("mobile_cmd_auth")
-    return JSONResponse(status_code=501, content={
-        "error": "not_implemented_yet",
-        "step": "6.3-b",
-        "note": "Supabase RefreshTokenStore + challenge store adapter pending",
-        "module_loaded": True,
-    })
+    ctx = _get_mobile_auth_ctx()
+    if ctx is None:
+        return _mobile_ctx_error()
+    try:
+        body = await request.json()
+        op_id = _uuid.UUID(str(body["operator_id"]))
+        op_name = str(body.get("operator_name", "solon"))
+        opts = _mca.webauthn_register_begin(
+            rp_id=ctx["rp_id"],
+            rp_name=ctx["rp_name"],
+            operator_id=op_id,
+            operator_name=op_name,
+            challenge_store=ctx["challenge_store"],
+        )
+        return JSONResponse(content=opts)
+    except KeyError as exc:
+        return _mobile_error_response(exc, status_code=400)
+    except Exception as exc:  # noqa: BLE001
+        return _mobile_error_response(exc, status_code=500)
 
 
 @app.post("/api/auth/webauthn/register-verify")
 async def mobile_auth_register_verify(request: Request) -> JSONResponse:
+    """Verify a WebAuthn registration response + persist credential.
+    Body: {"operator_id": "<uuid>", "credential": { ... }} — `credential` is
+    the dict returned by @simplewebauthn/browser startRegistration().
+    """
     if not _MCA_AVAILABLE:
         return _mobile_dep_error("mobile_cmd_auth")
-    return JSONResponse(status_code=501, content={
-        "error": "not_implemented_yet", "step": "6.3-b", "module_loaded": True,
-    })
+    ctx = _get_mobile_auth_ctx()
+    if ctx is None:
+        return _mobile_ctx_error()
+    try:
+        body = await request.json()
+        op_id = _uuid.UUID(str(body["operator_id"]))
+        result = _mca.webauthn_register_verify(
+            operator_id=op_id,
+            expected_origin=ctx["expected_origin"],
+            expected_rp_id=ctx["rp_id"],
+            credential_response=body["credential"],
+            challenge_store=ctx["challenge_store"],
+            credential_store=ctx["credential_store"],
+        )
+        return JSONResponse(content=result)
+    except KeyError as exc:
+        return _mobile_error_response(exc, status_code=400)
+    except _mca.MobileCmdAuthError as exc:
+        return _mobile_error_response(exc, status_code=400)
+    except Exception as exc:  # noqa: BLE001
+        return _mobile_error_response(exc, status_code=500)
 
 
 # --- AUTH — WebAuthn sign-in ------------------------------------------------
 
 @app.post("/api/auth/webauthn/authenticate-begin")
 async def mobile_auth_authenticate_begin(request: Request) -> JSONResponse:
+    """Begin a WebAuthn signin for a returning operator.
+    Body: {"operator_id": "<uuid>"}
+    Returns: PublicKeyCredentialRequestOptions JSON.
+    """
     if not _MCA_AVAILABLE:
         return _mobile_dep_error("mobile_cmd_auth")
-    return JSONResponse(status_code=501, content={
-        "error": "not_implemented_yet", "step": "6.3-b", "module_loaded": True,
-    })
+    ctx = _get_mobile_auth_ctx()
+    if ctx is None:
+        return _mobile_ctx_error()
+    try:
+        body = await request.json()
+        op_id = _uuid.UUID(str(body["operator_id"]))
+        opts = _mca.webauthn_authenticate_begin(
+            rp_id=ctx["rp_id"],
+            operator_id=op_id,
+            credential_store=ctx["credential_store"],
+            challenge_store=ctx["challenge_store"],
+        )
+        return JSONResponse(content=opts)
+    except KeyError as exc:
+        return _mobile_error_response(exc, status_code=400)
+    except Exception as exc:  # noqa: BLE001
+        return _mobile_error_response(exc, status_code=500)
 
 
 @app.post("/api/auth/webauthn/authenticate-verify")
 async def mobile_auth_authenticate_verify(request: Request) -> JSONResponse:
+    """Verify a WebAuthn signin + issue a fresh JWT pair.
+    Body: {"operator_id": "<uuid>", "credential": {...}}
+    Returns: {"access_token", "refresh_token", "access_expires_at", "refresh_expires_at", "family_id"}.
+    """
     if not _MCA_AVAILABLE:
         return _mobile_dep_error("mobile_cmd_auth")
-    return JSONResponse(status_code=501, content={
-        "error": "not_implemented_yet", "step": "6.3-b", "module_loaded": True,
-    })
+    ctx = _get_mobile_auth_ctx()
+    if ctx is None:
+        return _mobile_ctx_error()
+    try:
+        body = await request.json()
+        op_id = _uuid.UUID(str(body["operator_id"]))
+        webauthn_result = _mca.webauthn_authenticate_verify(
+            operator_id=op_id,
+            expected_origin=ctx["expected_origin"],
+            expected_rp_id=ctx["rp_id"],
+            credential_response=body["credential"],
+            credential_store=ctx["credential_store"],
+            challenge_store=ctx["challenge_store"],
+        )
+        # WebAuthn ok → mint a fresh JWT pair (new family).
+        pair = _mca.issue_jwt_pair(
+            operator_id=op_id,
+            store=ctx["refresh_store"],
+            jwt_private_key=ctx["jwt_priv"],
+        )
+        return JSONResponse(content={
+            "access_token": pair.access_token,
+            "refresh_token": pair.refresh_token,
+            "access_expires_at": pair.access_expires_at.isoformat(),
+            "refresh_expires_at": pair.refresh_expires_at.isoformat(),
+            "family_id": str(pair.family_id),
+            "webauthn_sign_count": webauthn_result.get("new_sign_count"),
+        })
+    except KeyError as exc:
+        return _mobile_error_response(exc, status_code=400)
+    except _mca.MobileCmdAuthError as exc:
+        return _mobile_error_response(exc, status_code=401)
+    except Exception as exc:  # noqa: BLE001
+        return _mobile_error_response(exc, status_code=500)
 
 
 # --- AUTH — JWT refresh + revoke --------------------------------------------
 
 @app.post("/api/auth/refresh")
 async def mobile_auth_refresh(request: Request) -> JSONResponse:
+    """Rotate a refresh token → new JWT pair (same family).
+    Body: {"refresh_token": "<token>"}
+    Reuse detection: presenting an already-used token revokes the entire family.
+    """
     if not _MCA_AVAILABLE:
         return _mobile_dep_error("mobile_cmd_auth")
-    return JSONResponse(status_code=501, content={
-        "error": "not_implemented_yet", "step": "6.3-b", "module_loaded": True,
-    })
+    ctx = _get_mobile_auth_ctx()
+    if ctx is None:
+        return _mobile_ctx_error()
+    try:
+        body = await request.json()
+        presented = str(body["refresh_token"])
+        pair = _mca.rotate_refresh_token(
+            presented_refresh_raw=presented,
+            store=ctx["refresh_store"],
+            jwt_private_key=ctx["jwt_priv"],
+        )
+        return JSONResponse(content={
+            "access_token": pair.access_token,
+            "refresh_token": pair.refresh_token,
+            "access_expires_at": pair.access_expires_at.isoformat(),
+            "refresh_expires_at": pair.refresh_expires_at.isoformat(),
+            "family_id": str(pair.family_id),
+        })
+    except KeyError as exc:
+        return _mobile_error_response(exc, status_code=400)
+    except _mca.TokenReuseDetected as exc:
+        # Security event: family revoked. Tell client to re-auth via WebAuthn.
+        return JSONResponse(status_code=401, content={
+            "error": "TokenReuseDetected",
+            "detail": "refresh token reuse — family revoked, re-auth required",
+            "action": "re-authenticate via WebAuthn",
+        })
+    except (_mca.TokenExpired, _mca.TokenNotFound) as exc:
+        return _mobile_error_response(exc, status_code=401)
+    except Exception as exc:  # noqa: BLE001
+        return _mobile_error_response(exc, status_code=500)
 
 
 @app.post("/api/auth/revoke")
 async def mobile_auth_revoke(request: Request) -> JSONResponse:
+    """Operator-initiated logout — revoke an entire refresh token family.
+    Body: {"family_id": "<uuid>"}
+    """
     if not _MCA_AVAILABLE:
         return _mobile_dep_error("mobile_cmd_auth")
-    return JSONResponse(status_code=501, content={
-        "error": "not_implemented_yet", "step": "6.3-b", "module_loaded": True,
-    })
+    ctx = _get_mobile_auth_ctx()
+    if ctx is None:
+        return _mobile_ctx_error()
+    try:
+        body = await request.json()
+        family_id = _uuid.UUID(str(body["family_id"]))
+        affected = _mca.revoke_chain(
+            family_id=family_id,
+            store=ctx["refresh_store"],
+            reason=str(body.get("reason", "operator-initiated-logout")),
+        )
+        return JSONResponse(content={"action": "revoked", "rows_affected": affected})
+    except KeyError as exc:
+        return _mobile_error_response(exc, status_code=400)
+    except Exception as exc:  # noqa: BLE001
+        return _mobile_error_response(exc, status_code=500)
 
 
 # --- PUSH — subscribe / send / unsubscribe ----------------------------------
 
 @app.post("/api/push/subscribe")
 async def mobile_push_subscribe(request: Request) -> JSONResponse:
+    """Persist a Web Push subscription (PWA called PushManager.subscribe()).
+    Body: {"operator_id", "endpoint", "keys": {"p256dh", "auth"}, "user_agent"}
+    """
     if not _MCA_AVAILABLE:
         return _mobile_dep_error("mobile_cmd_auth")
-    return JSONResponse(status_code=501, content={
-        "error": "not_implemented_yet", "step": "6.3-b", "module_loaded": True,
-    })
+    ctx = _get_mobile_auth_ctx()
+    if ctx is None:
+        return _mobile_ctx_error()
+    try:
+        body = await request.json()
+        keys = body.get("keys") or {}
+        sub_id = body.get("id") or str(_uuid.uuid4())
+        returned = ctx["push_store"].insert({
+            "id": sub_id,
+            "operator_id": str(body["operator_id"]),
+            "endpoint": str(body["endpoint"]),
+            "p256dh_key": str(keys.get("p256dh") or body.get("p256dh_key") or ""),
+            "auth_key": str(keys.get("auth") or body.get("auth_key") or ""),
+            "user_agent": body.get("user_agent"),
+        })
+        return JSONResponse(content={"action": "subscribed", "id": returned})
+    except KeyError as exc:
+        return _mobile_error_response(exc, status_code=400)
+    except Exception as exc:  # noqa: BLE001
+        return _mobile_error_response(exc, status_code=500)
 
 
 @app.post("/api/push/send")
 async def mobile_push_send(request: Request) -> JSONResponse:
+    """Send a Web Push notification to one subscription.
+    Body: {"subscription_id": "<uuid>", "payload": {...}, "ttl_seconds": 3600}
+    410/404 from the push service → mark subscription revoked.
+    """
     if not _MCA_AVAILABLE:
         return _mobile_dep_error("mobile_cmd_auth")
-    return JSONResponse(status_code=501, content={
-        "error": "not_implemented_yet", "step": "6.3-b", "module_loaded": True,
-    })
+    ctx = _get_mobile_auth_ctx()
+    if ctx is None:
+        return _mobile_ctx_error()
+    if not ctx.get("vapid_priv"):
+        return JSONResponse(status_code=503, content={
+            "error": "vapid_key_not_configured",
+            "hint": "set VAPID_PRIVATE_KEY (or _PATH) in env",
+        })
+    try:
+        body = await request.json()
+        sub_id = str(body["subscription_id"])
+        payload = body.get("payload") or {}
+        ttl = int(body.get("ttl_seconds", 3600))
+        sub = ctx["push_store"].find_by_id(sub_id)
+        if sub is None or sub.get("revoked_at"):
+            return JSONResponse(status_code=404, content={
+                "error": "subscription_not_found_or_revoked",
+            })
+        try:
+            send_result = _mca.push_send(
+                subscription={
+                    "endpoint": sub["endpoint"],
+                    "keys": {
+                        "p256dh": sub["p256dh_key"],
+                        "auth": sub["auth_key"],
+                    },
+                },
+                payload=payload,
+                vapid_private_key=ctx["vapid_priv"],
+                vapid_subject=ctx["vapid_subject"],
+                ttl_seconds=ttl,
+            )
+            ctx["push_store"].record_send_success(sub_id)
+            return JSONResponse(content=send_result)
+        except _mca.SubscriptionExpired as exc:
+            ctx["push_store"].mark_revoked(sub_id, reason="expired_410")
+            return JSONResponse(status_code=410, content={
+                "error": "SubscriptionExpired",
+                "detail": str(exc)[:200],
+                "action": "PWA must re-subscribe on next launch",
+            })
+    except KeyError as exc:
+        return _mobile_error_response(exc, status_code=400)
+    except Exception as exc:  # noqa: BLE001
+        try:
+            ctx["push_store"].record_send_failure(str(body.get("subscription_id", "")), reason=str(exc)[:200])
+        except Exception:
+            pass
+        return _mobile_error_response(exc, status_code=500)
 
 
 @app.delete("/api/push/subscription/{sub_id}")
 async def mobile_push_unsubscribe(sub_id: str, request: Request) -> JSONResponse:
+    """Revoke a push subscription (operator-initiated unsubscribe)."""
     if not _MCA_AVAILABLE:
         return _mobile_dep_error("mobile_cmd_auth")
-    return JSONResponse(status_code=501, content={
-        "error": "not_implemented_yet", "sub_id": sub_id, "step": "6.3-b",
-        "module_loaded": True,
-    })
+    ctx = _get_mobile_auth_ctx()
+    if ctx is None:
+        return _mobile_ctx_error()
+    try:
+        ctx["push_store"].mark_revoked(sub_id, reason="operator-initiated-unsubscribe")
+        return JSONResponse(content={"action": "revoked", "id": sub_id})
+    except Exception as exc:  # noqa: BLE001
+        return _mobile_error_response(exc, status_code=500)
 
 
 # --- LIFECYCLE — mobile session control -------------------------------------

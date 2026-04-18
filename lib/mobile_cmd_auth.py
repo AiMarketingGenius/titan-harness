@@ -112,16 +112,9 @@ class JWTPair:
     family_id: uuid.UUID
 
 
-@dataclass(frozen=True)
-class RefreshTokenRecord:
-    id: uuid.UUID
-    operator_id: uuid.UUID
-    token_hash: bytes
-    family_id: uuid.UUID
-    issued_at: _dt.datetime
-    expires_at: _dt.datetime
-    used_at: _dt.datetime | None
-    revoked_at: _dt.datetime | None
+# RefreshTokenRecord lives in lib/mobile_cmd_models so storage adapters can
+# import the shape without pulling in this module's crypto deps.
+from lib.mobile_cmd_models import RefreshTokenRecord  # noqa: E402,F401  (re-export)
 
 
 # ---------------------------------------------------------------------------
