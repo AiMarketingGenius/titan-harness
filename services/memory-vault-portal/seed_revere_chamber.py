@@ -239,7 +239,7 @@ def seed_memories(consumer_uid):
     inserted = 0
     for m in memories:
         row = {
-            "consumer_uid": consumer_uid,
+            "user_id": consumer_uid,
             "platform": m["platform"],
             "thread_id": m["thread_id"],
             "thread_url": m["thread_url"],
@@ -248,19 +248,12 @@ def seed_memories(consumer_uid):
             "project_id": m["project_id"],
             "confidence": m["confidence"],
             "content": m["content"],
+            "memory_type": "fact",
+            "qe_status": m["verification_status"],
         }
         status, resp = rest("/rest/v1/consumer_memories", method="POST", body=row)
         if status in (200, 201):
-            mem_id = resp[0]["id"] if isinstance(resp, list) and resp else None
             inserted += 1
-            if mem_id:
-                fc = {
-                    "memory_id": mem_id,
-                    "verification_status": m["verification_status"],
-                    "confidence": m["confidence"],
-                    "claim": m["content"][:200],
-                }
-                rest("/rest/v1/einstein_fact_checks", method="POST", body=fc)
             print(f"[seed] + {m['platform']} #{m['exchange_number']} ({m['verification_status']})")
         else:
             print(f"[seed] FAIL {status} on {m['platform']} #{m['exchange_number']}")

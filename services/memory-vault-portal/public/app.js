@@ -104,31 +104,19 @@ async function loadMemories() {
   els.feedEmpty.hidden = true;
   els.feedList.innerHTML = '';
   try {
-    // Fetch memories (RLS gates to current consumer_uid)
+    // Fetch memories (RLS gates to current user_id)
     const { data: memories, error } = await sb
       .from(CFG.memoriesTable)
       .select('*')
       .order('source_timestamp', { ascending: false })
       .limit(200);
     if (error) throw error;
-    state.memories = memories || [];
-
-    // Fetch fact-check status per memory (if table exists)
-    const ids = state.memories.map(m => m.id).filter(Boolean);
-    if (ids.length > 0) {
-      const { data: fcs } = await sb
-        .from(CFG.factChecksTable)
-        .select('memory_id, verification_status, confidence')
-        .in('memory_id', ids);
-      if (fcs) {
-        const byId = new Map(fcs.map(f => [f.memory_id, f]));
-        state.memories = state.memories.map(m => ({
-          ...m,
-          verification_status: byId.get(m.id)?.verification_status || m.verification_status || null,
-          verification_confidence: byId.get(m.id)?.confidence || null,
-        }));
-      }
-    }
+    state.memories = (memories || []).map(m => ({
+      ...m,
+      // qe_status is the canonical Einstein verification field on consumer_memories
+      verification_status: (m.qe_status || 'unverified').toLowerCase(),
+      verification_confidence: m.confidence,
+    }));
 
     // Build tenant filter from distinct project_id values
     const tenantSet = new Set(state.memories.map(m => m.project_id).filter(Boolean));

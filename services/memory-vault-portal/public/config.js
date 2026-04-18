@@ -6,7 +6,6 @@ window.AIMG_CONFIG = {
   supabaseAnonKey: 'REPLACED_AT_DEPLOY_TIME',
   schema: 'public',
   memoriesTable: 'consumer_memories',
-  factChecksTable: 'einstein_fact_checks',
-  tenantsTable: 'consumer_tenants',
+  einsteinChecksTable: 'einstein_checks',
   deployedAt: 'REPLACED_AT_DEPLOY_TIME',
 };
