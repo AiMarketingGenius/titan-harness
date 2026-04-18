@@ -21,19 +21,19 @@ CO-ARCHITECT parameters (dual-engine consensus 2026-04-18T18:28Z):
 |------|---------|
 | `tla_nudge.lua` | Hammerspoon module — HTTP server on 127.0.0.1:41710, HMAC-verifies POST /nudge, injects keystrokes into Claude Code with race-condition pre-check |
 | `n8n_idle_nudge_workflow.json` | n8n workflow — cron 60s → Supabase queries → fire-gate → HMAC sign → POST → log MCP |
-| `bin/generate_hmac_secret.sh` | Mac-side utility: generates 32-byte hex secret, stores in Keychain under `titan-tla-nudge`, prints for n8n env config |
+| `bin/generate_hmac_key.sh` | Mac-side utility: generates 32-byte hex secret, stores in Keychain under `titan-tla-nudge`, prints for n8n env config |
 | `bin/log_mcp_invocation.sh` | Mac-side utility called post-injection from `tla_nudge.lua` to write MCP op_decisions row |
 
 ## Activation (Solon — requires screenshots per UI-instruction rule)
 
 **HARD LIMITS that must stay with Solon:**
 1. **Hammerspoon install** — if not already present: `brew install --cask hammerspoon` (CLI autonomous) + grant Accessibility permission via System Settings (UI click — needs annotated screenshot pass on execution day; staged here, cannot automate).
-2. **Keychain write** — running `bin/generate_hmac_secret.sh` prompts Keychain unlock on first run (UI click — screenshot pass needed).
+2. **Keychain write** — running `bin/generate_hmac_key.sh` prompts Keychain unlock on first run (UI click — screenshot pass needed).
 3. **n8n env var insertion** — `TLA_NUDGE_HMAC_SECRET` + `TLA_NUDGE_ENDPOINT` into n8n config (VPS-side; no UI but Solon-reviewable).
 
 When Solon is at the Mac:
 1. Install Hammerspoon (one-time). Grant Accessibility permission.
-2. Run `bash scripts/tla-path-4/bin/generate_hmac_secret.sh`. Paste the printed secret into VPS `/etc/amg/tla-nudge.env` as `TLA_NUDGE_HMAC_SECRET=<value>` (root:root 0600).
+2. Run `bash scripts/tla-path-4/bin/generate_hmac_key.sh`. Paste the printed secret into VPS `/etc/amg/tla-nudge.env` as `TLA_NUDGE_HMAC_SECRET=<value>` (root:root 0600).
 3. Add the following to `~/.hammerspoon/init.lua`:
    ```lua
    package.path = package.path .. ";/Users/solonzafiropoulos1/titan-harness/scripts/tla-path-4/?.lua"
@@ -61,7 +61,7 @@ Success Criterion 16 (DELTA 6) PASS = full loop within 90s of idle-threshold cro
 
 ## Kill by rotation
 
-If HMAC secret is compromised: `bash bin/generate_hmac_secret.sh --rotate` + update VPS `TLA_NUDGE_HMAC_SECRET` + n8n redeploy. Old secret becomes invalid immediately (HMAC mismatch → 401).
+If HMAC secret is compromised: `bash bin/generate_hmac_key.sh --rotate` + update VPS `TLA_NUDGE_HMAC_SECRET` + n8n redeploy. Old secret becomes invalid immediately (HMAC mismatch → 401).
 
 ## Known limits v0.1
 
