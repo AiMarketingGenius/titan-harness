@@ -1,6 +1,6 @@
 # MIRROR_STATUS
 
-> Last updated: 2026-04-18T04:30:01Z
+> Last updated: 2026-04-18T04:45:02Z
 > Last event: DRIFT_CHECK → OK
 > Branch: master
 
@@ -8,8 +8,8 @@
 
 | Leg | Last check | SHA | Status |
 |---|---|---|---|
-| Mac working tree | 2026-04-18T04:30:01Z | f2b2cbb | OK |
-| VPS bare (origin) | 2026-04-18T03:55:24Z | f2b2cbb7b53d62ff70a1ff36bae43b58990c3168 | OK |
+| Mac working tree | 2026-04-18T04:45:02Z | 21a725f | OK |
+| VPS bare (origin) | 2026-04-18T04:33:57Z | 21a725fa674f48152f44509340dd7cc9906fdcdf | OK |
 | GitHub (AiMarketingGenius/titan-harness) | unknown | unknown | unknown |
 | MCP export | unknown | — | unknown |
 
@@ -42,5 +42,9 @@
 ## Last 5 mirror events
 
 ```
-No log today
+[POST-COMMIT] Auto-Mirror at 2026-04-18T04:33:54Z branch=master
+To ssh://170.205.37.148/opt/titan-harness.git
+   f2b2cbb..21a725f  master -> master
+[MIRROR:MAC→VPS] OK
+[POST-COMMIT] Done.
 ```
