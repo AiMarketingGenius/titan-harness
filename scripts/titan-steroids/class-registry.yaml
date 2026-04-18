@@ -1,0 +1,36 @@
+---
+# Titan Steroids C1 MVP — class registry v0.1
+# Schema validated on load; see lib/schema.js
+#
+# Cadence forms:
+#   daily | weekly | monthly | custom:"<cron spec>"
+#
+# Acceptance criteria types: regex_match | json_path_exists | numeric_range | llm_judge
+# Failure handlers: retry_3x | ntfy_alert | pause_class
+#
+# Kill-switch: any MCP decision tagged `titan-steroids-disabled` halts ALL classes.
+# Per-class pause: MCP decision tagged `class-paused:<class_name>`.
+
+registry_version: "0.1.0"
+classes:
+  - name: "daily_mcp_health_check"
+    enabled: true
+    cadence: "daily"  # runs at 09:00 VPS local (cron: 0 9 * * *)
+    cron: "0 9 * * *"
+    inputs:
+      probe: "mcp_ping"  # executor knows how to handle this
+    acceptance_criteria:
+      - type: "regex_match"
+        path: "$.status"
+        value: "^ok$"
+        strict: true
+      - type: "json_path_exists"
+        path: "$.server"
+        strict: true
+    failure_handlers:
+      - "ntfy_alert"
+    rate_limits:
+      max_per_hour: 2
+      burst: 1
+    hard_limit_gate: false
+    kill_switch_check: true
