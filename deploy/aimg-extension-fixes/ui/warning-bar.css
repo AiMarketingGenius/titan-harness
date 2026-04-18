@@ -1,0 +1,49 @@
+/* C6: Persistent bottom warning bar */
+.mg-warning-bar {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 32px;
+  z-index: 99997;
+  background: rgba(15, 23, 42, 0.92);
+  border-top: 1px solid var(--border-subtle);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  font-family: var(--font-body);
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+  animation: slideUp 200ms var(--ease-smooth);
+  animation-delay: 2s;
+  animation-fill-mode: backwards;
+}
+
+.mg-warning-bar.collapsed {
+  height: 4px;
+  overflow: hidden;
+}
+
+.mg-warning-bar a {
+  color: var(--text-muted);
+  text-decoration: none;
+}
+
+.mg-warning-bar a:hover {
+  color: var(--text-secondary);
+}
+
+.mg-warning-bar-collapse {
+  width: 24px;
+  height: 24px;
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: 14px;
+}
+
+@media (max-width: 768px) {
+  .mg-warning-bar { height: 36px; }
+}

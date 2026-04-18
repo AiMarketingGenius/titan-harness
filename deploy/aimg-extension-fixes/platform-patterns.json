@@ -1,0 +1,106 @@
+{
+  "_version": "1.0.0",
+  "_note": "DOM selectors for each AI platform. Update when platforms change their UI. Run weekly smoke test to verify selectors still work.",
+  
+  "claude": {
+    "platform_id": "claude",
+    "url_pattern": "https://claude.ai/chat/*",
+    "thread_id_source": "url",
+    "thread_id_regex": "claude\\.ai/chat/([a-f0-9-]+)",
+    "selectors": {
+      "messageContainer": "[data-testid='conversation-turn'], .font-claude-message",
+      "userMessage": "[data-testid='user-message'], .font-user-message",
+      "assistantMessage": "[data-testid='assistant-message'], .font-claude-message",
+      "messageContent": ".whitespace-pre-wrap, .prose",
+      "conversationList": "[data-testid='conversation-list']",
+      "inputArea": "[contenteditable='true'], textarea",
+      "sendButton": "[data-testid='send-button'], button[aria-label='Send']"
+    },
+    "responseCompleteSignal": {
+      "method": "mutation_observer",
+      "target": "[data-testid='stop-button']",
+      "condition": "removed"
+    }
+  },
+  
+  "chatgpt": {
+    "platform_id": "chatgpt",
+    "url_pattern": "https://chatgpt.com/c/*",
+    "thread_id_source": "url",
+    "thread_id_regex": "chatgpt\\.com/c/([a-f0-9-]+)",
+    "selectors": {
+      "messageContainer": "[data-message-id]",
+      "userMessage": "[data-message-author-role='user']",
+      "assistantMessage": "[data-message-author-role='assistant']",
+      "messageContent": ".markdown.prose, .text-message",
+      "conversationList": "nav",
+      "inputArea": "#prompt-textarea, textarea",
+      "sendButton": "[data-testid='send-button'], button[aria-label='Send prompt']"
+    },
+    "responseCompleteSignal": {
+      "method": "mutation_observer",
+      "target": "button[aria-label='Stop generating']",
+      "condition": "removed"
+    }
+  },
+  
+  "gemini": {
+    "platform_id": "gemini",
+    "url_pattern": "https://gemini.google.com/app/*",
+    "thread_id_source": "url",
+    "thread_id_regex": "gemini\\.google\\.com/app/([a-f0-9]+)",
+    "selectors": {
+      "messageContainer": "message-content, .conversation-turn",
+      "userMessage": ".user-query, model-prompt",
+      "assistantMessage": ".model-response, model-response",
+      "messageContent": ".response-content, .markdown-main-panel",
+      "inputArea": ".ql-editor, rich-textarea",
+      "sendButton": "button.send-button, [aria-label='Send message']"
+    },
+    "responseCompleteSignal": {
+      "method": "mutation_observer",
+      "target": ".loading-indicator",
+      "condition": "removed"
+    }
+  },
+  
+  "grok": {
+    "platform_id": "grok",
+    "url_pattern": "https://grok.x.ai/*",
+    "thread_id_source": "url",
+    "thread_id_regex": "grok\\.x\\.ai/chat/([a-zA-Z0-9]+)",
+    "selectors": {
+      "messageContainer": ".message-row, [data-testid='message']",
+      "userMessage": ".user-message",
+      "assistantMessage": ".assistant-message",
+      "messageContent": ".message-content, .prose",
+      "inputArea": "textarea, [contenteditable='true']",
+      "sendButton": "button[type='submit'], [aria-label='Send']"
+    },
+    "responseCompleteSignal": {
+      "method": "mutation_observer",
+      "target": ".streaming-indicator",
+      "condition": "removed"
+    }
+  },
+  
+  "perplexity": {
+    "platform_id": "perplexity",
+    "url_pattern": "https://www.perplexity.ai/search/*",
+    "thread_id_source": "url",
+    "thread_id_regex": "perplexity\\.ai/search/([a-zA-Z0-9._-]+)",
+    "selectors": {
+      "messageContainer": ".prose, [data-testid='answer']",
+      "userMessage": ".query-text",
+      "assistantMessage": ".answer-text, .prose",
+      "messageContent": ".prose .whitespace-pre-wrap, .markdown",
+      "inputArea": "textarea",
+      "sendButton": "button[aria-label='Submit']"
+    },
+    "responseCompleteSignal": {
+      "method": "mutation_observer",
+      "target": ".animate-spin",
+      "condition": "removed"
+    }
+  }
+}

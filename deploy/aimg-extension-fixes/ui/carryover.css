@@ -1,0 +1,147 @@
+/* ═══════════════════════════════════════════════════════════
+   Auto-Carryover System — C3
+   Suggestion card, blocking modal, persistent banner
+   ═══════════════════════════════════════════════════════════ */
+
+/* C3.2: Non-blocking suggestion card */
+.mg-carryover-card {
+  position: fixed;
+  bottom: 24px;
+  right: 24px;
+  width: 380px;
+  z-index: 99990;
+  animation: slideUp 300ms var(--ease-spring);
+  font-family: var(--font-body);
+}
+
+.mg-carryover-card .glass-card {
+  padding: 24px;
+}
+
+.mg-carryover-card .mg-card-title {
+  font-size: var(--text-lg);
+  font-weight: var(--weight-bold);
+  color: var(--text-primary);
+  margin-bottom: 12px;
+  line-height: var(--leading-title);
+}
+
+.mg-carryover-card .mg-card-body {
+  font-size: var(--text-base);
+  line-height: var(--leading-body);
+  color: var(--text-secondary);
+  margin-bottom: 20px;
+}
+
+.mg-carryover-card .mg-card-actions {
+  display: flex;
+  gap: 12px;
+}
+
+.mg-carryover-card .mg-card-actions .btn-primary,
+.mg-carryover-card .mg-card-actions .btn-secondary {
+  flex: 1;
+}
+
+/* C3.3: Blocking modal */
+.mg-carryover-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.6);
+  z-index: 99999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  animation: fadeIn 200ms var(--ease-smooth);
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.mg-carryover-modal {
+  width: 440px;
+  animation: modalIn 250ms var(--ease-smooth);
+  font-family: var(--font-body);
+}
+
+.mg-carryover-modal .glass-card {
+  padding: 32px;
+}
+
+.mg-carryover-modal .mg-modal-title {
+  font-size: var(--text-2xl);
+  font-weight: var(--weight-bold);
+  color: var(--text-primary);
+  margin-bottom: 16px;
+  line-height: var(--leading-title);
+}
+
+.mg-carryover-modal .mg-modal-body {
+  font-size: var(--text-base);
+  line-height: var(--leading-body);
+  color: var(--text-secondary);
+  margin-bottom: 20px;
+}
+
+.mg-carryover-modal .mg-modal-summary-box {
+  background: var(--brand-surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  padding: 16px;
+  margin-bottom: 24px;
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
+  line-height: var(--leading-body);
+}
+
+.mg-carryover-modal .mg-modal-summary-box strong {
+  color: var(--text-primary);
+  font-weight: var(--weight-semibold);
+}
+
+.mg-carryover-modal .mg-modal-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.mg-carryover-modal .mg-modal-actions button {
+  width: 100%;
+}
+
+/* C3.4: Persistent top banner */
+.mg-carryover-banner {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 44px;
+  z-index: 99999;
+  background: rgba(239, 68, 68, 0.95);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  font-family: var(--font-body);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-semibold);
+  color: white;
+  animation: slideDown 300ms var(--ease-smooth);
+}
+
+.mg-carryover-banner a {
+  color: white;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.mg-carryover-banner .mg-banner-dismiss {
+  color: rgba(255, 255, 255, 0.7);
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: var(--text-sm);
+  font-family: var(--font-body);
+}

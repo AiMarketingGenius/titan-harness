@@ -1,0 +1,16 @@
+<!DOCTYPE html>
+<html>
+<head><title>AI Memory Guard - Audio</title></head>
+<body>
+  <audio id="chime" src="assets/alert-chime.mp3" preload="auto"></audio>
+  <script>
+    chrome.runtime.onMessage.addListener((msg) => {
+      if (msg.type === 'PLAY_DANGER_CHIME') {
+        const audio = document.getElementById('chime');
+        audio.volume = 0.4;
+        audio.play().catch(() => {});
+      }
+    });
+  </script>
+</body>
+</html>

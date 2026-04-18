@@ -1,0 +1,197 @@
+/* ═══════════════════════════════════════════════════════════
+   QE Notification System — C4
+   Alert cards, fact checker, Einstein panels, inline warnings
+   ═══════════════════════════════════════════════════════════ */
+
+/* C4.2: Bottom-right QE alert card */
+.mg-qe-alert {
+  position: fixed;
+  bottom: 24px;
+  right: 24px;
+  width: 380px;
+  z-index: 99991;
+  animation: slideUp 300ms var(--ease-spring);
+  font-family: var(--font-body);
+}
+
+/* Stack above carryover card */
+.mg-carryover-card + .mg-qe-alert,
+.mg-qe-alert.stacked {
+  bottom: calc(24px + 200px + 16px);
+}
+
+.mg-qe-alert .glass-card {
+  padding: 24px;
+  border: 1px solid var(--qe-important);
+}
+
+.mg-qe-close {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  width: 24px;
+  height: 24px;
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.mg-qe-close:hover {
+  color: var(--text-primary);
+}
+
+.mg-qe-title {
+  font-size: var(--text-lg);
+  font-weight: var(--weight-bold);
+  color: var(--text-primary);
+  margin-bottom: 8px;
+}
+
+.mg-qe-body {
+  font-size: var(--text-base);
+  color: var(--text-secondary);
+  line-height: var(--leading-body);
+  margin-bottom: 20px;
+}
+
+.mg-qe-actions {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.mg-qe-actions button {
+  flex: 1;
+}
+
+.mg-qe-dismiss {
+  text-align: center;
+}
+
+/* C4.3: Inline warning marker */
+.ai-memory-inline-warning {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  width: 22px;
+  height: 22px;
+  cursor: pointer;
+  color: var(--qe-important);
+  opacity: 0.8;
+  transition: all var(--duration-fast) var(--ease-smooth);
+  z-index: 10;
+  background: none;
+  border: none;
+  font-size: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.ai-memory-inline-warning:hover {
+  opacity: 1;
+  transform: scale(1.15);
+}
+
+.ai-memory-inline-warning::after {
+  content: 'Potential conflict with your stored facts. Click to review.';
+  position: absolute;
+  right: 28px;
+  top: 0;
+  background: var(--brand-dark);
+  color: var(--text-primary);
+  font-size: var(--text-xs);
+  padding: 8px 12px;
+  border-radius: var(--radius-sm);
+  white-space: nowrap;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity var(--duration-fast);
+  font-family: var(--font-body);
+}
+
+.ai-memory-inline-warning:hover::after {
+  opacity: 1;
+}
+
+/* C4.4: Fact Checker result panel */
+.mg-fact-checker {
+  width: 400px;
+}
+
+.mg-fact-checker .glass-card {
+  padding: 24px;
+}
+
+.mg-fact-result {
+  background: var(--brand-surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  padding: 16px;
+  margin-bottom: 20px;
+}
+
+.mg-fact-result-status {
+  font-size: var(--text-sm);
+  font-weight: var(--weight-bold);
+  margin-bottom: 12px;
+}
+
+.mg-fact-result-status.conflict {
+  color: var(--qe-critical);
+}
+
+.mg-fact-result-status.pass {
+  color: var(--qe-optimize);
+}
+
+.mg-fact-result-body {
+  font-size: var(--text-base);
+  color: var(--text-secondary);
+  line-height: var(--leading-body);
+  margin-bottom: 12px;
+}
+
+.mg-fact-result-source {
+  font-size: var(--text-sm);
+  color: var(--text-muted);
+}
+
+.mg-confidence-bar {
+  width: 100%;
+  height: 6px;
+  background: var(--brand-surface-light);
+  border-radius: 3px;
+  margin-top: 8px;
+  overflow: hidden;
+}
+
+.mg-confidence-bar-fill {
+  height: 100%;
+  background: var(--brand-primary);
+  border-radius: 3px;
+  transition: width 0.5s var(--ease-smooth);
+}
+
+/* C4.5: Einstein panel */
+.mg-einstein-blurred {
+  filter: blur(8px);
+  user-select: none;
+  pointer-events: none;
+}
+
+.mg-einstein-revealed {
+  animation: unblur 500ms ease-out;
+}
+
+.mg-einstein-credits {
+  font-size: var(--text-sm);
+  color: var(--text-muted);
+  text-align: center;
+  margin-top: 8px;
+}

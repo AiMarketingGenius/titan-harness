@@ -1,0 +1,536 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=400, initial-scale=1.0">
+  <title>AI Memory Guard</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    
+    body {
+      width: 400px;
+      min-height: 500px;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: #0f0f23;
+      color: #e0e0e0;
+    }
+
+    .header {
+      background: linear-gradient(135deg, #1a1a3e 0%, #2d1b69 100%);
+      padding: 16px 20px;
+      border-bottom: 1px solid #333;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .header h1 {
+      font-size: 18px;
+      font-weight: 600;
+      color: #fff;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .header .version {
+      font-size: 11px;
+      color: #888;
+      font-weight: 400;
+    }
+
+    .header-actions {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+    }
+
+    .btn-icon {
+      background: none;
+      border: none;
+      color: #888;
+      cursor: pointer;
+      font-size: 13px;
+      padding: 4px 8px;
+      border-radius: 4px;
+      transition: all 0.2s;
+    }
+
+    .btn-icon:hover {
+      color: #fff;
+      background: rgba(255,255,255,0.1);
+    }
+
+    .status-bar {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      padding: 10px 20px;
+      background: #161630;
+      border-bottom: 1px solid #222;
+      font-size: 12px;
+    }
+
+    .status-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .status-indicator {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .status-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: #4ade80;
+      box-shadow: 0 0 0 2px rgba(74, 222, 128, 0.15);
+    }
+
+    .status-dot.offline { background: #ef4444; }
+    .status-dot.syncing { background: #f59e0b; animation: pulse 1s infinite; }
+
+    .sync-meta {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 11px;
+      color: #94a3b8;
+    }
+
+    .pending-badge {
+      display: none;
+      align-items: center;
+      gap: 4px;
+      padding: 2px 8px;
+      border-radius: 10px;
+      background: rgba(245, 158, 11, 0.15);
+      border: 1px solid rgba(245, 158, 11, 0.4);
+      color: #fbbf24;
+      font-size: 10px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.3px;
+    }
+
+    .sync-retry-btn {
+      display: none;
+      align-items: center;
+      padding: 3px 10px;
+      border-radius: 10px;
+      background: #1a1a3e;
+      border: 1px solid #2a2a5e;
+      color: #818cf8;
+      font-size: 10px;
+      font-weight: 600;
+      cursor: pointer;
+      text-transform: uppercase;
+      letter-spacing: 0.3px;
+      transition: all 0.15s;
+    }
+
+    .sync-retry-btn:hover:not(:disabled) {
+      background: #2a2a5e;
+      color: #a5b4fc;
+    }
+
+    .sync-retry-btn:disabled {
+      opacity: 0.6;
+      cursor: wait;
+    }
+
+    .sync-error-detail {
+      display: none;
+      padding: 6px 8px;
+      background: rgba(239, 68, 68, 0.08);
+      border-radius: 6px;
+      color: #fca5a5;
+      font-size: 10.5px;
+      line-height: 1.4;
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.4; }
+    }
+
+    .stats-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 12px;
+      padding: 16px 20px;
+    }
+
+    .stat-card {
+      background: #1a1a3e;
+      border: 1px solid #2a2a5e;
+      border-radius: 8px;
+      padding: 12px;
+      text-align: center;
+    }
+
+    .stat-card .number {
+      font-size: 24px;
+      font-weight: 700;
+      color: #818cf8;
+    }
+
+    .stat-card .label {
+      font-size: 10px;
+      color: #888;
+      text-transform: uppercase;
+      margin-top: 4px;
+    }
+
+    .search-box {
+      padding: 12px 20px;
+    }
+
+    .search-box input {
+      width: 100%;
+      padding: 10px 14px;
+      background: #1a1a3e;
+      border: 1px solid #2a2a5e;
+      border-radius: 8px;
+      color: #e0e0e0;
+      font-size: 13px;
+      outline: none;
+    }
+
+    .search-box input:focus {
+      border-color: #818cf8;
+    }
+
+    .search-box input::placeholder {
+      color: #555;
+    }
+
+    .section-title {
+      padding: 8px 20px;
+      font-size: 11px;
+      color: #666;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .memory-list {
+      padding: 0 20px 16px;
+      max-height: 250px;
+      overflow-y: auto;
+    }
+
+    .memory-item {
+      background: #1a1a3e;
+      border: 1px solid #2a2a5e;
+      border-radius: 8px;
+      padding: 10px 12px;
+      margin-bottom: 8px;
+      font-size: 12px;
+      line-height: 1.4;
+    }
+
+    .memory-item .meta {
+      display: flex;
+      justify-content: space-between;
+      margin-top: 6px;
+      font-size: 10px;
+      color: #666;
+    }
+
+    .memory-item .type-badge {
+      display: inline-block;
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-size: 9px;
+      font-weight: 600;
+      text-transform: uppercase;
+    }
+
+    .type-fact { background: #1e3a5f; color: #60a5fa; }
+    .type-decision { background: #3b1f5e; color: #a78bfa; }
+    .type-correction { background: #5f1e1e; color: #f87171; }
+    .type-action { background: #1e5f3a; color: #4ade80; }
+
+    .platform-icon {
+      width: 14px;
+      height: 14px;
+      border-radius: 3px;
+      display: inline-block;
+      vertical-align: middle;
+    }
+
+    .footer {
+      padding: 12px 20px;
+      border-top: 1px solid #222;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 11px;
+      color: #555;
+    }
+
+    .footer a {
+      color: #818cf8;
+      text-decoration: none;
+    }
+
+    .tier-badge {
+      padding: 3px 8px;
+      border-radius: 4px;
+      font-size: 10px;
+      font-weight: 600;
+      text-transform: uppercase;
+    }
+
+    .tier-free { background: #1a3a1a; color: #4ade80; }
+    .tier-pro { background: #3b1f5e; color: #a78bfa; }
+    .tier-proplus { background: #5f3a1e; color: #fbbf24; }
+
+    /* Auth section styles */
+    #auth-section {
+      padding: 20px;
+    }
+
+    .auth-container {
+      max-width: 320px;
+      margin: 0 auto;
+    }
+
+    .auth-container .icon {
+      font-size: 40px;
+      text-align: center;
+      margin-bottom: 12px;
+    }
+
+    .auth-container > p {
+      text-align: center;
+      margin-bottom: 16px;
+      color: #888;
+      font-size: 13px;
+    }
+
+    .auth-form {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .auth-form input {
+      width: 100%;
+      padding: 10px 14px;
+      background: #1a1a3e;
+      border: 1px solid #2a2a5e;
+      border-radius: 8px;
+      color: #e0e0e0;
+      font-size: 13px;
+      outline: none;
+    }
+
+    .auth-form input:focus {
+      border-color: #818cf8;
+    }
+
+    .auth-form input::placeholder {
+      color: #555;
+    }
+
+    .auth-form button {
+      padding: 10px 24px;
+      background: #818cf8;
+      color: #fff;
+      border: none;
+      border-radius: 8px;
+      font-size: 14px;
+      cursor: pointer;
+      font-weight: 600;
+      transition: background 0.2s;
+    }
+
+    .auth-form button:hover {
+      background: #6366f1;
+    }
+
+    .auth-form button:disabled {
+      background: #555;
+      cursor: not-allowed;
+    }
+
+    .auth-error {
+      color: #ef4444;
+      font-size: 12px;
+      text-align: center;
+      display: none;
+    }
+
+    .auth-toggle {
+      text-align: center;
+      font-size: 11px;
+      color: #555;
+      margin-top: 8px;
+    }
+
+    .auth-toggle a {
+      color: #818cf8;
+      text-decoration: none;
+      cursor: pointer;
+    }
+
+    .empty-state {
+      text-align: center;
+      padding: 40px 20px;
+      color: #555;
+    }
+
+    .empty-state .icon {
+      font-size: 40px;
+      margin-bottom: 12px;
+    }
+
+    /* Settings panel */
+    #settings-panel {
+      display: none;
+      padding: 20px;
+    }
+
+    #settings-panel h2 {
+      font-size: 16px;
+      margin-bottom: 16px;
+      color: #fff;
+    }
+
+    .settings-item {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 10px 0;
+      border-bottom: 1px solid #222;
+      font-size: 13px;
+    }
+
+    .settings-item label {
+      color: #ccc;
+    }
+
+    .settings-back {
+      background: none;
+      border: none;
+      color: #818cf8;
+      cursor: pointer;
+      font-size: 13px;
+      padding: 0;
+      margin-bottom: 12px;
+    }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <h1>AI Memory Guard <span class="version">v0.1.0</span></h1>
+    <div class="header-actions" id="header-actions" style="display: none;">
+      <button class="btn-icon" id="logout-btn" title="Sign Out">Sign Out</button>
+    </div>
+  </div>
+
+  <!-- Authenticated view -->
+  <div id="app-section" style="display: none;">
+    <div class="status-bar">
+      <div class="status-row">
+        <div class="status-indicator">
+          <div class="status-dot" id="status-dot"></div>
+          <span id="status-text">Syncing live</span>
+        </div>
+        <div class="sync-meta">
+          <span class="pending-badge" id="pending-badge">0 pending</span>
+          <button type="button" class="sync-retry-btn" id="sync-retry-btn">Retry sync</button>
+          <span class="tier-badge tier-free" id="tier-badge">FREE</span>
+        </div>
+      </div>
+      <div class="status-row">
+        <span id="last-saved" style="font-size: 11px; color: #94a3b8;">Checking sync status…</span>
+      </div>
+      <div class="sync-error-detail" id="sync-error-detail"></div>
+    </div>
+
+    <div class="stats-grid">
+      <div class="stat-card">
+        <div class="number" id="stat-memories">0</div>
+        <div class="label">Memories</div>
+      </div>
+      <div class="stat-card">
+        <div class="number" id="stat-sessions">0</div>
+        <div class="label">Sessions</div>
+      </div>
+      <div class="stat-card">
+        <div class="number" id="stat-weekly">0/50</div>
+        <div class="label">This Week</div>
+      </div>
+    </div>
+
+    <div class="search-box">
+      <input type="text" id="search-input" placeholder="Search your memories..." />
+    </div>
+
+    <div class="section-title">Recent Memories</div>
+    <div class="memory-list" id="memory-list">
+      <div class="empty-state">
+        <div class="icon">&#x1f9e0;</div>
+        <p>No memories yet. Start a conversation on any AI platform.</p>
+      </div>
+    </div>
+
+    <div class="footer">
+      <span>Memories sync across all platforms</span>
+      <a href="#" id="settings-link">Settings</a>
+    </div>
+  </div>
+
+  <!-- Settings panel -->
+  <div id="settings-panel">
+    <button class="settings-back" id="settings-back">&#8592; Back</button>
+    <h2>Settings</h2>
+    <div class="settings-item">
+      <label>Thread Health Meter</label>
+      <input type="checkbox" id="setting-thread-health" checked />
+    </div>
+    <div class="settings-item">
+      <label>Sound Alerts</label>
+      <input type="checkbox" id="setting-sound" checked />
+    </div>
+    <div class="settings-item">
+      <label>Warning Bar</label>
+      <input type="checkbox" id="setting-warning-bar" checked />
+    </div>
+    <div class="settings-item">
+      <label>Fact Checker</label>
+      <input type="checkbox" id="setting-fact-checker" checked />
+    </div>
+    <div style="margin-top: 20px; text-align: center;">
+      <a href="#" id="settings-save" style="color: #818cf8; font-size: 13px;">Save Settings</a>
+    </div>
+  </div>
+
+  <!-- Unauthenticated view -->
+  <div id="auth-section">
+    <div class="auth-container">
+      <div class="icon">&#x1f510;</div>
+      <p>Sign in to sync your AI memories across platforms</p>
+      <form class="auth-form" id="auth-form">
+        <input type="email" id="auth-email" placeholder="Email" required autocomplete="email" />
+        <input type="password" id="auth-password" placeholder="Password" required autocomplete="current-password" minlength="6" />
+        <div class="auth-error" id="auth-error"></div>
+        <button type="submit" id="auth-submit-btn">Sign In</button>
+      </form>
+      <div class="auth-toggle">
+        <span id="auth-toggle-text">No account yet?</span>
+        <a id="auth-toggle-link">Sign up free</a>
+      </div>
+    </div>
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+</html>

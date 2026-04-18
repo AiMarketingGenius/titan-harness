@@ -1,0 +1,60 @@
+{
+  "version": "1.0",
+  "description": "Pre-canned Einstein Fact Checker responses for Monday Don Martelli demo. Service worker matches incoming captures against these patterns before (or in parallel with) the live Haiku 4.5 / Sonar pipeline so the demo's verified/flagged badges render deterministically. Selective-mock path per Solon directive 2026-04-18T19:58Z (demo hero beats may use pre-scripted verifications).",
+  "tenant": "revere-chamber",
+  "tenant_display_name": "Revere Chamber of Commerce",
+  "seeded_at": "2026-04-18",
+  "claims": [
+    {
+      "id": "revere-board-chair",
+      "pattern_keywords": ["Don Martelli", "Board Chair", "Revere Chamber"],
+      "require_any": [["Don Martelli"], ["Board Chair", "chairman", "chair"]],
+      "canonical_claim": "Don Martelli is Board Chair of the Revere Chamber of Commerce (term 2024–2026).",
+      "state": "verified",
+      "confidence": 0.97,
+      "sources": [
+        {"title": "Revere Chamber board roster — public listing", "url": "https://reverechamber.org/board"},
+        {"title": "Martelli Marketing Group — LinkedIn company page (founder history)", "url": "https://linkedin.com/company/martelli-marketing-group"}
+      ],
+      "badge_copy": "Don Martelli · Revere Chamber Board Chair verified"
+    },
+    {
+      "id": "revere-member-count",
+      "pattern_keywords": ["280", "member", "Revere"],
+      "require_any": [["280", "approximately 280", "~280"], ["member", "members", "businesses"]],
+      "canonical_claim": "Revere Chamber of Commerce has approximately 280 active member businesses.",
+      "state": "verified",
+      "confidence": 0.92,
+      "sources": [
+        {"title": "Revere Chamber member directory — public count", "url": "https://reverechamber.org/members"},
+        {"title": "Chamber annual report 2025 — membership section", "url": "https://reverechamber.org/reports/2025"}
+      ],
+      "badge_copy": "Revere Chamber · 280 member businesses verified"
+    },
+    {
+      "id": "revere-gala",
+      "pattern_keywords": ["gala", "annual", "Revere"],
+      "require_any": [["gala", "annual event", "annual dinner"], ["Revere", "Chamber"]],
+      "canonical_claim": "Revere Chamber hosts an annual gala as a signature member event.",
+      "state": "verified",
+      "confidence": 0.88,
+      "sources": [
+        {"title": "Revere Chamber events calendar — annual gala", "url": "https://reverechamber.org/events/gala"}
+      ],
+      "badge_copy": "Revere Chamber annual gala verified"
+    },
+    {
+      "id": "chamber-ai-agency-quote",
+      "pattern_keywords": ["marketing agency", "quote", "$8", "$12"],
+      "require_any": [["agency", "marketing firm"], ["$8k", "$8,000", "$12k", "$12,000", "quoted"]],
+      "canonical_claim": "A typical marketing agency would quote a small business $8K–$15K/month for comparable coverage.",
+      "state": "flagged",
+      "confidence": 0.61,
+      "flag_reason": "Industry range — agency pricing varies by region + service scope. Cross-check against 2–3 local agency price sheets before presenting as a firm number.",
+      "sources": [
+        {"title": "Industry estimate — multiple agency price sheets surveyed", "url": null}
+      ],
+      "badge_copy": "Agency pricing range · needs additional source"
+    }
+  ]
+}
