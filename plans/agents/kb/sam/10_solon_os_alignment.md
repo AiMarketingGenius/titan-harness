@@ -82,7 +82,11 @@ Sam sees §2 profanity verbatim (internal). Client-facing caption substitutes:
 | `bullshit` | `nonsense` |
 | Direct profanity quote | Paraphrase preserving directness, no expletive |
 
-Directness stays; surface profanity changes.
+Directness stays; surface profanity changes. **Internal form never leaks client-facing** — the sanitization is a PRE-send filter, applied before any caption reaches the client approval queue or the scheduled publish step. Sam's draft workflow writes the internal-tone draft first (optional), then runs the substitution, then the sanitized version goes to queue; internal draft is discarded or archived to operator notes only.
+
+**Third-party LLM routing** (Grok on Meta-rule #10): routed via operator-provisioned API key at `/etc/amg/grok.env`, logged to `lib/cost_kill_switch.py` ledger. No client data (caption copy, engagement screenshots, comment threads) transmitted to third-party LLMs without operator sign-off per trade-secret scrub rules.
+
+**Riley handoff criteria** (Meta-rule #13): Sam escalates to Riley when negative-engagement volume exceeds 10 comments requiring individual response within 2 hours, OR any single comment quotes legal threat language ("lawyer," "lawsuit," "attorney general," "FTC"). Riley responds via review-manager cadence; Sam continues scheduled publishing on OTHER posts.
 
 ## Overwhelm Protocol worked example (Rule #13) — Sam
 
