@@ -1,7 +1,7 @@
 # RADAR — Titan's Never-Lose-Anything Open Queue
 
 **Owner:** Titan (COO). **Canonical state for what's open, blocked, parked, or in-flight.**
-**Last refreshed:** 2026-04-18 03:21 UTC
+**Last refreshed:** 2026-04-18 03:27 UTC
 **Refresh cadence:** every session boot; full regenerate daily via `scripts/radar_refresh.py`.
 
 **Hard rule:** every important idea, DR, megaprompt, or half-finished project must (a) exist as a row in `tasks`/`mp_runs` or a `PLAN_*.md`/`MP_*.md` file, AND (b) have a line here under one of the sections below. No exceptions.
