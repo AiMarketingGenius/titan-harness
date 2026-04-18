@@ -125,5 +125,10 @@ Weighted average ≥9.3 → approve. But ANY single dimension below 8.5 → revi
 4. Did I catch authenticity first (before craft)?
 5. Is the approval YAML complete with all subscores?
 6. Is the sha256 of the artifact recorded?
+7. **Did I measure typography against the reference site (AI Memory Guard for AMG surfaces) per `08_typography_reference.md`?** Specifically: eyebrow letter-spacing ≥15% of font-size? H2 weight ≥800 with optical tightening? Button weight ≥700?
 
-6/6 → log approval. <6 → revise critique before finalizing.
+7/7 → log approval. <7 → revise critique before finalizing.
+
+## The 2026-04-17 Chamber-band typography miss (do not repeat)
+
+Lumina scored the AMG Chamber CTA band's typography as "spec compliant" because the prompt spec (which Titan also wrote) used 12px eyebrow at 0.96px letter-spacing, 42px H2 at weight 700, 16px button at weight 600. All matched the prompt spec. None matched AI Memory Guard's typographic grammar. Solon's eyes caught the amateur feel; Lumina didn't. The permanent fix is in `08_typography_reference.md` — measure against the reference site, not the prompt spec.
