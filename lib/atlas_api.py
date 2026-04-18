@@ -3178,6 +3178,218 @@ async def aimg_admin_serve() -> Response:
 # ─── end /aimg-admin block ────────────────────────────────────────────────────
 
 
+# ─── MOBILE COMMAND v2 AUTH + LIFECYCLE ENDPOINTS (Step 6.3 mount) ────────────
+# 12 endpoints per plans/PLAN_MOBILE_COMMAND_V2_AUTH_ARCHITECTURE.md (commit 26044ac):
+#   8 auth endpoints delegate to lib/mobile_cmd_auth (Step 6.1 module, commit 75e9ac6).
+#   4 lifecycle endpoints delegate to lib/mobile_lifecycle (this step, commit TBD).
+#
+# Schema dependency: sql/008_mobile_cmd_auth.sql (Step 6.2, commit 2b711ae) —
+# apply to Supabase BEFORE auth endpoints receive live traffic.
+#
+# Optional dependencies (webauthn, pyjwt, pywebpush) — imported via try/except so
+# atlas_api.py still boots cleanly if the stack isn't yet pip-installed on the host.
+# Missing-dep calls raise 503 with a clear error rather than crashing the service.
+try:
+    from lib import mobile_cmd_auth as _mca  # type: ignore
+    _MCA_AVAILABLE = True
+except Exception as _mca_exc:
+    _mca = None
+    _MCA_AVAILABLE = False
+    print(f"[atlas-api] mobile_cmd_auth unavailable: {_mca_exc}", file=sys.stderr)
+
+try:
+    from lib import mobile_lifecycle as _mlc  # type: ignore
+    _MLC_AVAILABLE = True
+except Exception as _mlc_exc:
+    _mlc = None
+    _MLC_AVAILABLE = False
+    print(f"[atlas-api] mobile_lifecycle unavailable: {_mlc_exc}", file=sys.stderr)
+
+
+def _mobile_dep_error(module_name: str) -> JSONResponse:
+    """Uniform 503 when a mobile-command dep is missing."""
+    return JSONResponse(
+        status_code=503,
+        content={
+            "error": "mobile_command_module_unavailable",
+            "module": module_name,
+            "hint": "verify pip install webauthn pyjwt pywebpush httpx on the host + redeploy",
+        },
+    )
+
+
+# --- AUTH — WebAuthn enrollment ---------------------------------------------
+
+@app.post("/api/auth/webauthn/register-begin")
+async def mobile_auth_register_begin(request: Request) -> JSONResponse:
+    """Begin a WebAuthn platform-authenticator enrollment for an operator.
+
+    STUB at Step 6.3: returns a 501 until a Supabase-backed credential_store +
+    challenge_store adapter lands (follow-up 6.3-b). Handler wiring proves
+    the route is mounted + visible to the PWA client.
+    """
+    if not _MCA_AVAILABLE:
+        return _mobile_dep_error("mobile_cmd_auth")
+    return JSONResponse(status_code=501, content={
+        "error": "not_implemented_yet",
+        "step": "6.3-b",
+        "note": "Supabase RefreshTokenStore + challenge store adapter pending",
+        "module_loaded": True,
+    })
+
+
+@app.post("/api/auth/webauthn/register-verify")
+async def mobile_auth_register_verify(request: Request) -> JSONResponse:
+    if not _MCA_AVAILABLE:
+        return _mobile_dep_error("mobile_cmd_auth")
+    return JSONResponse(status_code=501, content={
+        "error": "not_implemented_yet", "step": "6.3-b", "module_loaded": True,
+    })
+
+
+# --- AUTH — WebAuthn sign-in ------------------------------------------------
+
+@app.post("/api/auth/webauthn/authenticate-begin")
+async def mobile_auth_authenticate_begin(request: Request) -> JSONResponse:
+    if not _MCA_AVAILABLE:
+        return _mobile_dep_error("mobile_cmd_auth")
+    return JSONResponse(status_code=501, content={
+        "error": "not_implemented_yet", "step": "6.3-b", "module_loaded": True,
+    })
+
+
+@app.post("/api/auth/webauthn/authenticate-verify")
+async def mobile_auth_authenticate_verify(request: Request) -> JSONResponse:
+    if not _MCA_AVAILABLE:
+        return _mobile_dep_error("mobile_cmd_auth")
+    return JSONResponse(status_code=501, content={
+        "error": "not_implemented_yet", "step": "6.3-b", "module_loaded": True,
+    })
+
+
+# --- AUTH — JWT refresh + revoke --------------------------------------------
+
+@app.post("/api/auth/refresh")
+async def mobile_auth_refresh(request: Request) -> JSONResponse:
+    if not _MCA_AVAILABLE:
+        return _mobile_dep_error("mobile_cmd_auth")
+    return JSONResponse(status_code=501, content={
+        "error": "not_implemented_yet", "step": "6.3-b", "module_loaded": True,
+    })
+
+
+@app.post("/api/auth/revoke")
+async def mobile_auth_revoke(request: Request) -> JSONResponse:
+    if not _MCA_AVAILABLE:
+        return _mobile_dep_error("mobile_cmd_auth")
+    return JSONResponse(status_code=501, content={
+        "error": "not_implemented_yet", "step": "6.3-b", "module_loaded": True,
+    })
+
+
+# --- PUSH — subscribe / send / unsubscribe ----------------------------------
+
+@app.post("/api/push/subscribe")
+async def mobile_push_subscribe(request: Request) -> JSONResponse:
+    if not _MCA_AVAILABLE:
+        return _mobile_dep_error("mobile_cmd_auth")
+    return JSONResponse(status_code=501, content={
+        "error": "not_implemented_yet", "step": "6.3-b", "module_loaded": True,
+    })
+
+
+@app.post("/api/push/send")
+async def mobile_push_send(request: Request) -> JSONResponse:
+    if not _MCA_AVAILABLE:
+        return _mobile_dep_error("mobile_cmd_auth")
+    return JSONResponse(status_code=501, content={
+        "error": "not_implemented_yet", "step": "6.3-b", "module_loaded": True,
+    })
+
+
+@app.delete("/api/push/subscription/{sub_id}")
+async def mobile_push_unsubscribe(sub_id: str, request: Request) -> JSONResponse:
+    if not _MCA_AVAILABLE:
+        return _mobile_dep_error("mobile_cmd_auth")
+    return JSONResponse(status_code=501, content={
+        "error": "not_implemented_yet", "sub_id": sub_id, "step": "6.3-b",
+        "module_loaded": True,
+    })
+
+
+# --- LIFECYCLE — mobile session control -------------------------------------
+# These are wired live via lib/mobile_lifecycle (self-contained; MCP-backed,
+# stubbed at the actual claude-CLI-process-control level per 6.3-b).
+
+@app.get("/api/mobile/claude/status")
+async def mobile_claude_status_endpoint() -> JSONResponse:
+    """Reads the latest session-heartbeat from MCP. Always available — even
+    if mobile_cmd_auth / webauthn / pywebpush are not yet installed."""
+    if not _MLC_AVAILABLE:
+        return _mobile_dep_error("mobile_lifecycle")
+    try:
+        return JSONResponse(content=_mlc.mobile_claude_status())
+    except Exception as exc:
+        return JSONResponse(status_code=500, content={
+            "error": "lifecycle_status_failed", "detail": str(exc)[:200],
+        })
+
+
+@app.post("/api/mobile/claude/stop")
+async def mobile_claude_stop_endpoint(request: Request) -> JSONResponse:
+    if not _MLC_AVAILABLE:
+        return _mobile_dep_error("mobile_lifecycle")
+    try:
+        body = await request.json()
+    except Exception:
+        body = {}
+    operator_id = str(body.get("operator_id", "unknown"))
+    reason = str(body.get("reason", "mobile_stop_endpoint"))
+    try:
+        return JSONResponse(content=_mlc.mobile_claude_stop(operator_id, reason=reason))
+    except Exception as exc:
+        return JSONResponse(status_code=500, content={
+            "error": "lifecycle_stop_failed", "detail": str(exc)[:200],
+        })
+
+
+@app.post("/api/mobile/claude/start")
+async def mobile_claude_start_endpoint(request: Request) -> JSONResponse:
+    if not _MLC_AVAILABLE:
+        return _mobile_dep_error("mobile_lifecycle")
+    try:
+        body = await request.json()
+    except Exception:
+        body = {}
+    operator_id = str(body.get("operator_id", "unknown"))
+    try:
+        return JSONResponse(content=_mlc.mobile_claude_start(operator_id))
+    except Exception as exc:
+        return JSONResponse(status_code=500, content={
+            "error": "lifecycle_start_failed", "detail": str(exc)[:200],
+        })
+
+
+@app.post("/api/mobile/claude/reset")
+async def mobile_claude_reset_endpoint(request: Request) -> JSONResponse:
+    if not _MLC_AVAILABLE:
+        return _mobile_dep_error("mobile_lifecycle")
+    try:
+        body = await request.json()
+    except Exception:
+        body = {}
+    operator_id = str(body.get("operator_id", "unknown"))
+    try:
+        return JSONResponse(content=_mlc.mobile_claude_reset(operator_id))
+    except Exception as exc:
+        return JSONResponse(status_code=500, content={
+            "error": "lifecycle_reset_failed", "detail": str(exc)[:200],
+        })
+
+
+# ─── end Mobile Command v2 Step 6.3 router mount ──────────────────────────────
+
+
 if __name__ == "__main__":  # pragma: no cover
     import uvicorn
     port = int(os.environ.get("ATLAS_API_PORT", "8081"))
