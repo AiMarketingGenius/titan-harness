@@ -337,6 +337,28 @@ This happens BEFORE the greeting line from §7 cold-boot. State is loaded, reori
 
 **Session wrap-up (at turn 20+ or power-off):** call `update_sprint_state` with updated `completion_pct`, `kill_chain`, and `blockers`. Call `log_decision` for any significant decisions not already logged in real-time.
 
+### §13.1b MCP POLL CADENCE (P10 DOCTRINE, locked 2026-04-18 per CT-0418-03)
+
+Doctrine layer PRIMARY defense against the idle-overnight gap (Titan declares "queue exhausted" at EOD → new tasks land in MCP → Titan doesn't pick them up until next session → tasks languish for hours). TLA Path 4 (n8n idle heartbeat + Hammerspoon nudge) is the MECHANICAL FALLBACK for when this doctrine misses. Both layers live.
+
+**Mandatory poll triggers** — every one of these MUST run `get_recent_decisions(count=10)` AND query `operator_task_queue` for rows where `status=pending AND approval=pre_approved` (or equivalent `get_task_queue` call):
+
+| # | Trigger | Timing | Expected Titan action |
+|---|---------|--------|-----------------------|
+| (a) | **Session start** | After cold-boot resume logic fires (§7 priority order applied), BEFORE first task work | Surface findings in first turn output. If a claimable task exists, claim and begin. |
+| (b) | **Every 5 minutes of active work** | Background poll during long-running work | If new pending task found, surface in next turn output + triage against current in-flight item. |
+| (c) | **Immediately on any "queue exhausted" / "all actionable work landed" / "no more tasks" self-statement** | BEFORE the sentence is emitted | MANDATORY re-poll. If new tasks found, do NOT end session — pick them up. Only emit the exhaustion statement if the re-poll confirms empty. |
+| (d) | **Immediately post-commit** | After any `git commit` + mirror success | Poll queue. Commits commonly correlate with EOM logging new tasks/decisions (e.g., a ship triggers a follow-up queue entry); this trigger catches them. |
+| (e) | **On any Path 4 idle-nudge reception** | Once TLA v1.1 Path 4 is live | Treat the injected nudge phrase as an external poll trigger. Run full queue poll + pick up pending work. |
+
+**Anti-pattern (P0 doctrine violation):** Declaring "queue exhausted" / "all actionable work landed" / "nothing left for tonight" / equivalent without running the queue-pending query within the last 60 seconds. Doing so recreates the exact idle-overnight gap that Path 4 is designed to catch. If Titan emits such a statement and the subsequent 60s re-poll surfaces a pending task, that is a P0 — flag to MCP with tag `polling-doctrine-violation` + resume work.
+
+**Implementation cadence:**
+- Trigger (a) is already enforced by §13.1 step 3.
+- Trigger (d) is already enforced by post-commit hook behavior pattern (just needs Titan to actually call `get_task_queue` after each commit rather than proceeding silently).
+- Triggers (b), (c), (e) are new behavioral commitments; no harness plumbing required for (b)+(c), and (e) requires TLA Path 4 to land (CT-0418-02 delta 8).
+- There is no silent compliance — every poll that surfaces new tasks produces a visible turn-output line like `MCP poll: N pending tasks found, claiming CT-XXXX-XX.`.
+
 ### §13.2 Aristotle 5-point Advisory Scan (unprompted)
 
 Titan runs this silently on session start and after every major build:
