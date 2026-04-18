@@ -182,8 +182,14 @@ def issue_access_token(
     private_key: str,
     scope: str = "command",
     ttl_seconds: int = ACCESS_TOKEN_TTL_SECONDS,
+    tenant_id: uuid.UUID | None = None,
 ) -> tuple[str, _dt.datetime]:
     """Issue an RS256 JWT access token for the given operator.
+
+    Step 7.2 (multi-tenant): tenant_id claim is now part of the token.
+    atlas_api reads it to set amg.tenant_id session GUC before every
+    tenant-scoped DB query. Defaults to the amg-internal tenant when None
+    (back-compat with single-operator Step 6.x code paths).
 
     Returns (token_string, expiry_datetime).
     """
@@ -196,6 +202,7 @@ def issue_access_token(
         "iat": int(now.timestamp()),
         "exp": int(exp.timestamp()),
         "scope": scope,
+        "tenant_id": str(tenant_id) if tenant_id else "00000000-0000-0000-0000-000000000001",
     }
     token = pyjwt.encode(payload, private_key, algorithm=JWT_ALGORITHM)
     return token, exp
@@ -249,18 +256,21 @@ def issue_jwt_pair(
     store: RefreshTokenStore,
     jwt_private_key: str,
     family_id: uuid.UUID | None = None,
+    tenant_id: uuid.UUID | None = None,
 ) -> JWTPair:
     """Issue a fresh JWT access + refresh pair.
 
     If family_id is None, generate a new family (new enrollment / new login).
     If provided, extend an existing family (rotation path).
+    tenant_id propagates to the access token's tenant_id claim (Step 7.2).
     """
     now = _now_utc()
     if family_id is None:
         family_id = uuid.uuid4()
 
     access_token, access_exp = issue_access_token(
-        operator_id, jwt_private_key, scope="command", ttl_seconds=ACCESS_TOKEN_TTL_SECONDS
+        operator_id, jwt_private_key, scope="command",
+        ttl_seconds=ACCESS_TOKEN_TTL_SECONDS, tenant_id=tenant_id,
     )
 
     refresh_raw = _new_opaque_token()
@@ -293,6 +303,7 @@ def rotate_refresh_token(
     presented_refresh_raw: str,
     store: RefreshTokenStore,
     jwt_private_key: str,
+    tenant_id: uuid.UUID | None = None,
 ) -> JWTPair:
     """Rotate a refresh token: validate + mark-used + issue new pair.
 
@@ -300,6 +311,9 @@ def rotate_refresh_token(
     - If token expired → raise TokenExpired.
     - If token not found → raise TokenNotFound.
     - Otherwise: mark used, issue new pair in same family.
+
+    Step 7.2: tenant_id preserved across rotations (caller passes the tenant
+    derived from the token's original tenant_id claim OR from operator lookup).
     """
     token_hash = _sha256(presented_refresh_raw)
     record = store.find_by_hash(token_hash)
@@ -323,6 +337,7 @@ def rotate_refresh_token(
         store=store,
         jwt_private_key=jwt_private_key,
         family_id=record.family_id,
+        tenant_id=tenant_id,
     )
     store.mark_used(record.id, replaced_by=None)
     return new_pair
