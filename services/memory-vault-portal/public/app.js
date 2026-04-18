@@ -91,12 +91,26 @@ async function checkAuth() {
 function showLogin() {
   els.login.hidden = false;
   els.dashboard.hidden = true;
+  // Belt-and-suspenders: also clear inline display overrides we might have set.
+  els.login.style.display = '';
+  els.dashboard.style.display = '';
+  // Reset the login form so prior status text doesn't bleed through.
+  if (els.loginError) {
+    els.loginError.hidden = true;
+    els.loginError.textContent = '';
+  }
+  if (els.loginBtn) els.loginBtn.disabled = false;
+  try { window.scrollTo(0, 0); } catch (_) {}
 }
 
 async function showDashboard() {
   els.login.hidden = true;
   els.dashboard.hidden = false;
+  els.login.style.display = 'none';
+  els.dashboard.style.display = '';
   els.topbarUser.textContent = state.user.email || state.user.id;
+  // Page-transition feel: scroll to top so dashboard fills viewport from the top.
+  try { window.scrollTo({ top: 0, left: 0, behavior: 'instant' }); } catch (_) { window.scrollTo(0, 0); }
   await loadMemories();
 }
 

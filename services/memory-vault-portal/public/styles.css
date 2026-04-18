@@ -31,6 +31,11 @@ html, body {
 
 .view { min-height: 100vh; }
 
+/* Force-hide views when [hidden] attribute set — ID selectors otherwise beat
+   the [hidden] { display: none } UA rule, leaving the login card visible
+   under the dashboard post-auth. */
+[hidden] { display: none !important; }
+
 /* ─── LOGIN ─── */
 #login-view {
   display: flex;
