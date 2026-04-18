@@ -247,15 +247,54 @@ def _skip(reason: str, grader: str = 'grok') -> dict[str, Any]:
     }
 
 
-# Haiku-specific rubric — same 5-dimension scoring as Grok, but tighter brevity
-# constraints on reasoning + revision fields because Haiku emits more verbose
-# JSON than Grok and we've seen 2000 tok overflows on large artifacts.
+# Haiku-specific rubric — same 5-dimension scoring as Grok, with STRICT
+# calibration constraints (2026-04-18 Solon directive). Haiku default behavior
+# introduces ops/governance critiques outside the 5-dim content rubric;
+# calibration lock below forces adherence to content-only scoring.
 HAIKU_SYSTEM_PROMPT = GROK_SYSTEM_PROMPT + """
 
-BREVITY CONSTRAINTS (Haiku-specific):
+CALIBRATION LOCK (2026-04-18 — strict, non-overridable):
+
+Your job is ONE thing: score the artifact on the 5 content dimensions
+(requirements_fit, correctness, risk_safety, operability, doctrine_compliance)
+and nothing else.
+
+FORBIDDEN — do NOT score or critique:
+- Deployment scope boundaries ("which sections go to which agents")
+- Consent / IP / licensing layer ("voice cloning needs consent")
+- Profanity-filtering for client-facing use ("should be [INTERNAL ONLY]")
+- Versioning / rollback strategy ("no deprecation path")
+- Source provenance completeness ("cite specific conversation IDs")
+- Sign-off / approval gates ("requires Solon written approval")
+- Injection verification steps ("deployment checklist missing")
+
+These are GOVERNANCE-WRAPPER concerns owned by a separate layer. They are
+OUT OF SCOPE for this rubric. Including them as critical_failures or
+required_revisions is a calibration error.
+
+SCORING GUIDANCE:
+- requirements_fit: does the artifact accomplish its stated purpose as
+  written? Treat the artifact's own stated purpose as authoritative — do
+  not substitute your own interpretation of what it "should be."
+- correctness: are facts / math / references accurate within the artifact?
+- risk_safety: does the artifact avoid CONTENT-level safety failures
+  (hallucination, harmful output, factually dangerous claims)? NOT
+  deployment / consent / IP concerns.
+- operability: can an operator read, debug, extend this artifact itself
+  (clarity, structure, section markers, internal references)? NOT
+  "does it include a rollback procedure."
+- doctrine_compliance: does the CONTENT of the artifact follow stated
+  organizational standards (brand, trade-secret, security-by-content,
+  rubric shape)? NOT "does it include a sign-off gate."
+
+If you catch yourself writing a critical_failure or required_revision that
+belongs to one of the FORBIDDEN categories above, suppress it. Score only
+the 5 content dimensions. Trust the caller to own governance separately.
+
+BREVITY CONSTRAINTS:
 - grade_reasoning: max 2 sentences, hard cap 300 characters.
 - required_revisions: concise bullets, each under 20 words.
-- critical_failures: one-line descriptions.
+- critical_failures: one-line descriptions, content-level only.
 - Do NOT emit markdown code fences around the JSON.
 - Do NOT add prose before or after the JSON object.
 
