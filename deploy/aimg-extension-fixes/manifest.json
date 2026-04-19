@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "AI Memory Guard",
-  "version": "0.1.5",
+  "version": "0.1.6",
   "description": "Persistent memory + fact-checking + hallucination protection across the 7 AI chat platforms. HARDCODED ALLOWLIST \u2014 captures ONLY from the 7 listed AI platforms; all other sites are INVISIBLE to the extension by design (no banking, email, medical, social, chamber sites \u2014 ever).",
   "permissions": [
     "storage",
@@ -130,7 +130,8 @@
     },
     {
       "matches": [
-        "https://www.perplexity.ai/*"
+        "https://www.perplexity.ai/*",
+        "https://perplexity.ai/*"
       ],
       "js": [
         "platform-detector.js",

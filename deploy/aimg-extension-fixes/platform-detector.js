@@ -12,8 +12,13 @@
     { id: 'chatgpt',    host: 'chatgpt.com' },
     { id: 'chatgpt',    host: 'chat.openai.com' },
     { id: 'gemini',     host: 'gemini.google.com' },
+    { id: 'grok',       host: 'grok.com' },
     { id: 'grok',       host: 'grok.x.ai' },
-    { id: 'perplexity', host: 'www.perplexity.ai' }
+    { id: 'perplexity', host: 'www.perplexity.ai' },
+    { id: 'perplexity', host: 'perplexity.ai' },
+    { id: 'copilot',    host: 'copilot.microsoft.com' },
+    { id: 'meta',       host: 'meta.ai' },
+    { id: 'meta',       host: 'www.meta.ai' }
   ];
 
   function detectPlatform() {
@@ -32,8 +37,10 @@
       claude:     /claude\.ai\/chat\/([a-f0-9-]+)/,
       chatgpt:    /chatgpt\.com\/c\/([a-f0-9-]+)/,
       gemini:     /gemini\.google\.com\/app\/([a-f0-9]+)/,
-      grok:       /grok\.x\.ai\/chat\/([a-zA-Z0-9]+)/,
-      perplexity: /perplexity\.ai\/search\/([a-zA-Z0-9._-]+)/
+      grok:       /grok\.(?:x\.ai|com)\/chat\/([a-zA-Z0-9]+)/,
+      perplexity: /perplexity\.ai\/search\/([a-zA-Z0-9._-]+)/,
+      copilot:    /copilot\.microsoft\.com\/chat\/([a-zA-Z0-9-]+)/,
+      meta:       /meta\.ai\/c\/([a-zA-Z0-9-]+)/
     };
 
     const match = url.match(patterns[platformId]);
@@ -45,8 +52,10 @@
       claude:     `https://claude.ai/chat/${threadId}`,
       chatgpt:    `https://chatgpt.com/c/${threadId}`,
       gemini:     `https://gemini.google.com/app/${threadId}`,
-      grok:       `https://grok.x.ai/chat/${threadId}`,
-      perplexity: `https://www.perplexity.ai/search/${threadId}`
+      grok:       `https://grok.com/chat/${threadId}`,
+      perplexity: `https://www.perplexity.ai/search/${threadId}`,
+      copilot:    `https://copilot.microsoft.com/chat/${threadId}`,
+      meta:       `https://www.meta.ai/c/${threadId}`
     };
     return templates[platformId] || null;
   }
