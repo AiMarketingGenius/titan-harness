@@ -326,10 +326,12 @@ def build_proposal() -> Path:
     _h3(doc, "Path B — Retained Discount")
     _body(
         doc,
-        "Members pay the same retail the public pays ($497 / $797 / $1,497). The 15% discount "
-        "stays with the Chamber as retained margin — plus rev-share on top. Doubles the per-"
-        "member margin. Best for community-fund-first Chambers that want to accelerate the "
-        "civic-impact engine.",
+        "Members pay the same retail the public pays ($497 / $797 / $1,497). Members see the "
+        "retail line on their invoice — no separate \"Chamber retained-discount\" line item "
+        "appears on the member's billing. The 15% discount stays with the Chamber as retained "
+        "margin, paid to the Chamber on the same 30-day cadence as rev-share — plus rev-share "
+        "on top. Doubles the per-member margin. Best for community-fund-first Chambers that "
+        "want to accelerate the civic-impact engine.",
     )
 
     tbl = doc.add_table(rows=5, cols=3)
@@ -421,9 +423,9 @@ def build_proposal() -> Path:
 
     # Success Metrics
     _h3(doc, "Success Metrics — what the board can grade us on")
-    _bullet(doc, "Per-member organic traffic lift — ≥50% by Day 90, measured in GSC.")
-    _bullet(doc, "Per-member inbound lead count — ≥3× baseline by Day 60, measured in CRM.")
-    _bullet(doc, "Member retention through the pilot — ≥80% of pilot cohort continuing past Day 90.")
+    _bullet(doc, "Per-member organic traffic lift — ≥50% by Day 90, measured in GSC. Baseline = trailing 90-day GSC impressions average captured at onboarding Day 0.")
+    _bullet(doc, "Per-member inbound lead count — ≥3× baseline by Day 60, measured in CRM. Baseline = trailing 90-day inbound lead count captured from member's pre-pilot CRM export at Day 0.")
+    _bullet(doc, "Member retention through the pilot — ≥80% of pilot cohort continuing past Day 90. Retention = member still on paid subscription at Day 90 (active pilot-to-paid conversion rate).")
     _body(doc, "If all three hit, the program opens to the full member base. If any miss, we diagnose and adjust before expansion.")
 
     _page_break(doc)
@@ -488,6 +490,12 @@ def build_proposal() -> Path:
     _bullet(doc, "Chamber cost during pilot: $0.")
     _bullet(doc, "Member cost during pilot: $0.")
     _bullet(doc, "Post-pilot: Chamber earns tiered rev-share (10% → 20%) per Section 5. Path A or Path B retained-discount lever Chamber's choice. Paid within 30 days of AMG receiving member payment.")
+    _bullet(doc, "Chamber-Only Distribution Doctrine: Revere Chamber is the SOLE distribution channel for ALL AMG products sold to any business in your territory — SMB, mid-market, and enterprise, including future Atlas enterprise deployments. AMG does not sell direct to any business size, anywhere, ever. Framed as permanent value transfer to Revere, not a restriction: every State-Street-sized enterprise that eventually wants Atlas in your region routes through your Chamber. Corporate America pays. Main Street receives.")
+    _bullet(doc, "Term of the Chamber-Only Distribution clause: initial five-year term, automatic annual renewal thereafter, either party may exit with 90 days notice to end-of-current-term. Doctrine is codified in the Chamber AI Advantage Encyclopedia Section 30 (v1.4.2, Tuesday 2026-04-21 canonicalization).")
+    _bullet(doc, "Data privacy + ownership: all member-business data captured by AMG agents remains the property of that member. AMG acts as processor, not controller. Chamber receives aggregate metrics only (traffic lift, lead counts, retention) — never member PII or raw content. Full DPA attached in Schedule B of the Master Services Agreement.")
+    _bullet(doc, "Dispute resolution: Massachusetts law governs. Binding arbitration in Boston via AAA Commercial Rules for disputes &gt;$10K. Mediation attempted in good faith first. Chamber + AMG bear their own costs; prevailing party recovers reasonable attorney fees.")
+    _bullet(doc, "Future product scope explicitly covered by the Chamber-Only clause: AMG subscription roster (7-agent stack), AIMG consumer product, Atlas enterprise custom builds ($25K–$250K engagements), Baby Atlas scaled-down deployments, Creative Engine (content), and any AMG product line launched during the Chamber's active partnership term. New products added to Encyclopedia Section 30 auto-propagate under this clause unless Chamber and AMG jointly carve them out.")
+    _body(doc, "This proposal states commercial commitments. Full legal terms — Master Services Agreement, Data Processing Addendum (Schedule B), governing-law schedule, enterprise Atlas deal addendum — are delivered upon Chamber sign-intent. All commercial terms above are binding regardless of MSA formalization timeline.")
     _bullet(doc, "Co-branding rights: Chamber can promote \"Powered by AMG\" on member benefits pages. AMG can reference Revere Chamber as a Founding Chamber (with Chamber approval on wording).")
     _bullet(doc, "Exclusivity: AMG commits to not signing a competing partnership with another Greater Boston chamber for 12 months post-launch.")
     _bullet(doc, "Term: month-to-month post-pilot. Either side can exit with 30 days notice. Revenue share continues on active members through their current billing month.")
@@ -515,7 +523,7 @@ def build_proposal() -> Path:
     )
     _bullet(doc, "First-right-of-refusal on enterprise prospects in your territory.")
     _bullet(doc, "Co-branded \"Powered by Revere Chamber + AMG\" on every custom build.")
-    _bullet(doc, "20% rev-share on the full enterprise engagement ($5K–$50K per deal).")
+    _bullet(doc, "20% rev-share on the full enterprise engagement (applies to the total signed contract value, not only AMG's net-of-costs portion). On a $25K engagement, Chamber earns $5K; on a $250K engagement, Chamber earns $50K. Paid on the same 30-day cadence as subscription rev-share.")
     _bullet(doc, "Chamber gets the warm lead. AMG handles delivery. Chamber collects the share.")
     _bullet(doc, "Oracle-style VAR model — channel-first, partner-protected, non-compete guaranteed.")
     _body(doc, "Premier Partner status activates at 30 active member subscriptions and remains active as long as active-sub count ≥30 in any trailing 90-day window.")
@@ -566,8 +574,8 @@ def build_brief() -> Path:
     _bullet(doc, "Is there a believable way this fails, and if so, what's the downside?")
     _bullet(doc, "Who else is doing this, and what did it look like for them?")
 
-    _h2(doc, "6 Lead-With Talking Points (in this order)")
-    _body(doc, "First 12-15 minutes. Earn the right to the pitch before you pitch. Order matters — co-founder reframe lands first because it takes Don out of the \"customer evaluating vendor\" frame and puts him in the \"co-architect of a national movement\" frame. Every other talking point lands harder from that position.")
+    _h2(doc, "7 Lead-With Talking Points (in this order)")
+    _body(doc, "First 14-17 minutes. Earn the right to the pitch before you pitch. Order matters — co-founder reframe lands first because it takes Don out of the \"customer evaluating vendor\" frame and puts him in the \"co-architect of a national movement\" frame. Chamber-Gatekeeper reframe lands second because it reveals the scale of the power being handed over. Every other talking point lands harder from those two positions.")
 
     _h3(doc, "#1 — Co-Founder Pitch (OPEN WITH THIS — NEW TOP BEAT)")
     _body(
@@ -585,7 +593,24 @@ def build_brief() -> Path:
         "Don hesitates, use one of the counter-phrases below before moving on.",
     )
 
-    _h3(doc, "#2 — Microsoft Analogy")
+    _h3(doc, "#2 — Chamber-Gatekeeper Reframe (NEW HIGH BEAT)")
+    _body(
+        doc,
+        "\"Don, when State Street or CVS eventually want our Atlas system, they don't talk "
+        "to me. They talk to you. Your Chamber becomes the gatekeeper every business in "
+        "your region must go through — small, mid-size, enterprise, any size. That's the "
+        "power we're handing you. Not a software reseller agreement. A civic gatekeeper "
+        "role. Corporate America pays. Main Street receives.\"",
+    )
+    _body(
+        doc,
+        "Read-back: \"Any size business, any price point, if it's an AMG product sold in "
+        "Revere's region, it routes through Revere Chamber. Does that scale of power "
+        "register for you?\" If Don asks \"will big businesses accept that?\" — use the "
+        "counter below.",
+    )
+
+    _h3(doc, "#3 — Microsoft Analogy")
     _body(
         doc,
         "\"Imagine if Microsoft Windows was only sold through local Chambers of Commerce. "
@@ -594,7 +619,7 @@ def build_brief() -> Path:
         "to be sold through only one channel — and if Revere signs, that channel is yours.\"",
     )
 
-    _h3(doc, "#3 — Civic Legacy Framing")
+    _h3(doc, "#4 — Civic Legacy Framing")
     _body(
         doc,
         "\"I'm not here to offer you a rev-share kickback. I'm here to offer you a self-funding "
@@ -605,7 +630,7 @@ def build_brief() -> Path:
         "project — not the other way around.\"",
     )
 
-    _h3(doc, "#4 — Tiered Rev-Share Math")
+    _h3(doc, "#5 — Tiered Rev-Share Math")
     _body(
         doc,
         "\"Rev-share tiers with your sub count. Ten percent at five subs. Fifteen at ten. "
@@ -615,7 +640,7 @@ def build_brief() -> Path:
         "Monthly. Forever.\"",
     )
 
-    _h3(doc, "#5 — Dues-Compounding Side-Effect")
+    _h3(doc, "#6 — Dues-Compounding Side-Effect")
     _body(
         doc,
         "\"The rev-share isn't even the biggest number. When Chamber members tell two other "
@@ -626,7 +651,7 @@ def build_brief() -> Path:
         "of it.\"",
     )
 
-    _h3(doc, "#6 — Premier Partner VAR Unlock")
+    _h3(doc, "#7 — Premier Partner VAR Unlock")
     _body(
         doc,
         "\"At thirty active subs, Revere unlocks Premier Partner status — the right to resell "
@@ -668,6 +693,20 @@ def build_brief() -> Path:
         "architect status is real — it's written into the partnership addendum, not a "
         "handshake. The upside is skewed toward YOU, not toward AMG. That's on purpose, "
         "because we need the first Chamber to win loudly.\"",
+    )
+
+    _h3(doc, "If Don asks: \"Will big businesses accept going through the Chamber?\" (Chamber-Gatekeeper counter)")
+    _body(
+        doc,
+        "Counter-phrase: \"Solon pilots every enterprise executive-board relationship "
+        "personally — I'm in the room for the State-Street-sized calls, not the Chamber. "
+        "The Chamber is the merchant of record. The customer experience is identical to a "
+        "direct engagement: same meetings, same delivery, same service level. The only "
+        "difference is payment routing — their check clears through the Chamber instead of "
+        "direct to AMG, and the Chamber takes its tier-rate share off the top. Corporate "
+        "America pays. Main Street receives. Big businesses accept it because they're "
+        "getting the exact same product. Small businesses benefit because the Chamber they "
+        "already trust is the gatekeeper.\"",
     )
 
     _h3(doc, "If Don says: \"What if I pass on this?\"")

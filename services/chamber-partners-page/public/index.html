@@ -865,6 +865,42 @@
       color: var(--amber);
     }
 
+    .civic-moat {
+      margin-top: 32px;
+      padding: 28px 32px;
+      background: linear-gradient(90deg, rgba(38, 198, 168, 0.08), rgba(90, 140, 255, 0.06));
+      border: 1px solid rgba(38, 198, 168, 0.35);
+      border-left: 4px solid var(--green-bright);
+      border-radius: 14px;
+      text-align: left;
+      max-width: 960px;
+      margin-left: auto;
+      margin-right: auto;
+    }
+    .civic-moat-eyebrow {
+      font-size: 11px;
+      font-weight: 800;
+      letter-spacing: 1.8px;
+      text-transform: uppercase;
+      color: var(--green-bright);
+      margin-bottom: 10px;
+    }
+    .civic-moat-body {
+      font-size: clamp(17px, 1.9vw, 22px);
+      font-weight: 700;
+      letter-spacing: -0.3px;
+      line-height: 1.45;
+      color: var(--text);
+    }
+    .civic-moat-body em {
+      font-style: normal;
+      color: var(--green-bright);
+    }
+    .civic-moat-body strong {
+      color: var(--text);
+      font-weight: 800;
+    }
+
     /* ─── CO-FOUNDER / SHARED-LEGACY ATTRIBUTION ─── */
     .cofounder-attribution {
       display: inline-flex;
@@ -1117,6 +1153,13 @@
 
       <div class="civic-kicker">
         The endgame: <em>City Hall begs YOU</em> to help them fund the next downtown project — not the other way around.
+      </div>
+
+      <div class="civic-moat">
+        <div class="civic-moat-eyebrow">The Chamber-only moat · doctrine-locked</div>
+        <div class="civic-moat-body">
+          Every AMG product. SMB, mid-sized, enterprise Atlas deployments. <em>Sold only through Chambers.</em> No exceptions. <strong>Corporate America pays. Main Street receives.</strong>
+        </div>
       </div>
     </div>
   </section>

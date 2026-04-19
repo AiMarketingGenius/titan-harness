@@ -118,8 +118,9 @@ def build_hammer_sheet() -> Path:
     doc = Document()
     _style_normal(doc)
 
-    _h1(doc, "HAMMER SHEET v2.0")
+    _h1(doc, "HAMMER SHEET v2.1")
     _meta(doc, "Chamber AI Advantage · Solon voice canonical phrase library · 2026-04-18")
+    _meta(doc, "v2.1 addendum: Chamber-Only Distribution doctrine + Gatekeeper reframe per Solon 20:10Z.")
     _meta(doc, "Internalize before Monday 2026-04-20 Don Martelli pitch. Memorized lines beat scripted ones.")
 
     _body(
@@ -210,6 +211,41 @@ def build_hammer_sheet() -> Path:
     _quote(doc,
         "You stop being a ribbon-cutting committee. You become the economic engine of Revere. "
         "You're not cashing rev-share checks — you're rebuilding Revere.")
+
+    # ─── 3.5 CHAMBER-ONLY DISTRIBUTION · GATEKEEPER FRAMING ──
+    _h2(doc, "3.5. Chamber-Gatekeeper Reframe (v2.1 addendum · Solon 20:10Z)", AMBER)
+    _body(doc, "The exclusivity moat isn't only that Chambers can sell AMG. It's that Chambers are the ONLY way ANY business — SMB, mid-market, enterprise — buys AMG products in that Chamber's region. Every AMG product. Every price point. Sold only through Chambers. Use these phrases when the conversation moves from \"member services\" to \"what this scales into.\"")
+
+    _h3(doc, "The core line (use verbatim)")
+    _quote(doc,
+        "Every AMG product. SMB, mid-sized, enterprise Atlas deployments. Sold only "
+        "through Chambers. No exceptions. Corporate America pays. Main Street receives.",
+        color=AMBER)
+
+    _h3(doc, "The Don-specific pitch")
+    _quote(doc,
+        "Don, when State Street or CVS eventually want our Atlas system, they don't talk "
+        "to me. They talk to you. Your Chamber becomes the gatekeeper every business in "
+        "your region must go through. That's the power we're handing you — not a software "
+        "reseller agreement. A civic gatekeeper role.",
+        color=AMBER)
+
+    _h3(doc, "The counter to \"will big businesses accept that?\"")
+    _quote(doc,
+        "Solon pilots every enterprise executive-board relationship personally — I'm in "
+        "the room for the State-Street-sized calls, not the Chamber. The Chamber is the "
+        "merchant of record. Customer experience is identical to direct engagement. "
+        "Only difference is payment routing: their check clears through the Chamber "
+        "instead of direct to AMG. Corporate America pays. Main Street receives.",
+        color=AMBER)
+
+    _h3(doc, "The permanence line")
+    _quote(doc,
+        "This isn't a tier. This isn't a bonus. This is the doctrine. Encyclopedia v1.4.2 "
+        "Section 30 locks it: AMG never sells direct, any product, any customer size, "
+        "anywhere a Chamber partner exists. Your Chamber isn't one of many channels. "
+        "Your Chamber is THE channel.",
+        color=AMBER)
 
     # ─── 4. CO-FOUNDER LANGUAGE ──────────────────────────────
     _h2(doc, "4. Co-Founder Language", VIOLET)
