@@ -4,7 +4,7 @@
 **Status:** ACTIVE · 2026-04-19 · First commit shipped
 **Owner:** Titan (infra + build) · Solon (scope + pause-point reviewer)
 **Anchors:** [`plans/PLAN_2026-04-19_titan-sunday-playbook.md`](PLAN_2026-04-19_titan-sunday-playbook.md) Item 3 · [`plans/DOCTRINE_AMG_INTERNAL_CRM_v1.0.md`](DOCTRINE_AMG_INTERNAL_CRM_v1.0.md) · [`sql/009_multi_tenant.sql`](../sql/009_multi_tenant.sql)
-**Greek codename:** PROPOSED (pending Solon lock) — candidates §6
+**Greek codename:** **KLEISTHENES** — locked by Solon 2026-04-18T20:55Z per §6 rationale (Athenian civic architect who invented the democratic tenant-citizen model 508 BC; perfect civic-sovereignty analog for multi-tenant isolation; fits Solon OS Greek heritage alongside Atlas + Aristotle + Titan)
 
 ---
 
@@ -56,17 +56,13 @@ Ship tag: `crm-loop-closure-complete-live-armed-e2e-verified-2026-04-19`
 - [ ] No drift to existing Phase 2 rows (operators=1, amg-internal tenant unchanged)
 - [ ] MCP decision logged with commit hash + scope + next commit
 
-## 6. Greek codename candidates (Solon to lock)
+## 6. Greek codename — LOCKED
 
-Per §14 doctrine. Pending Solon approval — NOT locked, not yet surfaced in client-facing material.
+**KLEISTHENES — "Athenian civic architect; invented the democratic tenant-citizen model in 508 BC."**
 
-1. **Kleisthenes** — "founder of Athenian democracy; divided citizens into tribes (tenants) with distinct identity yet unified under one polis" — Kleisthenes reorganized Attica into 10 tribes, each with its own deme registry. Direct analog to per-tenant partitioning under one AMG polis.
-2. **Hestia** — "goddess of the hearth; every household (tenant) kindled its fire from the central civic flame" — evokes seeded ignition of each new tenant from the canonical AMG hearth.
-3. **Atlas** (already in use for the parent platform) — reject: too broad, parent-platform-scoped.
-4. **Demeter** — "goddess of grain and nurture; oversaw the cycle of sowing and reaping for every farmer's field" — tenant provisioning as sowing + lead intake as harvest.
-5. **Heracles** (first labor: the Nemean lion — founding victory) — reject: overused in harness-Hercules Triangle.
+Locked by Solon 2026-04-18T20:55Z. Civic-sovereignty analog for AMG's multi-tenant isolation: Kleisthenes reorganized Attica into 10 tribes, each with its own deme registry, distinct identity unified under one polis — direct functional mirror of per-tenant provisioning under one AMG platform. Fits Solon OS Greek heritage alongside Atlas (parent platform), Aristotle (Slack co-agent), Titan (COO / this harness). Marketable + brandable for Chamber partnership surfaces.
 
-**Titan's vote:** Kleisthenes. Most direct functional analog + marketable (Chamber partnerships resonate with democratic-civic framing) + non-overlapping with existing codenames.
+Usage: "Kleisthenes — Multi-tenant sovereignty layer of Solon OS" (public-safe subtitle).
 
 ## 7. Dependencies + assumptions
 
