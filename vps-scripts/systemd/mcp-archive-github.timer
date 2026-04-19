@@ -1,0 +1,11 @@
+[Unit]
+Description=Nightly MCP L3 GitHub archive push trigger (CT-0419-07)
+Requires=mcp-archive-github.service
+
+[Timer]
+OnCalendar=*-*-* 03:00:00 America/New_York
+AccuracySec=10min
+Persistent=true
+
+[Install]
+WantedBy=timers.target

@@ -1,0 +1,11 @@
+[Unit]
+Description=Nightly age-encrypted push of MCP archive to GitHub (CT-0419-07 L3)
+After=network-online.target mcp-archive-daily.service
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/opt/amg/scripts/mcp-archive-github.sh
+User=root
+StandardOutput=journal
+StandardError=journal

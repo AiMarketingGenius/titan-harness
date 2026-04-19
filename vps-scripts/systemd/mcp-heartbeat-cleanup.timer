@@ -1,0 +1,11 @@
+[Unit]
+Description=Weekly prune of stale MCP heartbeats (CT-0419-07)
+Requires=mcp-heartbeat-cleanup.service
+
+[Timer]
+OnCalendar=Sun 04:00 America/New_York
+AccuracySec=15min
+Persistent=true
+
+[Install]
+WantedBy=timers.target

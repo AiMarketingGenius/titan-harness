@@ -1,0 +1,11 @@
+[Unit]
+Description=Nightly MCP decision archive trigger (CT-0419-07 L2)
+Requires=mcp-archive-daily.service
+
+[Timer]
+OnCalendar=*-*-* 02:00:00 America/New_York
+AccuracySec=10min
+Persistent=true
+
+[Install]
+WantedBy=timers.target

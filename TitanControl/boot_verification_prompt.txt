@@ -1,0 +1,53 @@
+TITAN BOOT PROMPT — CT-0419-07 Memory Loop Closure
+=====================================================
+
+On every new Claude Code session, AFTER the SessionStart hook chain has run, your
+FIRST action is to verify MCP hydration succeeded before taking any task work.
+
+### Required reads (in order)
+
+1. `~/Library/Application Support/TitanControl/state/hydrate_status.json`
+   - If state != "context_loaded" or "context_loaded_with_drift" → HALT + flag MCP blocker + tell Solon
+   - If state == "hydration_failed" → stop all new work, investigate error field, escalate
+   - If state == "hydrate_gate_refused" → read hydrate_ready.json reason, diagnose
+
+2. `~/Library/Application Support/TitanControl/state/mcp_hydration.json`
+   - Verify: counts.decisions > 0, sprint_state_hash present, hydrated_at within last 60s
+   - Compare sprint_state_hash vs a fresh get_sprint_state(project_id="EOM") call
+     (SHA-256 first 16 hex over sorted-JSON of the row)
+   - If mismatch → log decision with tag "hydration-drift" describing the delta
+
+3. `~/Library/Application Support/TitanControl/state/hydrate_ready.json`
+   - Confirms hydrate gate cleared (state == "hydrate_gate_passed")
+
+Note: `status.json` + `ready.json` (no hydrate_ prefix) belong to the TitanControl Unified
+Restart Handler state machine — separate concern from this memory-loop verification.
+
+### If drift_detected == true in hydrate_status.json
+
+- Do NOT ignore. Post to Slack #amg-ops (if webhook available) or MCP log_decision with
+  tag "cross-session-drift", severity high
+- Query MCP for the missing last_decision_id to confirm it's truly gone vs just aged out of the 50-cap window
+- If truly gone → flag_blocker severity=high; halt speculative work that depends on prior state
+- If just aged out → update snapshot, clear drift flag in your own log
+
+### If hydration_failed
+
+- hydrate_status.json.error carries the reason (missing_supabase_creds, *_http_NNN, json_parse_fail, etc.)
+- Fall back to the legacy bootstrap: `get_bootstrap_context` MCP tool call, manually verify scope
+- Post blocker to sprint state severity=critical
+- Do not mark task "context_loaded" downstream until MCP is reachable again
+
+### Cross-references
+
+- CT-0408-23 (retrieval layer shipped — search_decisions_advanced): verified
+- CT-0419-07 (this task — hydration + heartbeat + L2/L3 archive): in progress
+- VPS heartbeat at /opt/amg/scripts/mcp-heartbeat.sh runs hourly; latency log at
+  /opt/amg/logs/mcp-heartbeat.log
+- L2 daily archive at /opt/amg-mcp-archive/decisions-YYYY-MM-DD.md (02:00 ET cron)
+- L3 nightly GitHub archive at AiMarketingGenius/amg-mcp-archive (03:00 ET cron, age-encrypted)
+
+### Never-stop policy
+
+Hydration failure is a P0 MCP-integrity event. Do not silently continue from local cache;
+a stale local snapshot can mask loss of new MCP state. Escalate within 30 seconds of discovery.

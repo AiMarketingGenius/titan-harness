@@ -1,0 +1,13 @@
+[Unit]
+Description=MCP memory-loop heartbeat (CT-0419-07)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/opt/amg/scripts/mcp-heartbeat.sh
+User=root
+StandardOutput=journal
+StandardError=journal
+# Fail-tolerate: systemd records exit, our own log + state tracks consecutive fails
+SuccessExitStatus=0

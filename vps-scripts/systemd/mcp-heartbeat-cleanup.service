@@ -1,0 +1,11 @@
+[Unit]
+Description=Prune stale MCP heartbeat decisions (CT-0419-07)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/opt/amg/scripts/mcp-heartbeat-cleanup.sh
+User=root
+StandardOutput=journal
+StandardError=journal

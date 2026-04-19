@@ -1,0 +1,11 @@
+[Unit]
+Description=Daily MCP decision archive to /opt/amg-mcp-archive (CT-0419-07 L2)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/opt/amg/scripts/mcp-archive-daily.sh
+User=root
+StandardOutput=journal
+StandardError=journal
