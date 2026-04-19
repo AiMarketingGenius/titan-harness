@@ -714,6 +714,36 @@ ELEVENLABS_API_KEY = os.environ.get("ELEVENLABS_API_KEY", "").strip()
 ELEVENLABS_MODEL = os.environ.get("ELEVENLABS_MODEL", "eleven_turbo_v2_5")
 OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY", "").strip()
 
+# ElevenLabs cost guard — complements IP rate-limit at /api/titan/tts.
+# Without this, a bad actor or runaway integration can burn through the
+# ElevenLabs account: 30 req/min × 2000-char max payload × $0.30/1K chars
+# = $18/min = $1,080/hr with rate-limit alone. Matches the kill-switch
+# pattern used by scripts/ct0416_10_elevenlabs_voice_regen.py.
+#
+# Env override ELEVENLABS_DAILY_CAP_USD caps daily total spend across all
+# TTS requests on the pod. Default $10/day — sized to cover reasonable
+# demo + dev-loop use but deny a sustained abuse stream.
+ELEVENLABS_DAILY_CAP_USD = float(os.environ.get("ELEVENLABS_DAILY_CAP_USD", "10.0"))
+ELEVENLABS_COST_PER_CHAR = 0.00030  # ~$0.30 per 1K chars at ElevenLabs premium tier
+
+def _tts_estimate_cost_usd(text: str) -> float:
+    """Cost estimate used by the kill-switch gate for a single TTS call."""
+    return float(len(text or "")) * ELEVENLABS_COST_PER_CHAR
+
+def _tts_kill_switch():
+    """Lazy-import KillSwitch so atlas_api.py imports cheaply when TTS is unused.
+    Returns a KillSwitch instance scoped to vendor='elevenlabs'. Caller is
+    responsible for allow_call / record_call calls on the returned object."""
+    _libdir = os.path.dirname(os.path.abspath(__file__))
+    if _libdir not in sys.path:
+        sys.path.insert(0, _libdir)
+    from cost_kill_switch import KillSwitch
+    return KillSwitch(
+        vendor="elevenlabs",
+        daily_cap_usd=ELEVENLABS_DAILY_CAP_USD,
+        scope="titan_tts_api",
+    )
+
 
 def _titan_system_prompt() -> str:
     """Titan persona — internal ops assistant for Solon. Distinct from Atlas (customer-facing)."""
@@ -1212,13 +1242,34 @@ def _client_ip(request: Request) -> str:
 @app.get("/api/titan/tts")
 async def api_titan_tts(text: str, voice: str = "alex", request: Request = None) -> Response:  # type: ignore[assignment]
     """Stream ElevenLabs TTS audio for Titan's reply text.
-    Rate-limited 30/min per IP (Step 7.0-a)."""
+    Rate-limited 30/min per IP (Step 7.0-a) AND daily-cost-capped via
+    cost_kill_switch (vendor='elevenlabs', default $10/day). Rate-limit alone
+    is insufficient — a sustained 30/min × 2K chars stream would bill ~$1,080/hr."""
     if request is not None:
         _voice_rate_check(f"tts:{_client_ip(request)}", max_per_min=30)
     if not ELEVENLABS_API_KEY:
         raise HTTPException(503, "ElevenLabs not configured")
     if not text or len(text) > 2000:
         raise HTTPException(400, "text 1-2000 chars")
+
+    # Cost kill-switch gate — fails closed if daily cap hit. Non-fatal for the
+    # service (returns 429) so rest of /api/titan continues functioning.
+    est_cost = _tts_estimate_cost_usd(text)
+    ks = None
+    try:
+        ks = _tts_kill_switch()
+    except Exception as exc:
+        # KillSwitch unavailable (sqlite missing etc.) — log + proceed without
+        # the cap rather than hard-failing every TTS call. Rate-limit still applies.
+        print(f"[tts] kill-switch unavailable, proceeding without cost cap: {exc}", file=sys.stderr)
+    if ks is not None and not ks.allow_call(estimated_cost_usd=est_cost):
+        today_spend = ks.today_spend_usd()
+        raise HTTPException(
+            429,
+            f"ElevenLabs daily cost cap hit ({today_spend:.2f}/{ELEVENLABS_DAILY_CAP_USD:.2f} USD). "
+            f"Retry after UTC midnight.",
+        )
+
     voice_id = ELEVENLABS_VOICES.get(voice.lower(), ELEVENLABS_VOICES["alex"])
     if httpx is None:
         raise HTTPException(500, "httpx missing")
@@ -1236,6 +1287,14 @@ async def api_titan_tts(text: str, voice: str = "alex", request: Request = None)
             r = await client.post(url, json=payload, headers=headers)
             if r.status_code != 200:
                 raise HTTPException(502, f"ElevenLabs {r.status_code}: {r.text[:200]}")
+            # Record actual cost against the kill-switch ledger so daily spend
+            # tracking stays accurate. Use estimated cost as the measurable cost
+            # proxy — ElevenLabs does not return per-call billing.
+            if ks is not None:
+                try:
+                    ks.record_call(text, est_cost, result={"bytes": len(r.content), "voice": voice})
+                except Exception:
+                    pass
             return Response(content=r.content, media_type="audio/mpeg", headers={"Cache-Control": "no-store"})
     except HTTPException:
         raise
