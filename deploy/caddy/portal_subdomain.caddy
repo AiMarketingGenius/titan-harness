@@ -1,0 +1,58 @@
+# portal.aimarketinggenius.io — per-tenant Chamber portal subdomain.
+# Commit #8 Kleisthenes CRM Loop. Reference-only until atlas_api /api/tenant
+# route lands (ship-tag commit #10 does the wire-up).
+#
+# Deployment: drop into /etc/caddy/sites-enabled/portal.aimarketinggenius.io
+# then `systemctl reload caddy` on VPS. Cloudflare DNS must have
+# portal.aimarketinggenius.io CNAME → primary VPS hostname.
+#
+# Request shape:
+#   https://portal.aimarketinggenius.io/{tenant_slug}/
+#     → atlas_api GET /api/tenant/{tenant_slug}/context (JSON + HTML shell)
+#
+#   https://portal.aimarketinggenius.io/{tenant_slug}/api/lead
+#     → atlas_api POST /api/tenant/{tenant_slug}/lead (inbound_form source)
+#
+# Auth: JWT tenant_id claim validated by atlas_api middleware; anonymous
+# POSTs allowed on /api/lead path for lead intake from public forms.
+
+portal.aimarketinggenius.io {
+    encode gzip zstd
+
+    # Rate limit anonymous lead intake (30/min per IP).
+    @lead_intake path /*/api/lead
+    rate_limit @lead_intake {
+        zone tenant_lead_intake 30r/m
+    }
+
+    # Strip the tenant_slug prefix and pass through to atlas_api with the
+    # slug injected as X-Tenant-Slug header. atlas_api middleware resolves
+    # the slug → tenant_id + sets amg.tenant_id GUC on every tx.
+    @tenant_path path_regexp tenant ^/([a-z][a-z0-9-]{1,62}[a-z0-9])(/.*)?$
+    handle @tenant_path {
+        header X-Tenant-Slug {re.tenant.1}
+        rewrite * /api/tenant/{re.tenant.1}{re.tenant.2}
+        reverse_proxy localhost:8080 {
+            header_up X-Forwarded-Proto {scheme}
+            header_up X-Forwarded-Host {host}
+            header_up X-Real-IP {remote_host}
+            transport http {
+                read_timeout 30s
+                dial_timeout 5s
+            }
+        }
+    }
+
+    # Fallback root → AMG marketing page.
+    handle {
+        redir https://aimarketinggenius.io/chamber-partners/ 302
+    }
+
+    log {
+        output file /var/log/caddy/portal.aimarketinggenius.io.log {
+            roll_size 100mb
+            roll_keep 10
+        }
+        format json
+    }
+}
