@@ -171,18 +171,14 @@ local function saveUpload(body, headers, destDir)
   return path
 end
 
--- Bind HTTP server — prefer Tailscale IP
-local ts_ip = sh("/usr/local/bin/tailscale ip -4") or sh("/opt/homebrew/bin/tailscale ip -4")
-if ts_ip then ts_ip = ts_ip:match("(%d+%.%d+%.%d+%.%d+)") end
-
+-- Bind HTTP server to 127.0.0.1 — Tailscale Serve will proxy this to HTTPS
+-- on the tailnet MagicDNS hostname, providing real Let's Encrypt cert + TLS.
+-- Direct tailnet-IP binding removed: browsers block HTTPS→HTTP mixed content
+-- so PWAs couldn't reach the raw http://100.x.y.z:8765 endpoint.
 local server = hs.httpserver.new(false, false)
 server:setPort(TITAN.port)
-if ts_ip then
-  server:setInterface(ts_ip)
-  hs.logger.new("titan"):i("Bound to Tailscale IP: " .. ts_ip)
-else
-  hs.logger.new("titan"):w("Tailscale IP not found — binding all interfaces; ensure firewall/ACL covers port 8765!")
-end
+server:setInterface("127.0.0.1")
+hs.logger.new("titan"):i("Bound to 127.0.0.1:" .. TITAN.port .. " — expect tailscale serve in front")
 
 server:setCallback(function(method, path, headers, body)
   -- CORS preflight

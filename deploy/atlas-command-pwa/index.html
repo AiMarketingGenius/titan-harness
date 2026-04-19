@@ -182,13 +182,18 @@ footer{text-align:center;font-size:11px;color:rgba(244,239,230,0.35);margin-top:
   <h2>Settings</h2>
   <p>Atlas talks to your Mac over Tailscale. Paste the HMAC secret + server URL once; stored locally only.</p>
   <div class="field">
-    <label>Server URL (Tailscale)</label>
-    <input id="inpServer" type="url" placeholder="http://100.65.33.80:8765" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false">
+    <label>Server URL (Tailscale) <span id="serverSaved" style="float:right;font-size:11px;color:rgba(244,239,230,0.5);letter-spacing:0;text-transform:none"></span></label>
+    <input id="inpServer" type="text" inputmode="text" enterkeyhint="next" placeholder="https://solonzs-macbook-pro-3.tailf4b4ea.ts.net" autocomplete="off" autocapitalize="none" autocorrect="off" spellcheck="false" data-1p-ignore="true" data-lpignore="true" data-form-type="other" name="atlas-server-2026">
   </div>
   <div class="field">
     <label>HMAC Secret <span id="secretMasked" style="float:right;font-size:11px;color:rgba(244,239,230,0.5);letter-spacing:0;text-transform:none"></span></label>
-    <input id="inpSecret" type="text" placeholder="paste 64-char base64" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" data-1p-ignore="true" data-lpignore="true" data-form-type="other">
-    <div style="font-size:11px;color:rgba(244,239,230,0.45);margin-top:6px;letter-spacing:0;text-transform:none">Shown as plain text so iOS Safari doesn't strip it. Never transmitted — stored locally only.</div>
+    <input id="inpSecret" type="text" inputmode="text" enterkeyhint="done" placeholder="paste 64-char base64" autocomplete="off" autocapitalize="none" autocorrect="off" spellcheck="false" data-1p-ignore="true" data-lpignore="true" data-form-type="other" name="atlas-hmac-2026">
+    <div style="font-size:11px;color:rgba(244,239,230,0.45);margin-top:6px;letter-spacing:0;text-transform:none">Stored locally only. Never transmitted.</div>
+    <div style="display:flex;gap:8px;margin-top:10px">
+      <button type="button" data-action="paste-server" style="flex:1;padding:10px;border-radius:8px;border:1px solid rgba(201,169,97,0.4);background:rgba(201,169,97,0.08);color:var(--gold);font-size:13px">📋 Paste server URL</button>
+      <button type="button" data-action="paste-secret" style="flex:1;padding:10px;border-radius:8px;border:1px solid rgba(201,169,97,0.4);background:rgba(201,169,97,0.08);color:var(--gold);font-size:13px">📋 Paste secret</button>
+    </div>
+    <div id="debugRow" style="font-size:10px;color:rgba(244,239,230,0.4);margin-top:10px;font-family:monospace;line-height:1.4"></div>
   </div>
   <div class="sheet-actions">
     <button class="btn ghost" data-action="cancel">Cancel</button>
@@ -199,8 +204,9 @@ footer{text-align:center;font-size:11px;color:rgba(244,239,230,0.35);margin-top:
 <div class="toast" id="toast"></div>
 
 <script>
+const DEFAULT_SERVER = 'https://solonzs-macbook-pro-3.tailf4b4ea.ts.net';
 const cfg = {
-  server: localStorage.getItem('atlas.server') || '',
+  server: localStorage.getItem('atlas.server') || DEFAULT_SERVER,
   secret: localStorage.getItem('atlas.secret') || '',
 };
 let pollTimer, mediaRecorder, recordedChunks = [];
@@ -380,11 +386,34 @@ async function toggleRecord(){
 }
 
 function openSettings(){
-  document.getElementById('inpServer').value = cfg.server || '';
-  document.getElementById('inpSecret').value = cfg.secret || '';
+  const ss = document.getElementById('inpServer');
+  const ks = document.getElementById('inpSecret');
+  ss.value = cfg.server || '';
+  ks.value = cfg.secret || '';
   const m = document.getElementById('secretMasked');
+  const ms = document.getElementById('serverSaved');
   if(cfg.secret) m.textContent = 'saved: ' + cfg.secret.slice(0,4) + '…' + cfg.secret.slice(-3); else m.textContent = '';
+  if(cfg.server) ms.textContent = 'saved'; else ms.textContent = '';
   document.getElementById('settingsSheet').classList.add('open');
+  updateDebugRow();
+}
+
+function updateDebugRow(){
+  const d = document.getElementById('debugRow');
+  if(!d) return;
+  const ss = document.getElementById('inpServer');
+  const ks = document.getElementById('inpSecret');
+  d.textContent = 'server field: ' + (ss.value.length) + ' chars · secret field: ' + (ks.value.length) + ' chars · cfg: s=' + (cfg.server.length) + ' k=' + (cfg.secret.length);
+}
+
+async function pasteInto(id){
+  try{
+    const text = await navigator.clipboard.readText();
+    if(!text){ toast('Clipboard empty', true); return; }
+    document.getElementById(id).value = text.trim();
+    updateDebugRow();
+    toast('Pasted ' + text.trim().length + ' chars');
+  }catch(e){ toast('Clipboard blocked: ' + e.message, true); }
 }
 function closeSettings(){ document.getElementById('settingsSheet').classList.remove('open'); }
 function saveSettings(){
@@ -430,6 +459,19 @@ document.addEventListener('click', (e)=>{
   if(action==='save') saveSettings();
   else if(action==='cancel') closeSettings();
   else if(action==='open-settings') openSettings();
+  else if(action==='paste-server') pasteInto('inpServer');
+  else if(action==='paste-secret') pasteInto('inpSecret');
+});
+
+// Watch input events for debugging — track value changes live
+['inpServer','inpSecret'].forEach(id=>{
+  document.addEventListener('DOMContentLoaded',()=>{
+    const el = document.getElementById(id);
+    if(!el) return;
+    el.addEventListener('input', updateDebugRow);
+    el.addEventListener('paste', ()=>setTimeout(updateDebugRow, 50));
+    el.addEventListener('blur', updateDebugRow);
+  });
 });
 
 // First run — if unconfigured, open settings
