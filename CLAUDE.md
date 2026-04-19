@@ -841,6 +841,23 @@ Never:
 
 Only programmatic action used: `tccutil reset <category> <bundle>` to clear stale denied entries so they re-prompt fresh.
 
+### 20.4.1 Dotfile glob caveat (amended 2026-04-19)
+
+`Edit(/path/to/dir/**)` does **not** traverse into dot-prefixed directories (`.git/`, `.claude/`, `.harness-state/`) by default — most minimatch-style engines require an explicit `{dot: true}` option which Claude Code does not set. The settings.json allow list therefore needs **explicit** entries for every dotfile path Titan edits:
+
+- `Edit(/Users/solonzafiropoulos1/titan-harness/.git/hooks/**)`
+- `Edit(/Users/solonzafiropoulos1/titan-harness/.git/hooks/pre-commit)`
+- `Edit(/Users/solonzafiropoulos1/titan-harness/.gitignore)`
+- `Edit(/Users/solonzafiropoulos1/titan-harness/.harness-state/**)`
+- `Edit(/Users/solonzafiropoulos1/.claude/settings.json)`
+- `Edit(/Users/solonzafiropoulos1/.hammerspoon/init.lua)`
+- `Edit(/Users/solonzafiropoulos1/.hammerspoon/*.lua)`
+- `Write(...)` mirrors of the above for file creation
+
+### 20.4.2 Session-restart caveat
+
+New entries in `~/.claude/settings.json` **do not apply retroactively** to a Claude Code session that was already running when the edit landed. The file is read at session start. Solon's interactive session that pre-dates an allowlist amendment will keep prompting until he restarts (Stop-at-25 or manual Ctrl-C + new `claude` launch). For autonomous Titan sessions, the TitanControl restart chain picks up new entries on every cycle — so the next autonomous wake inherits fresh settings automatically.
+
 ### 20.5 Claude-Code-update survival checklist
 
 When Claude Code updates and dialogs start leaking to Solon again, re-check in this order:
