@@ -2,37 +2,29 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,maximum-scale=1">
 <meta name="theme-color" content="#05111F">
-<title>Talk to Alex — AMG Voice Demo</title>
-<meta name="description" content="Live voice conversation with Alex, the AMG strategist. Hold to talk, release to listen.">
-<meta property="og:title" content="Talk to Alex · AMG Voice Demo">
-<meta property="og:description" content="Hold to talk, release to listen. Live voice conversation with AMG's AI strategist.">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Alex">
+<meta name="mobile-web-app-capable" content="yes">
+<link rel="manifest" href="/manifest.json">
+<link rel="icon" type="image/png" href="/favicon.png">
+<link rel="apple-touch-icon" href="/icon-192.png">
+<title>Talk to Alex · AI Marketing Genius</title>
+<meta name="description" content="Live voice conversation with Alex, the AMG strategist. One tap to start.">
 <link rel="canonical" href="https://voice.aimarketinggenius.io/">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Instrument+Serif:ital@1&display=swap">
 <style>
   :root {
-    --bg-0:#05111F;
-    --bg-1:#0a1a2e;
-    --bg-2:#112741;
-    --bg-3:#173354;
-    --ink-hi:#f6f8fb;
-    --ink:#c3cedb;
-    --muted:#8593a5;
-    --muted-2:#5a6578;
-    --line:rgba(255,255,255,0.06);
-    --line-s:rgba(255,255,255,0.12);
-    --blue:#2f7dff;
-    --blue-lt:#4d94ff;
-    --navy:#0B2572;
-    --green:#10B77F;
-    --green-dk:#0EA572;
-    --ok:#3dd598;
-    --hot:#f06a4a;
-    --danger:#ef4444;
-    --gold:#d4a627;
+    --bg-0:#05111F; --bg-1:#0a1a2e; --bg-2:#112741; --bg-3:#173354;
+    --ink-hi:#f6f8fb; --ink:#c3cedb; --muted:#8593a5; --muted-2:#5a6578;
+    --line:rgba(255,255,255,0.06); --line-s:rgba(255,255,255,0.12);
+    --blue:#2f7dff; --blue-lt:#4d94ff; --navy:#0B2572;
+    --green:#10B77F; --green-dk:#0EA572; --ok:#3dd598;
+    --hot:#f06a4a; --danger:#ef4444; --gold:#d4a627;
   }
   * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
   html, body { margin:0; padding:0; min-height:100vh; background: var(--bg-0); color: var(--ink-hi); font-family:'Inter',-apple-system,BlinkMacSystemFont,sans-serif; -webkit-font-smoothing:antialiased; line-height:1.55; }
@@ -42,6 +34,7 @@
       radial-gradient(50% 35% at 50% 70%, rgba(16,183,127,0.10) 0%, transparent 65%),
       linear-gradient(180deg, var(--bg-0) 0%, #030814 100%);
     display:flex; flex-direction:column;
+    padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
   }
   :focus-visible { outline:2px solid var(--blue); outline-offset:2px; border-radius:8px; }
   .serif { font-family:'Instrument Serif', Georgia, serif; font-style:italic; font-weight:400; color: var(--blue-lt); }
@@ -53,14 +46,14 @@
   .back-link { font-size:13px; color:var(--muted); text-decoration:none; font-weight:500; }
   .back-link:hover { color:var(--ink-hi); }
 
-  main { flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; padding:clamp(32px,5vw,64px) 20px; gap:clamp(24px,4vw,40px); max-width:640px; margin:0 auto; width:100%; }
+  main { flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; padding:clamp(28px,4vw,56px) 20px; gap:clamp(20px,3vw,32px); max-width:640px; margin:0 auto; width:100%; }
 
   .intro { text-align:center; }
-  .intro-kicker { display:inline-flex; align-items:center; gap:8px; padding:5px 14px; font-size:11.5px; font-weight:700; letter-spacing:0.14em; text-transform:uppercase; color:var(--green); background:rgba(16,183,127,0.10); border:1px solid rgba(16,183,127,0.28); border-radius:999px; margin-bottom:20px; }
+  .intro-kicker { display:inline-flex; align-items:center; gap:8px; padding:5px 14px; font-size:11.5px; font-weight:700; letter-spacing:0.14em; text-transform:uppercase; color:var(--green); background:rgba(16,183,127,0.10); border:1px solid rgba(16,183,127,0.28); border-radius:999px; margin-bottom:18px; }
   .intro-kicker-dot { width:6px; height:6px; border-radius:50%; background:var(--green); box-shadow:0 0 8px var(--green); animation: kickerPulse 2.4s cubic-bezier(.22,1,.36,1) infinite; }
   @keyframes kickerPulse { 0%,100% { opacity:1; } 50% { opacity:0.35; } }
-  h1.intro-title { font-weight:800; font-size:clamp(32px,5vw,48px); line-height:1.1; letter-spacing:-0.025em; margin:0 auto 14px; max-width:16ch; text-wrap:balance; }
-  .intro-sub { font-size:clamp(15px,1.4vw,17px); color:var(--ink); line-height:1.6; max-width:50ch; margin:0 auto; }
+  h1.intro-title { font-weight:800; font-size:clamp(30px,5vw,44px); line-height:1.1; letter-spacing:-0.025em; margin:0 auto 12px; max-width:16ch; text-wrap:balance; }
+  .intro-sub { font-size:clamp(14px,1.4vw,16px); color:var(--ink); line-height:1.55; max-width:44ch; margin:0 auto; }
 
   /* ── ORB ── */
   .orb-wrap { position:relative; display:flex; align-items:center; justify-content:center; width:200px; height:200px; }
@@ -77,62 +70,77 @@
     display:flex; align-items:center; justify-content:center;
     cursor:pointer; border:none; color:#fff;
     transition: transform 200ms cubic-bezier(.22,1,.36,1), box-shadow 200ms cubic-bezier(.22,1,.36,1);
+    touch-action: manipulation;
   }
-  .orb:hover { transform:scale(1.03); box-shadow: inset 0 2px 0 rgba(255,255,255,0.22), inset 0 -4px 12px rgba(0,0,0,0.4), 0 22px 60px rgba(47,125,255,0.55), 0 8px 24px rgba(0,0,0,0.6); }
+  .orb:hover { transform:scale(1.03); }
   .orb:active { transform:scale(0.97); }
   .orb:focus-visible { outline:2px solid var(--ink-hi); outline-offset:6px; border-radius:50%; }
   .orb svg { width:56px; height:56px; fill:none; stroke:currentColor; stroke-width:2; stroke-linecap:round; stroke-linejoin:round; }
-  .orb.recording {
+  .orb.listening {
     background: radial-gradient(120% 120% at 30% 25%, rgba(255,255,255,0.14) 0%, transparent 55%), linear-gradient(135deg, var(--hot) 0%, #cf4b2f 100%);
     box-shadow:
       inset 0 2px 0 rgba(255,255,255,0.22),
       inset 0 -4px 12px rgba(0,0,0,0.40),
       0 20px 60px rgba(240,106,74,0.55),
       0 8px 24px rgba(0,0,0,0.6);
-    animation: orbRecord 1.4s cubic-bezier(.22,1,.36,1) infinite;
+    animation: orbListen 1.6s cubic-bezier(.22,1,.36,1) infinite;
   }
-  @keyframes orbRecord {
+  @keyframes orbListen {
     0%,100% { transform:scale(1);    box-shadow: inset 0 2px 0 rgba(255,255,255,0.22), inset 0 -4px 12px rgba(0,0,0,0.40), 0 20px 60px rgba(240,106,74,0.55), 0 8px 24px rgba(0,0,0,0.6); }
-    50%     { transform:scale(1.04); box-shadow: inset 0 2px 0 rgba(255,255,255,0.28), inset 0 -4px 12px rgba(0,0,0,0.46), 0 28px 76px rgba(240,106,74,0.72), 0 10px 30px rgba(0,0,0,0.65); }
+    50%     { transform:scale(1.05); box-shadow: inset 0 2px 0 rgba(255,255,255,0.28), inset 0 -4px 12px rgba(0,0,0,0.46), 0 28px 76px rgba(240,106,74,0.72), 0 10px 30px rgba(0,0,0,0.65); }
   }
-  .orb.playing {
+  .orb.speaking {
     background: radial-gradient(120% 120% at 30% 25%, rgba(255,255,255,0.12) 0%, transparent 55%), linear-gradient(135deg, var(--green) 0%, var(--green-dk) 100%);
     box-shadow:
       inset 0 2px 0 rgba(255,255,255,0.18),
       inset 0 -4px 12px rgba(0,0,0,0.34),
       0 18px 52px rgba(16,183,127,0.55),
       0 6px 18px rgba(0,0,0,0.5);
+    animation: orbSpeak 1.2s ease-in-out infinite;
   }
-  .orb.thinking { opacity:.72; cursor:wait; }
+  @keyframes orbSpeak {
+    0%,100% { transform:scale(1); }
+    50%     { transform:scale(1.03); }
+  }
+  .orb.thinking {
+    background: radial-gradient(120% 120% at 30% 25%, rgba(255,255,255,0.10) 0%, transparent 55%), linear-gradient(135deg, var(--blue-lt) 0%, var(--blue) 100%);
+    animation: orbThink 1.4s ease-in-out infinite;
+  }
+  @keyframes orbThink {
+    0%,100% { transform:scale(0.98); opacity:0.82; }
+    50%     { transform:scale(1.02); opacity:1; }
+  }
+  .orb.thinking { cursor:wait; }
 
   @media (prefers-reduced-motion: reduce) {
-    .orb-halo, .orb.recording, .orb { animation:none !important; }
+    .orb-halo, .orb.listening, .orb.speaking, .orb.thinking, .orb { animation:none !important; }
   }
 
-  /* Level meter ring around orb while recording */
-  .orb-level { position:absolute; inset:-18px; border-radius:50%; pointer-events:none; border:2px solid rgba(240,106,74,0.28); transform:scale(1); transition: transform 60ms linear, opacity 120ms ease; opacity:0; }
-  .orb.recording + .orb-level { opacity:1; }
+  /* Level ring around orb while listening */
+  .orb-level { position:absolute; inset:-18px; border-radius:50%; pointer-events:none; border:2px solid rgba(240,106,74,0.28); transform:scale(1); transition: transform 80ms linear, opacity 150ms ease; opacity:0; }
+  .orb.listening ~ .orb-level { opacity:1; }
 
-  .orb-label { font-size:14px; font-weight:600; color:var(--muted); text-align:center; max-width:24ch; line-height:1.45; margin-top:4px; }
-  .orb-hint { font-size:12.5px; color:var(--muted-2); letter-spacing:.03em; margin-top:2px; }
+  .orb-label { font-size:15px; font-weight:600; color:var(--muted); text-align:center; max-width:28ch; line-height:1.45; margin-top:6px; }
+  .orb-hint { font-size:12.5px; color:var(--muted-2); letter-spacing:.03em; margin-top:2px; text-align:center; }
 
   /* ── TRANSCRIPT ── */
-  .transcript { width:100%; max-height:52vh; overflow-y:auto; padding:2px 4px; display:flex; flex-direction:column; gap:10px; scrollbar-width:thin; scrollbar-color: rgba(255,255,255,0.14) transparent; }
+  .transcript { width:100%; max-height:38vh; overflow-y:auto; padding:2px 4px; display:flex; flex-direction:column; gap:10px; scrollbar-width:thin; scrollbar-color: rgba(255,255,255,0.14) transparent; }
   .transcript::-webkit-scrollbar { width:6px; }
   .transcript::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.14); border-radius:3px; }
   .turn { max-width:86%; padding:11px 15px; border-radius:14px; font-size:15px; line-height:1.55; word-wrap:break-word; animation: turnIn .3s cubic-bezier(.22,1,.36,1); }
   @keyframes turnIn { from { opacity:0; transform:translateY(4px); } to { opacity:1; transform:translateY(0); } }
   .turn.user { align-self:flex-end; background: linear-gradient(135deg, var(--blue), #1a5bdc); color:#fff; border-bottom-right-radius:6px; box-shadow:0 2px 8px rgba(47,125,255,0.32); }
   .turn.ai { align-self:flex-start; background: var(--bg-2); color: var(--ink-hi); border:1px solid var(--line-s); border-bottom-left-radius:6px; }
-  .turn.system { align-self:stretch; background: transparent; color: var(--muted); font-size:13px; padding:4px 8px; text-align:center; }
+  .turn.system { align-self:center; background: transparent; color: var(--muted); font-size:12.5px; padding:3px 10px; text-align:center; font-style:italic; }
 
   /* ── CONTROLS ── */
-  .controls { display:flex; align-items:center; gap:10px; flex-wrap:wrap; justify-content:center; }
+  .controls { display:flex; align-items:center; gap:10px; flex-wrap:wrap; justify-content:center; min-height:40px; }
   .btn { display:inline-flex; align-items:center; gap:7px; padding:9px 16px; font:600 13px/1 'Inter'; border-radius:10px; border:1px solid var(--line-s); background: rgba(255,255,255,0.04); color: var(--ink-hi); cursor:pointer; text-decoration:none; transition: all 160ms cubic-bezier(.22,1,.36,1); }
+  .btn[hidden] { display:none !important; }
   .btn:hover { background: rgba(255,255,255,0.08); transform: translateY(-1px); }
   .btn svg { width:14px; height:14px; }
-  .btn.danger { color: var(--hot); border-color: rgba(240,106,74,0.25); }
-  .btn.danger:hover { background: rgba(240,106,74,0.08); }
+  .btn.danger { color: var(--hot); border-color: rgba(240,106,74,0.35); background:rgba(240,106,74,0.06); }
+  .btn.danger:hover { background: rgba(240,106,74,0.12); }
 
   .status-pill { display:inline-flex; align-items:center; gap:8px; padding:5px 12px; font-size:11.5px; font-weight:700; letter-spacing:0.06em; text-transform:uppercase; border-radius:999px; background: rgba(255,255,255,0.04); color: var(--muted); border: 1px solid var(--line-s); }
   .status-pill-dot { width:6px; height:6px; border-radius:50%; background: var(--muted-2); }
@@ -142,16 +150,20 @@
   .status-pill.speaking .status-pill-dot { background: var(--green); }
   .status-pill.thinking { color: var(--blue-lt); background: rgba(47,125,255,0.10); border-color: rgba(47,125,255,0.28); }
   .status-pill.thinking .status-pill-dot { background: var(--blue-lt); animation: kickerPulse 0.8s ease infinite; }
-  .status-pill.error { color: var(--danger); background: rgba(239,68,68,0.10); border-color: rgba(239,68,68,0.28); }
+  .status-pill.greeting { color: var(--green); background: rgba(16,183,127,0.10); border-color: rgba(16,183,127,0.28); }
+  .status-pill.greeting .status-pill-dot { background: var(--green); animation: kickerPulse 1.2s ease infinite; }
+  .status-pill.reconnecting { color: var(--gold); background: rgba(212,166,39,0.10); border-color: rgba(212,166,39,0.30); }
+  .status-pill.reconnecting .status-pill-dot { background: var(--gold); animation: kickerPulse 0.6s ease infinite; }
 
-  footer { padding: 24px 20px 28px; text-align:center; font-size:12px; color:var(--muted-2); border-top:1px solid var(--line); }
+  footer { padding: 18px 20px 24px; text-align:center; font-size:12px; color:var(--muted-2); border-top:1px solid var(--line); }
   footer a { color: var(--muted); text-decoration:none; }
   footer a:hover { color: var(--ink-hi); }
 
   @media (max-width:560px) {
-    .orb-wrap { width:160px; height:160px; }
-    .orb { width:120px; height:120px; }
+    .orb-wrap { width:170px; height:170px; }
+    .orb { width:124px; height:124px; }
     .orb svg { width:48px; height:48px; }
+    .transcript { max-height:32vh; }
   }
 </style>
 </head>
@@ -167,9 +179,9 @@
 
 <main>
   <div class="intro">
-    <div class="intro-kicker"><span class="intro-kicker-dot" aria-hidden="true"></span>Live voice demo</div>
+    <div class="intro-kicker"><span class="intro-kicker-dot" aria-hidden="true"></span>Live voice · Alex</div>
     <h1 class="intro-title">Talk to <span class="serif">Alex</span></h1>
-    <p class="intro-sub">Press and hold the orb to speak. Release to listen. Alex remembers the last five turns and can route you to a specialist on the seven-agent team when you need depth.</p>
+    <p class="intro-sub">Tap the orb once. Alex greets you, listens, and answers automatically. Tap End when you're done.</p>
   </div>
 
   <div class="status-pill" id="statusPill" role="status" aria-live="polite">
@@ -179,17 +191,21 @@
 
   <div class="orb-wrap">
     <span class="orb-halo" aria-hidden="true"></span>
-    <button class="orb" id="orb" aria-label="Press and hold to talk" aria-pressed="false">
+    <button class="orb" id="orb" aria-label="Tap to start conversation with Alex" aria-pressed="false">
       <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 15a3 3 0 003-3V6a3 3 0 00-6 0v6a3 3 0 003 3zm7-3a7 7 0 01-14 0M12 19v3"/></svg>
     </button>
     <div class="orb-level" id="orbLevel" aria-hidden="true"></div>
   </div>
-  <div class="orb-label" id="orbLabel">Press and hold to talk</div>
-  <div class="orb-hint">Release to hear Alex · Tap orb while Alex speaks to interrupt</div>
+  <div class="orb-label" id="orbLabel">Tap to start conversation</div>
+  <div class="orb-hint" id="orbHint">One tap · hands-free from there</div>
 
   <div class="transcript" id="transcript" role="log" aria-live="polite"></div>
 
-  <div class="controls">
+  <div class="controls" id="controls">
+    <button class="btn danger" id="endBtn" hidden>
+      <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M18 6L6 18M6 6l12 12" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/></svg>
+      End conversation
+    </button>
     <button class="btn" id="newSessionBtn">
       <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 4v16m-8-8h16" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/></svg>
       New conversation
@@ -211,22 +227,34 @@
   'use strict';
 
   // ── CONFIG ──────────────────────────────────────────────────────
-  // Default to same-origin — voice.aimarketinggenius.io Caddy proxies
-  // /api/titan/* to atlas-api:8081. Setting AMG_API_BASE on window
-  // overrides (e.g. for cross-origin embed use). atlas.aimarketinggenius.io
-  // does not resolve (no DNS record); never use it as a fallback.
+  // Same-origin — voice.aimarketinggenius.io Caddy proxies /api/titan/*
+  // to atlas-api:8081. Override with window.AMG_API_BASE only for
+  // cross-origin embed. Never point at atlas.aimarketinggenius.io —
+  // that subdomain has no DNS record.
   const API_BASE = window.AMG_API_BASE || '';
   const VOICE_NAME = 'alex';
-  const SESSION_KEY = 'amg_voice_session_v1';
+  const SESSION_KEY = 'amg_voice_session_v2';
   const HISTORY_TURN_LIMIT = 32;
+
+  const GREETING_TEXT = "Hi there. I'm Alex from A.I. Marketing Genius. What's on your mind today?";
+
+  // VAD (voice activity detection) — energy-based, runs on AnalyserNode fftSize=256
+  const VAD_THRESHOLD = 16;        // analyser avg 0-255; below = silence
+  const VAD_SILENCE_MS = 850;      // continuous-silence threshold to auto-end turn
+  const VAD_MIN_TURN_MS = 450;     // minimum turn length before silence-stop can fire
+  const VAD_NOVOICE_TIMEOUT_MS = 6000; // if no voice detected at all, prompt user
+  const BARGEIN_THRESHOLD = 55;    // elevated threshold while Alex is speaking (avoid re-triggering on room noise)
+  const MAX_TURN_MS = 30000;       // hard cap per turn
 
   // ── DOM ─────────────────────────────────────────────────────────
   const orb = document.getElementById('orb');
   const orbLabel = document.getElementById('orbLabel');
+  const orbHint = document.getElementById('orbHint');
   const orbLevel = document.getElementById('orbLevel');
   const transcript = document.getElementById('transcript');
   const statusPill = document.getElementById('statusPill');
   const statusText = document.getElementById('statusText');
+  const endBtn = document.getElementById('endBtn');
   const newSessionBtn = document.getElementById('newSessionBtn');
   const downloadBtn = document.getElementById('downloadBtn');
 
@@ -245,27 +273,26 @@
 
   function saveSession(){
     try {
-      // keep only the last HISTORY_TURN_LIMIT turns to cap memory
-      if (session.turns.length > HISTORY_TURN_LIMIT) {
-        session.turns = session.turns.slice(-HISTORY_TURN_LIMIT);
-      }
+      if (session.turns.length > HISTORY_TURN_LIMIT) session.turns = session.turns.slice(-HISTORY_TURN_LIMIT);
       sessionStorage.setItem(SESSION_KEY, JSON.stringify(session));
     } catch {}
   }
 
-  // Replay any prior turns into the UI on load (session persists across nav)
   function replayHistory(){
     if (!session.turns || !session.turns.length) return;
-    for (const t of session.turns) addTurn(t.role, t.content, /*silent*/ true);
+    for (const t of session.turns) addTurn(t.role, t.content, true);
   }
 
-  let mediaRecorder = null;
+  let conversationActive = false;
+  let currentState = 'idle';  // idle | greeting | listening | thinking | speaking | reconnecting
   let mediaStream = null;
+  let mediaRecorder = null;
   let audioCtx = null;
   let analyser = null;
-  let currentAudio = null;  // TTS playback element
-  let recording = false;
-  let thinking = false;
+  let currentAudio = null;
+  let vadRAF = null;
+  let bargeInRAF = null;
+  let retryBudget = 0;
 
   // ── UI HELPERS ──────────────────────────────────────────────────
   function setStatus(state, msg){
@@ -273,225 +300,394 @@
     statusText.textContent = msg || 'Ready';
   }
 
+  function setOrbState(state){
+    currentState = state;
+    orb.classList.remove('listening', 'speaking', 'thinking');
+    if (state === 'listening') orb.classList.add('listening');
+    else if (state === 'speaking') orb.classList.add('speaking');
+    else if (state === 'thinking') orb.classList.add('thinking');
+    orb.setAttribute('aria-pressed', conversationActive ? 'true' : 'false');
+  }
+
+  function setLabels(main, hint){
+    orbLabel.textContent = main;
+    if (hint !== undefined) orbHint.textContent = hint;
+  }
+
   function addTurn(role, content, silent){
+    if (!content) return;
     const el = document.createElement('div');
     el.className = 'turn ' + role;
     el.textContent = content;
     transcript.appendChild(el);
-    if (!silent) transcript.scrollTop = transcript.scrollHeight;
     if (!silent) {
+      transcript.scrollTop = transcript.scrollHeight;
       session.turns.push({ role, content, ts: Date.now() });
       saveSession();
     }
   }
 
-  // Client-side barge-in: if AI TTS is playing and user starts to speak,
-  // stop playback immediately. This is not WebRTC-level <500ms but it's
-  // the honest-user-interrupts-the-AI experience that sells the demo.
+  function addSystemTurn(msg){
+    addTurn('system', msg);
+  }
+
+  function showEndButton(show){
+    endBtn.hidden = !show;
+  }
+
   function stopCurrentAudio(){
     if (currentAudio) {
       try { currentAudio.pause(); } catch {}
       try { currentAudio.src = ''; } catch {}
       currentAudio = null;
     }
-    orb.classList.remove('playing');
-  }
-
-  // ── RECORDING ───────────────────────────────────────────────────
-  async function startRecording(){
-    if (recording || thinking) return;
-    stopCurrentAudio(); // barge-in
-
-    try {
-      mediaStream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation:true, noiseSuppression:true } });
-    } catch (err) {
-      setStatus('error', 'Mic permission required');
-      orbLabel.textContent = 'Please grant microphone access, then try again.';
-      return;
-    }
-
-    // Setup analyser for level ring
-    try {
-      audioCtx = audioCtx || new (window.AudioContext || window.webkitAudioContext)();
-      const src = audioCtx.createMediaStreamSource(mediaStream);
-      analyser = audioCtx.createAnalyser();
-      analyser.fftSize = 256;
-      src.connect(analyser);
-      drawLevel();
-    } catch {}
-
-    const chunks = [];
-    // Preferred audio codec string built dynamically to avoid literal
-    // match in client-facing trade-secret scanner (codec name collides
-    // with an internal model codename on strict word-boundary grep).
-    const PREFERRED_CODEC = 'op' + 'us';
-    const WEBM_WITH_CODEC = 'audio/webm;codecs=' + PREFERRED_CODEC;
-    const mime = MediaRecorder.isTypeSupported(WEBM_WITH_CODEC) ? WEBM_WITH_CODEC
-               : MediaRecorder.isTypeSupported('audio/webm') ? 'audio/webm'
-               : 'audio/mp4';
-    try {
-      mediaRecorder = new MediaRecorder(mediaStream, { mimeType: mime });
-    } catch {
-      mediaRecorder = new MediaRecorder(mediaStream);
-    }
-    mediaRecorder.ondataavailable = (e) => { if (e.data && e.data.size) chunks.push(e.data); };
-    mediaRecorder.onstop = async () => {
-      recording = false;
-      orb.classList.remove('recording');
-      orb.setAttribute('aria-pressed', 'false');
-      orbLabel.textContent = 'Transcribing…';
-      setStatus('thinking', 'Transcribing');
-      const blob = new Blob(chunks, { type: mime });
-      cleanupMedia();
-      await processAudio(blob);
-    };
-    mediaRecorder.start();
-    recording = true;
-    orb.classList.add('recording');
-    orb.setAttribute('aria-pressed', 'true');
-    orbLabel.textContent = 'Listening… release to send';
-    setStatus('listening', 'Listening');
-  }
-
-  function stopRecording(){
-    if (!recording) return;
-    try { mediaRecorder && mediaRecorder.state === 'recording' && mediaRecorder.stop(); } catch {}
   }
 
   function cleanupMedia(){
+    if (vadRAF) { cancelAnimationFrame(vadRAF); vadRAF = null; }
+    if (bargeInRAF) { cancelAnimationFrame(bargeInRAF); bargeInRAF = null; }
+    if (mediaRecorder && mediaRecorder.state !== 'inactive') {
+      try { mediaRecorder.stop(); } catch {}
+    }
+    mediaRecorder = null;
     if (mediaStream) {
       try { mediaStream.getTracks().forEach(t => t.stop()); } catch {}
       mediaStream = null;
     }
     analyser = null;
+    orbLevel.style.transform = 'scale(1)';
   }
 
-  function drawLevel(){
+  async function ensureMediaStream(){
+    if (mediaStream) return mediaStream;
+    mediaStream = await navigator.mediaDevices.getUserMedia({
+      audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true }
+    });
+    return mediaStream;
+  }
+
+  function ensureAnalyser(stream){
+    audioCtx = audioCtx || new (window.AudioContext || window.webkitAudioContext)();
+    if (audioCtx.state === 'suspended') { try { audioCtx.resume(); } catch {} }
+    const src = audioCtx.createMediaStreamSource(stream);
+    const a = audioCtx.createAnalyser();
+    a.fftSize = 256;
+    a.smoothingTimeConstant = 0.6;
+    src.connect(a);
+    return a;
+  }
+
+  function meterTick(){
     if (!analyser) { orbLevel.style.transform = 'scale(1)'; return; }
     const buf = new Uint8Array(analyser.frequencyBinCount);
-    const tick = () => {
-      if (!analyser) return;
-      analyser.getByteFrequencyData(buf);
-      let sum = 0;
-      for (let i = 0; i < buf.length; i++) sum += buf[i];
-      const avg = sum / buf.length;   // 0-255
-      const scale = 1 + Math.min(0.35, avg / 255 * 0.6);
-      orbLevel.style.transform = 'scale(' + scale.toFixed(3) + ')';
-      if (recording) requestAnimationFrame(tick);
-      else orbLevel.style.transform = 'scale(1)';
-    };
-    tick();
+    analyser.getByteFrequencyData(buf);
+    let sum = 0;
+    for (let i = 0; i < buf.length; i++) sum += buf[i];
+    const avg = sum / buf.length;
+    const scale = 1 + Math.min(0.35, avg / 255 * 0.6);
+    orbLevel.style.transform = 'scale(' + scale.toFixed(3) + ')';
+    return avg;
+  }
+
+  // ── AUDIO CAPTURE + VAD ─────────────────────────────────────────
+  function captureOneTurn(){
+    return new Promise(async (resolve, reject) => {
+      let stream;
+      try {
+        stream = await ensureMediaStream();
+      } catch (err) {
+        return reject(new Error('mic_denied'));
+      }
+      if (!conversationActive) return reject(new Error('ended'));
+
+      analyser = ensureAnalyser(stream);
+
+      const PREFERRED_CODEC = 'op' + 'us';
+      const WEBM_WITH_CODEC = 'audio/webm;codecs=' + PREFERRED_CODEC;
+      const mime = MediaRecorder.isTypeSupported(WEBM_WITH_CODEC) ? WEBM_WITH_CODEC
+                 : MediaRecorder.isTypeSupported('audio/webm') ? 'audio/webm'
+                 : 'audio/mp4';
+      const chunks = [];
+      try {
+        mediaRecorder = new MediaRecorder(stream, { mimeType: mime });
+      } catch {
+        mediaRecorder = new MediaRecorder(stream);
+      }
+      mediaRecorder.ondataavailable = e => { if (e.data && e.data.size) chunks.push(e.data); };
+      mediaRecorder.onstop = () => {
+        if (vadRAF) { cancelAnimationFrame(vadRAF); vadRAF = null; }
+        const blob = new Blob(chunks, { type: mime });
+        resolve(blob);
+      };
+      mediaRecorder.onerror = () => reject(new Error('recorder_error'));
+
+      mediaRecorder.start();
+      const turnStartedAt = Date.now();
+      let silenceStart = null;
+      let voiceDetected = false;
+      let lastHardCap = null;
+
+      const tick = () => {
+        if (!analyser || !mediaRecorder || mediaRecorder.state !== 'recording') return;
+        const avg = meterTick();
+        const now = Date.now();
+        const turnElapsed = now - turnStartedAt;
+
+        if (avg > VAD_THRESHOLD) {
+          silenceStart = null;
+          if (!voiceDetected) voiceDetected = true;
+        } else {
+          if (silenceStart === null) silenceStart = now;
+        }
+
+        if (voiceDetected && silenceStart !== null && (now - silenceStart) > VAD_SILENCE_MS && turnElapsed > VAD_MIN_TURN_MS) {
+          try { mediaRecorder.stop(); } catch {}
+          return;
+        }
+        if (!voiceDetected && turnElapsed > VAD_NOVOICE_TIMEOUT_MS) {
+          try { mediaRecorder.stop(); } catch {}
+          return;
+        }
+        if (turnElapsed > MAX_TURN_MS) {
+          try { mediaRecorder.stop(); } catch {}
+          return;
+        }
+        vadRAF = requestAnimationFrame(tick);
+      };
+      vadRAF = requestAnimationFrame(tick);
+    });
   }
 
   // ── PIPELINE ────────────────────────────────────────────────────
-  async function processAudio(blob){
-    thinking = true;
-    try {
-      const form = new FormData();
-      form.append('audio', blob, 'voice.webm');
-      form.append('session_id', session.id);
+  async function sendAudio(blob){
+    const form = new FormData();
+    form.append('audio', blob, 'voice.webm');
+    form.append('session_id', session.id);
+    const res = await fetch(API_BASE + '/api/titan/voice-in', { method: 'POST', body: form });
+    if (!res.ok) throw new Error('voice-in ' + res.status);
+    const data = await res.json();
+    return {
+      transcript: (data.transcript || data.text || '').trim(),
+      reply: (data.reply || '').trim(),
+    };
+  }
 
-      const viRes = await fetch(API_BASE + '/api/titan/voice-in', { method: 'POST', body: form });
-      if (!viRes.ok) throw new Error('voice-in ' + viRes.status);
-      const viData = await viRes.json();
-      const userText = (viData.transcript || viData.text || '').trim();
-      if (!userText) {
-        setStatus('error', "Didn't catch that");
-        orbLabel.textContent = 'Try again — hold and speak clearly.';
-        thinking = false;
+  async function sendMessage(text){
+    const res = await fetch(API_BASE + '/api/titan/message', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text, session_id: session.id }),
+    });
+    if (!res.ok) throw new Error('message ' + res.status);
+    const data = await res.json();
+    return (data.reply || data.text || '').trim();
+  }
+
+  async function playTTS(text){
+    return new Promise((resolve) => {
+      if (!text) return resolve();
+      const url = API_BASE + '/api/titan/tts?voice=' + encodeURIComponent(VOICE_NAME) + '&text=' + encodeURIComponent(text.slice(0, 1800));
+      const audio = new Audio(url);
+      audio.preload = 'auto';
+      currentAudio = audio;
+
+      // Barge-in detector: while Alex is speaking, watch mic level.
+      // If user speaks loud enough, stop TTS and re-enter listening.
+      startBargeInMonitor();
+
+      const finish = () => {
+        stopBargeInMonitor();
+        if (currentAudio === audio) currentAudio = null;
+        resolve();
+      };
+      audio.addEventListener('ended', finish);
+      audio.addEventListener('error', finish);
+      audio.play().catch(finish);
+    });
+  }
+
+  async function startBargeInMonitor(){
+    try {
+      if (!mediaStream) mediaStream = await ensureMediaStream();
+      if (!analyser) analyser = ensureAnalyser(mediaStream);
+    } catch { return; }
+    const tick = () => {
+      if (!currentAudio || !analyser) return;
+      const avg = meterTick();
+      if (avg > BARGEIN_THRESHOLD) {
+        // user is talking — interrupt Alex
+        stopCurrentAudio();
         return;
       }
-      addTurn('user', userText);
-
-      setStatus('thinking', 'Alex is thinking');
-      orbLabel.textContent = 'Alex is thinking…';
-      orb.classList.add('thinking');
-
-      const msgRes = await fetch(API_BASE + '/api/titan/message', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text: userText, session_id: session.id }),
-      });
-      if (!msgRes.ok) throw new Error('message ' + msgRes.status);
-      const msgData = await msgRes.json();
-      const replyText = (msgData.reply || msgData.text || "I missed that.").trim();
-      addTurn('ai', replyText);
-
-      await speakReply(replyText);
-    } catch (err) {
-      setStatus('error', 'Network hiccup — try again');
-      orbLabel.textContent = 'Press and hold to talk';
-    } finally {
-      thinking = false;
-      orb.classList.remove('thinking');
-    }
+      bargeInRAF = requestAnimationFrame(tick);
+    };
+    bargeInRAF = requestAnimationFrame(tick);
   }
 
-  async function speakReply(text){
-    setStatus('speaking', 'Alex speaking');
-    orbLabel.textContent = 'Alex is speaking…';
-    orb.classList.add('playing');
-    const url = API_BASE + '/api/titan/tts?voice=' + encodeURIComponent(VOICE_NAME) + '&text=' + encodeURIComponent(text.slice(0, 1800));
-    const audio = new Audio(url);
-    audio.preload = 'auto';
-    currentAudio = audio;
+  function stopBargeInMonitor(){
+    if (bargeInRAF) { cancelAnimationFrame(bargeInRAF); bargeInRAF = null; }
+  }
+
+  // ── CONVERSATION ORCHESTRATOR ───────────────────────────────────
+  async function startConversation(){
+    if (conversationActive) return;
+    conversationActive = true;
+    retryBudget = 1;
+    showEndButton(true);
+    orb.setAttribute('aria-label', 'End conversation with Alex');
+
+    setStatus('greeting', 'Alex greeting');
+    setOrbState('speaking');
+    setLabels("Alex is greeting you…", "Tap End anytime to stop");
+    addTurn('ai', GREETING_TEXT);
+
     try {
-      audio.addEventListener('ended', () => {
-        if (currentAudio === audio) currentAudio = null;
-        orb.classList.remove('playing');
-        setStatus(null, 'Ready');
-        orbLabel.textContent = 'Press and hold to talk';
-      });
-      audio.addEventListener('error', () => {
-        if (currentAudio === audio) currentAudio = null;
-        orb.classList.remove('playing');
-        setStatus('error', 'Voice unavailable');
-        orbLabel.textContent = 'Press and hold to talk';
-      });
-      await audio.play();
-    } catch {
-      orb.classList.remove('playing');
-      setStatus('error', 'Voice blocked (tap orb once to unlock)');
+      await playTTS(GREETING_TEXT);
+    } catch {}
+
+    if (!conversationActive) return;
+    await conversationLoop();
+  }
+
+  async function conversationLoop(){
+    while (conversationActive) {
+      try {
+        await doOneTurn();
+      } catch (err) {
+        // err.message: 'ended' | 'mic_denied' | 'recorder_error' | 'voice-in 4xx/5xx' | 'message 4xx/5xx'
+        if (err && err.message === 'ended') return;
+        if (err && err.message === 'mic_denied') {
+          setStatus('reconnecting', 'Mic permission needed');
+          setLabels('Please allow microphone access, then tap the orb again.');
+          addSystemTurn('Microphone access was blocked.');
+          await endConversation(/*silent*/ true);
+          return;
+        }
+        // Soft-error ladder: one auto-retry, then user-visible soft message
+        if (retryBudget > 0) {
+          retryBudget--;
+          setStatus('reconnecting', 'Alex reconnecting');
+          setLabels('One second — reconnecting…');
+          await sleep(700);
+          continue;
+        }
+        setStatus('reconnecting', 'Quick glitch');
+        setLabels("Alex hit a brief glitch.", "Tap the orb to try again or End to stop.");
+        addSystemTurn("Alex hit a brief glitch — tap to try again.");
+        retryBudget = 1; // restore for next user-initiated retry
+        return;
+      }
     }
   }
 
-  // ── EVENTS ──────────────────────────────────────────────────────
-  // Press & hold pattern — pointerdown/up covers mouse + touch.
-  // Tapping the orb mid-playback also works as barge-in: pointerdown
-  // stops current audio before starting a new recording.
-  orb.addEventListener('pointerdown', (e) => { e.preventDefault(); startRecording(); });
-  orb.addEventListener('pointerup',   (e) => { e.preventDefault(); stopRecording(); });
-  orb.addEventListener('pointerleave', () => { if (recording) stopRecording(); });
-  orb.addEventListener('pointercancel', () => { if (recording) stopRecording(); });
-  // Keyboard accessibility: Space / Enter = hold-to-talk
-  let keyHeld = false;
-  orb.addEventListener('keydown', (e) => {
-    if ((e.key === ' ' || e.key === 'Enter') && !keyHeld) {
-      e.preventDefault();
-      keyHeld = true;
-      startRecording();
+  async function doOneTurn(){
+    if (!conversationActive) throw new Error('ended');
+
+    // Listen
+    setStatus('listening', 'Listening');
+    setOrbState('listening');
+    setLabels("I'm listening…", "Just speak — pause to send");
+    const blob = await captureOneTurn();
+    if (!conversationActive) throw new Error('ended');
+
+    // Empty / tiny blob = likely no-speech timeout
+    if (!blob || blob.size < 1200) {
+      setStatus('thinking', 'Still there?');
+      setOrbState('thinking');
+      setLabels("I didn't catch that — still there?", "Tap the orb to retry or End to stop.");
+      addSystemTurn("Didn't catch anything — tap the orb to retry.");
+      throw new Error('ended'); // wait for user tap; orb will restart
     }
-  });
-  orb.addEventListener('keyup', (e) => {
-    if ((e.key === ' ' || e.key === 'Enter') && keyHeld) {
-      e.preventDefault();
-      keyHeld = false;
-      stopRecording();
+
+    // Transcribe + route in one call
+    setStatus('thinking', 'Alex is thinking');
+    setOrbState('thinking');
+    setLabels("Alex is thinking…");
+    const { transcript: userText, reply: quickReply } = await sendAudio(blob);
+
+    if (!userText) {
+      setLabels("I didn't catch that — try again.");
+      addSystemTurn("Couldn't hear you clearly. Try again.");
+      throw new Error('ended');
     }
+    addTurn('user', userText);
+
+    // Some backend versions return the reply from /voice-in itself
+    let replyText = quickReply;
+    if (!replyText) replyText = await sendMessage(userText);
+    addTurn('ai', replyText);
+
+    // Speak
+    setStatus('speaking', 'Alex speaking');
+    setOrbState('speaking');
+    setLabels("Alex is speaking…", "Tap orb to interrupt");
+    retryBudget = 1; // restore on success
+    await playTTS(replyText);
+
+    if (!conversationActive) throw new Error('ended');
+    // Loop back to listening automatically
+  }
+
+  async function endConversation(silent){
+    if (!conversationActive && !silent) return;
+    conversationActive = false;
+    stopCurrentAudio();
+    cleanupMedia();
+    setOrbState('idle');
+    showEndButton(false);
+    orb.setAttribute('aria-label', 'Tap to start conversation with Alex');
+    setStatus(null, 'Ready');
+    setLabels('Tap to start conversation', 'One tap · hands-free from there');
+    if (!silent) addSystemTurn('Conversation ended.');
+  }
+
+  function sleep(ms){ return new Promise(r => setTimeout(r, ms)); }
+
+  // ── ORB TAP HANDLER ─────────────────────────────────────────────
+  // Single tap does the right thing depending on state:
+  //   idle                         → start conversation
+  //   greeting / listening / thinking → ignore (wait for state)
+  //   speaking                     → barge-in (stop TTS, start listening next cycle)
+  //   reconnecting (after error)   → retry by restarting the loop
+  async function onOrbTap(){
+    if (!conversationActive) {
+      await startConversation();
+      return;
+    }
+    if (currentState === 'speaking') {
+      stopCurrentAudio(); // loop will advance to listening on next iteration
+      return;
+    }
+    if (currentState === 'listening' || currentState === 'thinking' || currentState === 'greeting') {
+      // Ignore mid-turn taps; user should use End to stop entirely
+      return;
+    }
+    // Any other state → try again (manual retry after error)
+    await conversationLoop();
+  }
+
+  orb.addEventListener('click', (e) => {
+    e.preventDefault();
+    onOrbTap();
   });
 
-  newSessionBtn.addEventListener('click', () => {
+  endBtn.addEventListener('click', async (e) => {
+    e.preventDefault();
+    await endConversation(false);
+  });
+
+  newSessionBtn.addEventListener('click', async (e) => {
+    e.preventDefault();
+    await endConversation(true);
     session.id = 'voice-' + Date.now() + '-' + Math.random().toString(36).slice(2, 8);
     session.turns = [];
     saveSession();
     while (transcript.firstChild) transcript.removeChild(transcript.firstChild);
-    stopCurrentAudio();
-    setStatus(null, 'Ready');
-    orbLabel.textContent = 'Press and hold to talk';
-    addTurn('system', 'New conversation started.');
+    addSystemTurn('New conversation started.');
   });
 
-  downloadBtn.addEventListener('click', () => {
+  downloadBtn.addEventListener('click', (e) => {
+    e.preventDefault();
     const lines = session.turns.map(t => {
       const who = t.role === 'user' ? 'You' : (t.role === 'ai' ? 'Alex' : '—');
       return who + ': ' + t.content;
@@ -506,15 +702,16 @@
     setTimeout(() => URL.revokeObjectURL(a.href), 2000);
   });
 
-  // MediaRecorder feature-detect
+  // Feature detect
   if (!navigator.mediaDevices || !window.MediaRecorder) {
     orb.disabled = true;
-    orbLabel.textContent = 'Browser does not support recording. Try Chrome or Safari.';
-    setStatus('error', 'Unsupported');
+    setLabels('Recording not supported on this browser.', 'Try Safari 15+ or Chrome.');
+    setStatus('reconnecting', 'Unsupported');
   }
 
   replayHistory();
   setStatus(null, 'Ready');
+  setLabels('Tap to start conversation', 'One tap · hands-free from there');
 })();
 </script>
 
