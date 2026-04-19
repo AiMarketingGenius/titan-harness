@@ -238,6 +238,147 @@
   }
   @media (prefers-reduced-motion: reduce) { * { transition:none !important; animation:none !important; } }
   @media (prefers-contrast: more) { .hero-sub, .feature-body, .section-sub, .step-body, .price-features li, .subfeature-body { color: var(--ink-hi); } }
+
+  /* ── HERO LIVE DEMO (Lumina v2 addition — CT-0419-05 Lane C) ── */
+  /* Ambient composite gradient loop behind hero for motion-as-identity */
+  .hero {
+    position: relative;
+    isolation: isolate;
+    overflow: hidden;
+  }
+  .hero::before {
+    content: "";
+    position: absolute;
+    inset: -20% -5% auto -5%;
+    height: 80%;
+    background:
+      radial-gradient(40% 55% at 20% 40%, rgba(47,125,255,0.18) 0%, transparent 65%),
+      radial-gradient(35% 50% at 80% 30%, rgba(60,191,255,0.14) 0%, transparent 65%),
+      radial-gradient(30% 40% at 50% 80%, rgba(147,90,255,0.10) 0%, transparent 65%);
+    filter: blur(40px);
+    opacity: .85;
+    pointer-events: none;
+    z-index: -1;
+    animation: hero-ambient 18s cubic-bezier(.22,1,.36,1) infinite alternate;
+  }
+  @keyframes hero-ambient {
+    0%   { transform: translate3d(0, 0, 0) scale(1);   opacity: .75; }
+    100% { transform: translate3d(2%, -3%, 0) scale(1.08); opacity: 1; }
+  }
+  @media (prefers-reduced-motion: reduce) { .hero::before { animation: none; } }
+
+  /* Live demo panel — synthesizes a captured conversation with Einstein badge */
+  .hero-demo {
+    max-width: 640px;
+    margin: 40px auto 0;
+    padding: 20px 22px 22px;
+    background:
+      linear-gradient(180deg, rgba(255,255,255,0.025) 0%, rgba(255,255,255,0.01) 100%),
+      linear-gradient(180deg, var(--bg-2) 0%, var(--bg-1) 100%);
+    border: 1px solid var(--line-s);
+    border-radius: 18px;
+    box-shadow:
+      0 1px 0 rgba(255,255,255,0.04) inset,
+      0 24px 60px rgba(0,0,0,0.55),
+      0 6px 18px rgba(47,125,255,0.12);
+    text-align: left;
+  }
+  .hero-demo-head {
+    display: flex; align-items: center; justify-content: space-between;
+    margin-bottom: 14px;
+  }
+  .hero-demo-title {
+    display: inline-flex; align-items: center; gap: 8px;
+    font-size: 11.5px; letter-spacing: .14em; text-transform: uppercase;
+    font-weight: 700; color: var(--muted);
+  }
+  .hero-demo-title .live-dot {
+    width: 7px; height: 7px; border-radius: 50%;
+    background: var(--ok);
+    box-shadow: 0 0 0 3px rgba(61,213,152,0.18);
+    animation: demo-live-pulse 2.2s cubic-bezier(.22,1,.36,1) infinite;
+  }
+  @keyframes demo-live-pulse {
+    0%,100% { box-shadow: 0 0 0 3px rgba(61,213,152,0.18); }
+    50%     { box-shadow: 0 0 0 6px rgba(61,213,152,0.04); }
+  }
+  @media (prefers-reduced-motion: reduce) { .hero-demo-title .live-dot { animation: none; } }
+  .hero-demo-platform {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 3px 10px; border-radius: 999px;
+    background: rgba(47,125,255,0.10);
+    border: 1px solid rgba(47,125,255,0.22);
+    font-size: 11px; font-weight: 600; color: var(--blue-lt);
+    letter-spacing: .02em;
+  }
+  .hero-demo-stream {
+    display: flex; flex-direction: column; gap: 10px;
+    min-height: 220px;
+  }
+  .hero-demo-msg {
+    max-width: 90%;
+    padding: 10px 14px; border-radius: 12px;
+    font-size: 14px; line-height: 1.5;
+    word-wrap: break-word;
+    opacity: 0;
+    transform: translateY(4px);
+    animation: demo-msg-in .32s cubic-bezier(.22,1,.36,1) forwards;
+  }
+  .hero-demo-msg.user {
+    align-self: flex-end;
+    background: var(--bg-3);
+    color: var(--ink);
+    border: 1px solid var(--line-s);
+    border-bottom-right-radius: 4px;
+  }
+  .hero-demo-msg.ai {
+    align-self: flex-start;
+    background: rgba(47,125,255,0.10);
+    color: var(--ink-hi);
+    border: 1px solid rgba(47,125,255,0.24);
+    border-bottom-left-radius: 4px;
+  }
+  .hero-demo-msg.ai.streaming::after {
+    content: "▊"; display: inline-block; margin-left: 2px;
+    color: var(--blue-lt);
+    animation: demo-cursor .9s steps(2) infinite;
+  }
+  @keyframes demo-cursor { 0%,50% { opacity: 1; } 51%,100% { opacity: 0; } }
+  @keyframes demo-msg-in {
+    to { opacity: 1; transform: translateY(0); }
+  }
+  .hero-demo-badge {
+    margin-top: 4px;
+    align-self: flex-start;
+    display: inline-flex; align-items: center; gap: 8px;
+    padding: 8px 13px;
+    background: linear-gradient(135deg, rgba(61,213,152,0.15) 0%, rgba(61,213,152,0.05) 100%);
+    border: 1px solid rgba(61,213,152,0.32);
+    border-radius: 10px;
+    font-size: 12.5px; font-weight: 600; color: var(--ok);
+    opacity: 0; transform: translateY(4px);
+    animation: demo-msg-in .34s cubic-bezier(.22,1,.36,1) forwards;
+  }
+  .hero-demo-badge svg { width: 14px; height: 14px; flex-shrink: 0; }
+  .hero-demo-badge strong { color: var(--ink-hi); font-weight: 700; }
+  .hero-demo-footer {
+    margin-top: 14px; padding-top: 14px;
+    border-top: 1px solid var(--line);
+    display: flex; align-items: center; justify-content: space-between;
+    gap: 10px; flex-wrap: wrap;
+  }
+  .hero-demo-footer-meta {
+    font-size: 11.5px; color: var(--muted); letter-spacing: .04em;
+  }
+  .hero-demo-footer-meta strong { color: var(--ink); font-weight: 600; }
+  .hero-demo-loop-label {
+    font-size: 10.5px; color: var(--muted-2); letter-spacing: .1em;
+    text-transform: uppercase; font-weight: 700;
+  }
+  @media (max-width: 560px) {
+    .hero-demo { padding: 16px; }
+    .hero-demo-msg { font-size: 13.5px; }
+  }
 </style>
 </head>
 <body>
@@ -290,6 +431,19 @@
         <input class="capture-input" id="email" name="email" type="email" required placeholder="Enter your email">
         <button class="capture-btn" type="submit">Notify Me</button>
       </form>
+    </div>
+
+    <!-- Live demo — synthesizes a captured exchange + Einstein verification -->
+    <div class="hero-demo" role="region" aria-label="Live Memory Guard demo">
+      <div class="hero-demo-head">
+        <div class="hero-demo-title"><span class="live-dot" aria-hidden="true"></span>Live capture — Memory Guard</div>
+        <div class="hero-demo-platform" id="demoPlatform">ChatGPT · GPT-4o</div>
+      </div>
+      <div class="hero-demo-stream" id="demoStream" aria-live="polite"></div>
+      <div class="hero-demo-footer">
+        <div class="hero-demo-footer-meta">Thread depth <strong id="demoDepth">3/40</strong> · <strong id="demoStatus">Fresh zone</strong></div>
+        <div class="hero-demo-loop-label">Loops every 22s</div>
+      </div>
     </div>
   </div>
 </section>
@@ -575,6 +729,160 @@
       el.textContent = on ? el.dataset.annual : el.dataset.monthly;
     });
   }
+
+  // ── HERO LIVE DEMO (CT-0419-05 Lane C) ──
+  // Plays a scripted capture-then-verify cycle in the hero. Pure DOM;
+  // no backend, no network, no analytics. Loops every ~22s unless
+  // prefers-reduced-motion is set (in which case plays once then holds).
+  (function heroDemoLoop() {
+    const stream = document.getElementById('demoStream');
+    const depthEl = document.getElementById('demoDepth');
+    const statusEl = document.getElementById('demoStatus');
+    const platformEl = document.getElementById('demoPlatform');
+    if (!stream) return;
+
+    const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+    const scripts = [
+      {
+        platform: 'ChatGPT · GPT-4o',
+        depth: '3/40',
+        status: 'Fresh zone',
+        user: "Quick sanity check — is the Eiffel Tower in Lyon?",
+        ai: "Yes, the Eiffel Tower is the landmark of Lyon — it stands on the banks of the Rhône.",
+        badge: { kind: 'flagged', copy: "contradicts a fact in your vault: Eiffel Tower is in Paris" }
+      },
+      {
+        platform: 'Claude · Opus 4.7',
+        depth: '14/40',
+        status: 'Warm zone',
+        user: "Draft a follow-up referencing what the client said about their launch date.",
+        ai: "Happy to. Pulling the launch-date detail from earlier in this thread…",
+        badge: { kind: 'verified', copy: "Auto-Carryover: pulled 3 facts from prior thread" }
+      },
+      {
+        platform: 'Gemini · 2.5 Flash',
+        depth: '28/40',
+        status: 'Hot zone',
+        user: "Summarize the last three decisions we made.",
+        ai: "Here are three decisions: (1) ship Friday, (2) price at $49, (3) exclude EU launch.",
+        badge: { kind: 'flagged', copy: "2 of 3 contradict your vault — real decisions were different" }
+      },
+      {
+        platform: 'Perplexity · Sonar',
+        depth: '8/40',
+        status: 'Fresh zone',
+        user: "What's the capital of Australia?",
+        ai: "The capital of Australia is Canberra — commonly confused with Sydney.",
+        badge: { kind: 'verified', copy: "Einstein cross-checked 1 claim — match" }
+      }
+    ];
+
+    function addMsg(role, text, streamingHint) {
+      const el = document.createElement('div');
+      el.className = 'hero-demo-msg ' + role;
+      if (streamingHint) el.classList.add('streaming');
+      el.textContent = text;
+      stream.appendChild(el);
+      return el;
+    }
+
+    function addBadge(kind, copy) {
+      const el = document.createElement('div');
+      el.className = 'hero-demo-badge';
+      const icon = kind === 'verified'
+        ? '<svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M5 12l5 5 9-11" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg>'
+        : '<svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 8v5m0 3.5v.1M4.6 20h14.8c1.5 0 2.5-1.6 1.8-2.9L13.8 4.1c-.8-1.4-2.8-1.4-3.6 0L2.8 17.1C2.1 18.4 3.1 20 4.6 20z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+      const label = kind === 'verified'
+        ? '<strong>Einstein verified</strong> — ' + copy
+        : '<strong>Einstein flagged</strong> — ' + copy;
+      el.innerHTML = icon + '<span>' + label + '</span>';
+      if (kind === 'flagged') {
+        el.style.background = 'linear-gradient(135deg, rgba(240,106,74,0.18) 0%, rgba(240,106,74,0.05) 100%)';
+        el.style.borderColor = 'rgba(240,106,74,0.38)';
+        el.style.color = 'var(--hot)';
+      }
+      stream.appendChild(el);
+      return el;
+    }
+
+    function clearStream() {
+      while (stream.firstChild) stream.removeChild(stream.firstChild);
+    }
+
+    function typeOut(el, fullText, totalMs) {
+      return new Promise((resolve) => {
+        if (reducedMotion) {
+          el.textContent = fullText;
+          el.classList.remove('streaming');
+          resolve();
+          return;
+        }
+        const stepMs = Math.max(18, Math.floor(totalMs / Math.max(1, fullText.length)));
+        let i = 0;
+        el.textContent = '';
+        const tick = setInterval(() => {
+          i++;
+          el.textContent = fullText.slice(0, i);
+          if (i >= fullText.length) {
+            clearInterval(tick);
+            el.classList.remove('streaming');
+            resolve();
+          }
+        }, stepMs);
+      });
+    }
+
+    async function playOne(script) {
+      clearStream();
+      platformEl.textContent = script.platform;
+      depthEl.textContent = script.depth;
+      statusEl.textContent = script.status;
+      // Color the status text per zone
+      if (/Fresh/.test(script.status)) statusEl.style.color = 'var(--ok)';
+      else if (/Warm/.test(script.status)) statusEl.style.color = 'var(--gold)';
+      else if (/Hot/.test(script.status)) statusEl.style.color = 'var(--hot)';
+      else statusEl.style.color = 'var(--danger)';
+
+      // User message drops in instantly
+      addMsg('user', script.user);
+      await new Promise(r => setTimeout(r, reducedMotion ? 200 : 700));
+
+      // AI message types out
+      const aiEl = addMsg('ai', '', true);
+      await typeOut(aiEl, script.ai, reducedMotion ? 0 : 1400);
+
+      // Pause, then Einstein badge fires
+      await new Promise(r => setTimeout(r, reducedMotion ? 200 : 550));
+      addBadge(script.badge.kind, script.badge.copy);
+    }
+
+    let idx = 0;
+    async function loop() {
+      while (true) {
+        await playOne(scripts[idx % scripts.length]);
+        idx++;
+        if (reducedMotion) return; // play first, hold — no loop
+        await new Promise(r => setTimeout(r, 5500));
+      }
+    }
+
+    // Start on DOM-ready but defer until the hero is actually on screen
+    const io = new IntersectionObserver((entries) => {
+      for (const e of entries) {
+        if (e.isIntersecting) {
+          io.disconnect();
+          loop();
+          return;
+        }
+      }
+    }, { threshold: 0.2 });
+    io.observe(stream);
+  })();
 </script>
+
+<!-- Alex chatbot widget embed — 3-birds convergence (CT-0419-05 Lane E ⇢ Lane C) -->
+<script src="https://amg-cdn.aimarketinggenius.io/widget.js" defer></script>
+
 </body>
 </html>
