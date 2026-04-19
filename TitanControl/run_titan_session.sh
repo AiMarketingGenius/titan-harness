@@ -42,8 +42,12 @@ with open(tmp, "w") as f: json.dump(data, f)
 os.replace(tmp, path)
 PY
 
-# Interactive session with initial prompt (preserves SessionStart hook chain)
-"$CLAUDE_BIN" --debug-file "$LOG_DIR/claude-debug.log" "$PROMPT" &
+# Interactive session with initial prompt (preserves SessionStart hook chain).
+# --dangerously-skip-permissions: autonomous-launcher only (CT-0419-08 Layer 2).
+# Post-Claude-Code-update, defaultMode=bypassPermissions in settings.json is not
+# fully honored; this CLI flag is the authoritative bypass for autonomous wakes.
+# Interactive Solon-present sessions use the .zshrc alias (same flag) separately.
+"$CLAUDE_BIN" --dangerously-skip-permissions --debug-file "$LOG_DIR/claude-debug.log" "$PROMPT" &
 CLAUDE_PID=$!
 echo "$CLAUDE_PID" > "$STATE_DIR/claude.pid"
 wait "$CLAUDE_PID"

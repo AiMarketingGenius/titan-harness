@@ -792,3 +792,68 @@ Back-compat symlink: `/opt/amg-docs/doctrine -> doctrines` (legacy path kept poi
 ### 19.5 Existing docs — retro-file pass
 
 Titan back-registers any pre-§19 EOM-delivered docs it finds in `/opt/amg-docs/doctrines/` (or other canonical paths) into MCP as part of the first §19 filing pass. Initial retro scope: `BABY_ATLAS_V1_ARCHITECTURE.md`, `CREATIVE_ENGINE_ARCHITECTURE.md`, `CT-0417-28_FOUR_DOCTRINES_STATUS.md` (the three docs migrated during Task C).
+
+---
+
+## 20. PERMISSION PLAGUE — four-layer elimination (added 2026-04-19, CT-0419-08)
+
+**Hard rule:** Titan autonomous sessions never surface Allow/Deny dialogs to Solon. Four layers deep, each surviving a failure of the one above. If a Claude Code update breaks a layer, the lower layers keep autonomy intact; the survival checklist in §20.5 lists what to re-check.
+
+### 20.1 Layer 1 — Claude Code `permissions.allow` + `defaultMode: bypassPermissions`
+
+`~/.claude/settings.json` contains BOTH wildcard rules (`Bash(*)`, `Edit(*)`, `Write(*)`, etc.) AND specific-path globs (`Edit(/Users/solonzafiropoulos1/titan-harness/**)`, `Bash(git *)`, etc.). `defaultMode: bypassPermissions` is the silent-consent default. Backup to `~/.claude/settings.json.bak.<ts>-ct0419-08` exists pre-edit.
+
+Specific-path globs on top of wildcards are belt-and-suspenders. When the next Claude Code update changes how wildcards are interpreted, the specific globs still match. Always add a specific glob for a new Titan working path rather than assuming `Bash(*)` covers it.
+
+### 20.2 Layer 2 — `--dangerously-skip-permissions` on autonomous launchers
+
+Two shell contexts launch Claude:
+- **Interactive (Solon-at-keyboard):** `~/.zshrc` alias `claude='claude --dangerously-skip-permissions'`.
+- **Autonomous (post-restart):** `~/Library/Application Support/TitanControl/run_titan_session.sh` passes `--dangerously-skip-permissions --debug-file ... "$PROMPT"`. Install source mirrored at `~/titan-harness/TitanControl/run_titan_session.sh`.
+
+Both forms carry the flag so the CLI bypass is absolute regardless of settings.json interpretation. The autonomous path is the leak-critical one because Solon is AFK when it fires.
+
+### 20.3 Layer 3 — Hammerspoon auto_approve_claude_prompts.lua
+
+`~/.hammerspoon/auto_approve_claude_prompts.lua`, loaded by `init.lua`. Two concerns:
+
+**Claude Code prompts (CLI TUI):** polls the frontmost terminal (Terminal / iTerm / Ghostty / Warp / Alacritty / Tabby) every 0.8s. Parses last 3000 chars for prompt signatures (`Do you want to make this edit…`, `Allow Claude to edit…`, `run this command`). Extracts target path or command. Cross-checks against the allow-list loaded from settings.json. If whitelisted and debounce (2s) elapsed, presses `1` + Enter. Non-whitelisted prompts are logged and left for human action.
+
+**macOS TCC (Layer B extension):** scans all visible windows for system apps (`UserNotificationCenter`, `tccd`, `System Settings`, `System Preferences`, `coreservicesd`, `CoreLocationAgent`, `universalAccessAuthWarn`). Parses the dialog title to extract the requesting app and the category being requested. Auto-Allows only if the requesting app is in `TCC_ALLOW_APPS` (Claude / Terminal / iTerm / Ghostty / Warp / Alacritty / Tabby / Hammerspoon / node / python3 / osascript / zsh / bash / VS Code). Categories in `TCC_DENY_CATEGORIES` (Camera / Microphone / Screen Recording / Contacts / Calendar / Reminders / Photos / Location / HomeKit / Speech Recognition / Bluetooth / Media Library / Health) are NEVER auto-approved — the handler logs `skipped_deny_category` and defers to the human.
+
+Every auto-click (approved or skipped) is logged to `~/titan-harness/logs/auto_approve.log` + queued as a one-line-JSON file to `~/titan-harness/logs/auto_approve_queue/`. The sidecar `lib/auto_approve_ingest.py` (run via launchd every 5 min) ships queued events to MCP `log_decision` with tags `auto-approve` / `tcc-auto-approve` / `claude-code-dialog`.
+
+### 20.4 Layer A — macOS Privacy & Security pre-grant audit
+
+`bin/tcc-audit.sh` inspects observable TCC state (running apps, functional-inference grants) and prints a report. `bin/tcc-audit.sh open-settings` opens each relevant Privacy pane sequentially so Solon can verify grants. Full audit report at `plans/ct-0419-08/TCC_AUDIT_REPORT.md`.
+
+Required grants:
+- **Accessibility** — Hammerspoon, Terminal / iTerm / Ghostty.
+- **Input Monitoring** — Hammerspoon.
+- **Full Disk Access** — Terminal / iTerm / Ghostty, `/bin/zsh`.
+- **Automation → System Events** — Hammerspoon, the active terminal.
+- **Files and Folders** — Claude desktop app (if installed).
+
+Never:
+- SIP disable
+- Direct TCC.db edit
+- Third-party permission spoofers
+
+Only programmatic action used: `tccutil reset <category> <bundle>` to clear stale denied entries so they re-prompt fresh.
+
+### 20.5 Claude-Code-update survival checklist
+
+When Claude Code updates and dialogs start leaking to Solon again, re-check in this order:
+
+1. **settings.json schema change** — does `defaultMode` still accept `bypassPermissions`? Check with `claude --help | grep -i permission`. If the CLI renamed it, update `~/.claude/settings.json` and `bin/restore-titan-autonomy.sh`.
+2. **Allow-rule grammar change** — does `Edit(path)` still match? Check by triggering an edit on an allow-listed path and watching for a prompt.
+3. **Launcher flag change** — does `--dangerously-skip-permissions` still exist? `claude --help | grep dangerously`. If renamed, update `run_titan_session.sh` (both Mac-side + VPS-side if any) and the `.zshrc` alias.
+4. **Hammerspoon module health** — `hs.console` for startup "auto-approve armed" alert. If `require` fails, inspect `~/titan-harness/logs/auto_approve.log` for load error.
+5. **TCC regression** — Solon screen shows a pre-granted category re-prompting. `tccutil reset <CAT> <BUNDLE>` for the stale entry, then re-grant.
+6. **MCP audit trail** — `search_memory` tags `auto-approve` + `tcc-auto-approve` for the last 24h. If zero entries but dialogs still fire, the sidecar (`lib/auto_approve_ingest.py`) may be unscheduled or failing — check its launchd job + log at `~/titan-harness/logs/auto_approve_ingest.log`.
+
+### 20.6 Explicit constraint — human-in-the-loop preserved
+
+Four-layer autonomy applies ONLY to the file paths and commands encoded in the allowlist + to TCC grants for Titan-adjacent apps. Sensitive categories (Camera / Mic / Screen Recording / Contacts / Calendar / Reminders / Photos / Location / HomeKit / Health) remain human-gated by design. If Titan needs one of those, Titan escalates to Solon rather than working around it.
+
+The flag `--dangerously-skip-permissions` is named what it is on purpose. Autonomy is won by narrowing the allowlist, not by widening it. New paths need a specific `Edit(/path/**)` rule, not a new wildcard.
