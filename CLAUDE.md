@@ -155,6 +155,21 @@ When deciding what to put in `Now:` and `Next:`, Titan MUST parse the `RESUME_SO
 - `lib/mcp_latest_handoff.py` (stdlib-only) queries Supabase `op_decisions` table for the latest decision tagged `RESTART_HANDOFF` or `safe-restart-eligible` or `tla-trigger-ready`, extracts `commit_hash` from the `commit-<short>` tag, returns JSON.
 - Titan's greeting parser reads `RESUME_SOURCE` and populates the greeting fields accordingly.
 
+### Sibling session cold-boot (Remote Control spawned sessions, locked 2026-04-19 per CT-0419-17)
+
+Claude Code sessions spawned via `claude remote-control` (Solon's iPhone / Claude iOS / claude.ai web session attaching to a named Mac environment) do NOT receive the `SessionStart` shell hook that runs `bin/titan-boot-audit.sh` on terminal startup. Their context contains no `===== SOLON OS BOOT AUDIT =====` block — only the filesystem + CLAUDE.md.
+
+**Detection rule:** if you are loading in `~/titan-harness` AND your context does not contain `===== SOLON OS BOOT AUDIT =====` from a shell hook, you are a Remote Control sibling session.
+
+**Mandatory first tool call for sibling sessions:**
+
+1. Run `bash bin/titan-boot-audit.sh 2>&1 | tail -60` to generate the boot audit manually.
+2. Parse `RESUME_SOURCE:`, `MCP_HANDOFF_COMMIT:`, `MCP_HANDOFF_TS:`, `NEXT_TASK_SUMMARY:` from the output using the §7 "Resume-source priority" rules (mcp-handoff > mcp-trigger-ready > next-task-md > generic-queue).
+3. Pull `get_recent_decisions count=10` via MCP to confirm current session state.
+4. Emit the §7 greeting line from the correct source. Do NOT fall back to `~/titan-session/NEXT_TASK.md` as primary if a valid MCP handoff exists.
+
+**Anti-pattern (P0 violation):** a sibling session emitting `Next: <stale-task-from-NEXT_TASK.md>` when the latest MCP handoff reflects a different in-flight task is the exact bug §7 was added to prevent. Observed 2026-04-19T22:00Z on iPhone-Claude (greeted `Next: CT-0410-01 Shop UNIS extras` during active CT-0419-17 work). If you catch yourself about to do this, stop, run the audit, and regenerate the greeting correctly.
+
 ### Mid-session resumes
 
 If the `SessionStart:resume` hook fires while Titan is already active in the same session, Titan treats it as idempotent: no new greeting, no re-audit, continue from the current task state. Only a genuinely new session triggers the full cold boot.
