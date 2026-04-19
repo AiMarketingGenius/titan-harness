@@ -1,5 +1,32 @@
 # Hammerspoon Auto-Restart (Titan session lifecycle cycling)
 
+> **STATUS: DEPRECATED — 2026-04-19 (CT-0419-08 Phase 3)**
+>
+> Superseded by **TitanControl Unified Restart Handler v1.0** (commit
+> `2812bf8`). All restart trigger paths now converge on
+> `~/Library/Application Support/TitanControl/request_restart.sh`:
+>
+> | Trigger | Mechanism |
+> |---|---|
+> | N=25 exchange | `Stop` hook → `TitanControl/stop_hook_restart_gate.sh` |
+> | API/rate/auth fail | `StopFailure` hook → `TitanControl/stopfailure_hook_restart.sh` |
+> | debug-log panic | launchd `io.aimg.titan-logwatch` → `TitanControl/watch_claude_debug.sh` |
+> | iPhone PWA | HTTP POST → `TitanControl/titan.lua` (HMAC) → `request_restart.sh` |
+>
+> This directory's files are retained for forensics (the "kW"
+> partial-landing incident hardening is documented doctrine) but the
+> lua module is no longer loaded by `~/.hammerspoon/init.lua`. The
+> live lua is archived at `~/.hammerspoon/deprecated/`.
+>
+> The MCP-poll-based `titan-auto-restart-pending` trigger mechanism in
+> `bin/titan_request_auto_restart.sh` / `bin/poll_auto_restart_queue.sh`
+> is inert — writers to MCP still work, but nothing polls the queue
+> anymore. If the 85%-context self-trigger pattern is needed again,
+> port it to HTTP POST against `titan.lua` at
+> `POST /v1/titan/restart` (HMAC signed) instead.
+>
+> ---
+
 **Tag:** `hammerspoon-auto-restart-kw-bug-hardened-3x-verified-2026-04-19`
 **Doctrine anchor:** CT-0418-08 Hammerspoon productivity suite + Solon directive 2026-04-18T21:30Z + 2026-04-19 "kW" partial-landing hardening
 **Complements:** TLA v1.1 Path 4 idle nudge (`scripts/tla-path-4/`)
