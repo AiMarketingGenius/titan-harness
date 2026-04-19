@@ -436,14 +436,12 @@ function saveSettings(){
   pollStatus(); loadDecisions();
 }
 
-// Defensive event binding — onclick="fn()" can fail silently on iOS PWA contexts.
-// Bind via addEventListener on both click (desktop) and touchend (iOS reliable).
+// Defensive event binding — use ONLY click to avoid double-fire from click+touchend
+// (iOS synthesizes click from touch; adding touchend fires twice, cancels mic flow).
 function bind(id, fn){
   const el = document.getElementById(id);
   if(!el) return;
-  const handler = (e)=>{ e.preventDefault(); fn(); };
-  el.addEventListener('click', handler);
-  el.addEventListener('touchend', handler, { passive:false });
+  el.addEventListener('click', (e)=>{ e.preventDefault(); fn(); });
 }
 window.addEventListener('DOMContentLoaded', ()=>{
   bind('btnOff', powerOff);

@@ -180,68 +180,79 @@ server:setPort(TITAN.port)
 server:setInterface("127.0.0.1")
 hs.logger.new("titan"):i("Bound to 127.0.0.1:" .. TITAN.port .. " — expect tailscale serve in front")
 
-server:setCallback(function(method, path, headers, body)
-  -- CORS preflight
-  if method == "OPTIONS" then return jsonResp({ ok = true }, 204) end
-
-  if method == "GET" and path == "/v1/titan/status" then
-    return jsonResp(readStatus(), 200)
-  end
-
-  if method == "GET" and path == "/v1/titan/recent-decisions" then
-    local ok, err = verifyRequest(path, headers, nil)
-    if not ok then return jsonResp({ ok = false, error = err }, 401) end
-    return jsonResp(recentDecisions(5), 200)
-  end
-
-  if method == "POST" and path == "/v1/titan/restart" then
-    local ok, err = verifyRequest(path, headers, nil)
-    if not ok then return jsonResp({ ok = false, error = err }, 401) end
-    local st = readStatus()
-    if st.state == "killing" or st.state == "booting" then
-      return jsonResp({ ok = true, accepted = false, state = st.state,
-        request_id = st.request_id, note = "restart_already_in_progress" }, 202)
+local function installCallback(srv)
+  srv:setCallback(function(method, path, headers, body)
+    if method == "OPTIONS" then return jsonResp({ ok = true }, 204) end
+    if method == "GET" and path == "/v1/titan/status" then return jsonResp(readStatus(), 200) end
+    if method == "GET" and path == "/v1/titan/recent-decisions" then
+      local ok, err = verifyRequest(path, headers, nil)
+      if not ok then return jsonResp({ ok = false, error = err }, 401) end
+      return jsonResp(recentDecisions(5), 200)
     end
-    if not startHandler("manual:mobile-command") then
-      return jsonResp({ ok = false, error = "handler_start_failed" }, 500)
+    if method == "POST" and path == "/v1/titan/restart" then
+      local ok, err = verifyRequest(path, headers, nil)
+      if not ok then return jsonResp({ ok = false, error = err }, 401) end
+      local st = readStatus()
+      if st.state == "killing" or st.state == "booting" then
+        return jsonResp({ ok = true, accepted = false, state = st.state,
+          request_id = st.request_id, note = "restart_already_in_progress" }, 202)
+      end
+      if not startHandler("manual:mobile-command") then
+        return jsonResp({ ok = false, error = "handler_start_failed" }, 500)
+      end
+      return jsonResp({ ok = true, accepted = true, state = "accepted" }, 202)
     end
-    return jsonResp({ ok = true, accepted = true, state = "accepted" }, 202)
-  end
-
-  if method == "POST" and path == "/v1/titan/shutdown" then
-    local ok, err = verifyRequest(path, headers, nil)
-    if not ok then return jsonResp({ ok = false, error = err }, 401) end
-    if not startHandler("manual:pwa-power-off", " --no-autoboot") then
-      return jsonResp({ ok = false, error = "handler_start_failed" }, 500)
+    if method == "POST" and path == "/v1/titan/shutdown" then
+      local ok, err = verifyRequest(path, headers, nil)
+      if not ok then return jsonResp({ ok = false, error = err }, 401) end
+      if not startHandler("manual:pwa-power-off", " --no-autoboot") then
+        return jsonResp({ ok = false, error = "handler_start_failed" }, 500)
+      end
+      return jsonResp({ ok = true, accepted = true, state = "shutting_down" }, 202)
     end
-    return jsonResp({ ok = true, accepted = true, state = "shutting_down" }, 202)
-  end
+    if method == "POST" and path == "/v1/titan/upload" then
+      local h = normalizeHeaders(headers); local bodyHash = h["x-titan-body-hash"]
+      local ok, err = verifyRequest(path, headers, bodyHash)
+      if not ok then return jsonResp({ ok = false, error = err }, 401) end
+      if not body or #body == 0 then return jsonResp({ ok = false, error = "empty_body" }, 400) end
+      local savedPath, e = saveUpload(body, headers, TITAN.uploadsDir)
+      if not savedPath then return jsonResp({ ok = false, error = e }, 500) end
+      return jsonResp({ ok = true, path = savedPath, bytes = #body }, 201)
+    end
+    if method == "POST" and path == "/v1/titan/voice-memo" then
+      local h = normalizeHeaders(headers); local bodyHash = h["x-titan-body-hash"]
+      local ok, err = verifyRequest(path, headers, bodyHash)
+      if not ok then return jsonResp({ ok = false, error = err }, 401) end
+      if not body or #body == 0 then return jsonResp({ ok = false, error = "empty_body" }, 400) end
+      local savedPath, e = saveUpload(body, headers, TITAN.voiceMemosDir)
+      if not savedPath then return jsonResp({ ok = false, error = e }, 500) end
+      return jsonResp({ ok = true, path = savedPath, bytes = #body }, 201)
+    end
+    return jsonResp({ ok = false, error = "not_found" }, 404)
+  end)
+end
+installCallback(server)
 
-  if method == "POST" and path == "/v1/titan/upload" then
-    -- body-hash signed in x-titan-body-hash header
-    local h = normalizeHeaders(headers)
-    local bodyHash = h["x-titan-body-hash"]
-    local ok, err = verifyRequest(path, headers, bodyHash)
-    if not ok then return jsonResp({ ok = false, error = err }, 401) end
-    if not body or #body == 0 then return jsonResp({ ok = false, error = "empty_body" }, 400) end
-    local savedPath, e = saveUpload(body, headers, TITAN.uploadsDir)
-    if not savedPath then return jsonResp({ ok = false, error = e }, 500) end
-    return jsonResp({ ok = true, path = savedPath, bytes = #body }, 201)
+-- Watchdog: every 20s probe 127.0.0.1:8765; if dead, recreate server.
+-- Fixes the recurring silent-listener-drop bug observed 2026-04-19.
+local watchdogLog = function(msg)
+  local f = io.open(os.getenv("HOME") .. "/titan-harness/logs/titan-lua-watchdog.log", "a")
+  if f then f:write(os.date("!%Y-%m-%dT%H:%M:%SZ ") .. msg .. "\n"); f:close() end
+end
+hs.timer.doEvery(20, function()
+  local probe = sh("/usr/bin/curl -sSo /dev/null -w '%{http_code}' --max-time 2 http://127.0.0.1:8765/v1/titan/status")
+  if probe ~= "200" then
+    watchdogLog("listener DEAD (probe=" .. tostring(probe) .. ") — recreating")
+    pcall(function() server:stop() end)
+    server = hs.httpserver.new(false, false)
+    server:setPort(TITAN.port)
+    server:setInterface("127.0.0.1")
+    installCallback(server)
+    server:start()
+    watchdogLog("listener recreated")
   end
-
-  if method == "POST" and path == "/v1/titan/voice-memo" then
-    local h = normalizeHeaders(headers)
-    local bodyHash = h["x-titan-body-hash"]
-    local ok, err = verifyRequest(path, headers, bodyHash)
-    if not ok then return jsonResp({ ok = false, error = err }, 401) end
-    if not body or #body == 0 then return jsonResp({ ok = false, error = "empty_body" }, 400) end
-    local savedPath, e = saveUpload(body, headers, TITAN.voiceMemosDir)
-    if not savedPath then return jsonResp({ ok = false, error = e }, 500) end
-    return jsonResp({ ok = true, path = savedPath, bytes = #body }, 201)
-  end
-
-  return jsonResp({ ok = false, error = "not_found" }, 404)
 end)
+
 server:start()
 
 hs.urlevent.bind("titan-restart", function() startHandler("manual:local-url") end)
