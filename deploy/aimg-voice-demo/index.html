@@ -211,7 +211,11 @@
   'use strict';
 
   // ── CONFIG ──────────────────────────────────────────────────────
-  const API_BASE = window.AMG_API_BASE || 'https://atlas.aimarketinggenius.io';
+  // Default to same-origin — voice.aimarketinggenius.io Caddy proxies
+  // /api/titan/* to atlas-api:8081. Setting AMG_API_BASE on window
+  // overrides (e.g. for cross-origin embed use). atlas.aimarketinggenius.io
+  // does not resolve (no DNS record); never use it as a fallback.
+  const API_BASE = window.AMG_API_BASE || '';
   const VOICE_NAME = 'alex';
   const SESSION_KEY = 'amg_voice_session_v1';
   const HISTORY_TURN_LIMIT = 32;
