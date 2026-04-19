@@ -1,0 +1,10 @@
+[Unit]
+Description=Run amg-titanium-stale-sweeper daily at 00:00 UTC
+
+[Timer]
+OnCalendar=*-*-* 00:00:00 UTC
+Persistent=true
+Unit=amg-titanium-stale-sweeper.service
+
+[Install]
+WantedBy=timers.target

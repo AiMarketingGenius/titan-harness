@@ -1,0 +1,12 @@
+[Unit]
+Description=AMG Titanium — stale-task sweeper
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=root
+EnvironmentFile=-/etc/amg/titan.env
+ExecStart=/opt/amg-titanium/stale_task_sweeper.sh
+StandardOutput=append:/var/log/amg-titanium-stale-sweeper.log
+StandardError=append:/var/log/amg-titanium-stale-sweeper.log

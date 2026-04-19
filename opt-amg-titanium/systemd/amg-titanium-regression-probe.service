@@ -1,0 +1,12 @@
+[Unit]
+Description=AMG Titanium — daily regression integrity probe (9 surfaces)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=root
+EnvironmentFile=-/etc/amg/titan.env
+ExecStart=/opt/amg-titanium/regression_integrity_probe.sh
+StandardOutput=append:/var/log/amg-titanium-regression-probe.log
+StandardError=append:/var/log/amg-titanium-regression-probe.log

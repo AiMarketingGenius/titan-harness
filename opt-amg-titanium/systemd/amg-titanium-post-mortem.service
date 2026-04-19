@@ -1,0 +1,12 @@
+[Unit]
+Description=AMG Titanium — post-mortem to structural-rule pipeline
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=root
+EnvironmentFile=-/etc/amg/titan.env
+ExecStart=/opt/amg-titanium/post_mortem_to_rule.sh
+StandardOutput=append:/var/log/amg-titanium-post-mortem.log
+StandardError=append:/var/log/amg-titanium-post-mortem.log

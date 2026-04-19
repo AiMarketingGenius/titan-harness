@@ -1,0 +1,10 @@
+[Unit]
+Description=Run amg-titanium-regression-probe daily at 06:00 UTC
+
+[Timer]
+OnCalendar=*-*-* 06:00:00 UTC
+Persistent=true
+Unit=amg-titanium-regression-probe.service
+
+[Install]
+WantedBy=timers.target

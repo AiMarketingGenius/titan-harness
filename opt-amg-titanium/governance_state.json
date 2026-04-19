@@ -1,0 +1,33 @@
+{
+  "mode": "propose-only",
+  "mode_set_at": "2026-04-19T15:50:00Z",
+  "mode_set_by": "titan",
+  "mode_rationale": "initial state at doctrine ship; flips to execute-with-hard-gate after dual-engine ≥9.5 clears",
+  "last_gate_pass": null,
+  "consecutive_gate_pass": 0,
+  "consecutive_gate_fail": 0,
+  "emergency_halt": false,
+  "hard_limits_active": true,
+  "monitoring_window_starts": "2026-04-19T15:50:00Z",
+  "monitoring_window_ends": {
+    "ac_10_30day": "2026-05-19T15:50:00Z",
+    "ac_12_7day": "2026-04-26T15:50:00Z",
+    "ac_13_14day": "2026-05-03T15:50:00Z",
+    "ac_14_T0": "2026-04-19T15:50:00Z",
+    "ac_15_30day": "2026-05-19T15:50:00Z",
+    "ac_18_14day": "2026-05-03T15:50:00Z",
+    "ac_20_14day": "2026-05-03T15:50:00Z",
+    "ac_23_7day": "2026-04-26T15:50:00Z",
+    "ac_24_7day": "2026-04-26T15:50:00Z",
+    "ac_25_7day": "2026-04-26T15:50:00Z",
+    "ac_26_14day": "2026-05-03T15:50:00Z"
+  },
+  "mode_transition_log": [
+    {
+      "ts": "2026-04-19T15:50:00Z",
+      "from": null,
+      "to": "propose-only",
+      "reason": "initial state at doctrine ship"
+    }
+  ]
+}
