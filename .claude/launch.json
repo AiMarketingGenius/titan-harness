@@ -88,6 +88,18 @@
         "deploy/aimg-site"
       ],
       "port": 8748
+    },
+    {
+      "name": "aimg-voice-demo",
+      "runtimeExecutable": "python3",
+      "runtimeArgs": [
+        "-m",
+        "http.server",
+        "8749",
+        "--directory",
+        "deploy/aimg-voice-demo"
+      ],
+      "port": 8749
     }
   ]
 }
