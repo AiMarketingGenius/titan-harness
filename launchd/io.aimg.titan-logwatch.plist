@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key><string>io.aimg.titan-logwatch</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/bin/zsh</string>
+    <!-- Install script substitutes full $HOME path since launchd does not expand ~ -->
+    <string>__HOME__/Library/Application Support/TitanControl/watch_claude_debug.sh</string>
+  </array>
+  <key>RunAtLoad</key><true/>
+  <key>KeepAlive</key><true/>
+  <key>StandardOutPath</key><string>/tmp/io.aimg.titan-logwatch.out</string>
+  <key>StandardErrorPath</key><string>/tmp/io.aimg.titan-logwatch.err</string>
+</dict>
+</plist>

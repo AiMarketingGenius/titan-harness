@@ -1,0 +1,16 @@
+Titan cold boot after automated recovery restart.
+
+SessionStart hook should auto-load MCP memory/context for this workspace.
+
+Do these in order:
+1. Verify MCP memory/session context is present by reading
+   ~/Library/Application Support/TitanControl/state/hydrate_status.json
+   (written by sessionstart_hydrate_mcp.sh — CT-0419-07).
+   If state is not "context_loaded" or "context_loaded_with_drift", HALT + flag blocker.
+2. Re-establish executor role for AMG workspace.
+3. Run:
+   /bin/zsh -lc 'touch "$HOME/Library/Application Support/TitanControl/state/context-ready"'
+4. Report "Context loaded — ready for commands." to MCP log_decision (canonical; Slack
+   #amg-ops webhook still pending per CT-0419-05 Priority 2 item 5).
+5. Resume whatever the last active task was (check MCP sprint_state for project EOM).
+6. Idle and await next command.
