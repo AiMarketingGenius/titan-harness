@@ -4,6 +4,8 @@
     { "name": "crm", "runtimeExecutable": "python3", "runtimeArgs": ["-m","http.server","8742","--directory","services/atlas-web"], "port": 8742 },
     { "name": "mobile-cmd", "runtimeExecutable": "npm", "runtimeArgs": ["--prefix","services/mobile-cmd","run","dev","--","--port","5173","--host","127.0.0.1"], "port": 5173 },
     { "name": "aimg-extension", "runtimeExecutable": "python3", "runtimeArgs": ["-m","http.server","8744","--directory","deploy/aimg-extension-fixes"], "port": 8744 },
-    { "name": "chamber-partners", "runtimeExecutable": "python3", "runtimeArgs": ["-m","http.server","8745","--directory","services/chamber-partners-page/public"], "port": 8745 }
+    { "name": "chamber-partners", "runtimeExecutable": "python3", "runtimeArgs": ["-m","http.server","8745","--directory","services/chamber-partners-page/public"], "port": 8745 },
+    { "name": "amg-chatbot-widget", "runtimeExecutable": "python3", "runtimeArgs": ["-m","http.server","8746","--directory","deploy/amg-chatbot-widget"], "port": 8746 },
+    { "name": "aimemoryguard-landing", "runtimeExecutable": "python3", "runtimeArgs": ["-m","http.server","8747","--directory","deploy/aimemoryguard-landing"], "port": 8747 }
   ]
 }
