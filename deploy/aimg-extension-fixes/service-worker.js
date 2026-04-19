@@ -50,7 +50,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       break;
 
     case 'NEW_RESPONSE':
-      handleNewResponse(message);
+      handleNewResponse(message, sender);
       break;
 
     // CAPTURE_MESSAGE: alias for NEW_RESPONSE with a nested payload shape.
@@ -78,7 +78,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           message_id: p.message_id,
           role: p.role,
         },
-      });
+      }, sender);
       break;
     }
 
@@ -121,8 +121,16 @@ function handleThreadChanged(msg) {
   logSession(msg.platform, msg.threadId, msg.threadUrl);
 }
 
-function handleNewResponse(msg) {
+function handleNewResponse(msg, sender) {
   console.log(`[SW] New response from ${msg.platform}, ${msg.contentLength} chars`);
+
+  // Capture the originating tab id so Einstein summary/contradiction dispatches
+  // land on the EXACT tab whose content script captured the message — not
+  // whichever tab happens to be active when the async Haiku call returns
+  // (~1-2s later the user may have switched tabs, and
+  // chrome.tabs.query({active:true,currentWindow:true}) would route the
+  // summary to the wrong tab — demo-breaking on Monday Beat 2b).
+  const originTabId = (sender && sender.tab && typeof sender.tab.id === 'number') ? sender.tab.id : null;
 
   pendingExtractions.push({
     content: msg.content,
@@ -136,11 +144,40 @@ function handleNewResponse(msg) {
   // canned verified/flagged result. Ensures the Monday Don demo gets deterministic Einstein
   // badges on Beat 2b even if the live Haiku/Sonar round-trip stalls. Per Solon directive
   // 2026-04-18T19:58Z (selective-mock permitted on demo hero beats).
-  runEinsteinDemoCheck(msg).catch(err => console.warn('[SW] Einstein demo check error:', err));
+  runEinsteinDemoCheck(msg, originTabId).catch(err => console.warn('[SW] Einstein demo check error:', err));
 
   // Einstein Fact Checker — fire-and-forget. The function self-gates on settings, auth, and
   // daily cap, so calling it on every response is safe; a no-op costs ~0ms.
-  runEinsteinFactCheck(msg).catch(err => console.warn('[SW] Einstein check error:', err));
+  runEinsteinFactCheck(msg, originTabId).catch(err => console.warn('[SW] Einstein check error:', err));
+}
+
+// Dispatch a message to the tab that originated a capture. Prefers the exact
+// `originTabId` captured at onMessage time; falls back to active-tab query
+// if no origin id (e.g., direct service-worker-initiated events without a
+// content-script sender). Silently swallows per-tab send failures (common:
+// tab closed, content script not yet loaded on a fresh navigation).
+async function dispatchToOriginTab(originTabId, payload) {
+  if (originTabId != null) {
+    try {
+      await chrome.tabs.sendMessage(originTabId, payload);
+      return { target: 'origin', tabId: originTabId };
+    } catch (e) {
+      // Origin tab may have closed or navigated; fall through to active-tab fallback.
+    }
+  }
+  try {
+    const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
+    const results = [];
+    for (const tab of tabs) {
+      try {
+        await chrome.tabs.sendMessage(tab.id, payload);
+        results.push(tab.id);
+      } catch { /* tab may not have content script yet */ }
+    }
+    return { target: 'active-fallback', tabId: results[0] || null };
+  } catch {
+    return { target: 'none', tabId: null };
+  }
 }
 
 async function handleSearch(msg) {
@@ -787,7 +824,7 @@ function _claimMatches(claim, text) {
   return true;
 }
 
-async function runEinsteinDemoCheck(msg) {
+async function runEinsteinDemoCheck(msg, originTabId) {
   try {
     if (!msg?.content || msg.content.length < 20) return;
     const { settings } = await chrome.storage.local.get('settings');
@@ -832,30 +869,26 @@ async function runEinsteinDemoCheck(msg) {
     }
     trackQEMetric('einstein_checks_run', 1);
 
-    // Fire the summary badge to the originating tab.
-    try {
-      const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
-      for (const tab of tabs) {
-        try {
-          await chrome.tabs.sendMessage(tab.id, {
-            type: 'EINSTEIN_VERIFIED_SUMMARY',
-            verified: verified.length,
-            flagged:  flagged.length,
-            unverified: unverified.length,
-            claims: matches.map(c => ({
-              id: c.id,
-              canonical_claim: c.canonical_claim,
-              state: c.state,
-              badge_copy: c.badge_copy,
-              confidence: c.confidence,
-              flag_reason: c.flag_reason || null,
-            })),
-            source: 'demo-mock',
-            platform: msg.platform,
-          });
-        } catch { /* tab may not have content script yet */ }
-      }
-    } catch (e) { /* ignore */ }
+    // Fire the summary badge to the originating tab. Prefers the exact tab
+    // whose content script captured this message (so the badge lands where
+    // the user saw the LLM response, even if they switched tabs during the
+    // Haiku call). Falls back to active-tab if origin tab id missing.
+    await dispatchToOriginTab(originTabId, {
+      type: 'EINSTEIN_VERIFIED_SUMMARY',
+      verified: verified.length,
+      flagged:  flagged.length,
+      unverified: unverified.length,
+      claims: matches.map(c => ({
+        id: c.id,
+        canonical_claim: c.canonical_claim,
+        state: c.state,
+        badge_copy: c.badge_copy,
+        confidence: c.confidence,
+        flag_reason: c.flag_reason || null,
+      })),
+      source: 'demo-mock',
+      platform: msg.platform,
+    });
 
     console.log(`[SW] Einstein demo-mock matched ${matches.length} claim(s):`,
                 matches.map(c => `${c.id}(${c.state})`).join(', '));
@@ -870,7 +903,7 @@ async function runEinsteinDemoCheck(msg) {
 // the per-tier daily cap. We never ship the Anthropic key — that lives only on the server.
 // When the server reports contradictions, we push them to the originating tab's UI.
 
-async function runEinsteinFactCheck(msg) {
+async function runEinsteinFactCheck(msg, originTabId) {
   try {
     const { token, settings } = await chrome.storage.local.get(['token', 'settings']);
     if (!token) return; // signed-out users get nothing — caps + JWT live together
@@ -944,16 +977,13 @@ async function runEinsteinFactCheck(msg) {
     if (Array.isArray(body.contradictions) && body.contradictions.length > 0) {
       trackQEMetric('contradictions_detected', body.contradictions.length);
       // Push into the originating tab so the user sees the warning in-page.
-      const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
-      for (const tab of tabs) {
-        try {
-          await chrome.tabs.sendMessage(tab.id, {
-            type: 'EINSTEIN_CONTRADICTION',
-            contradictions: body.contradictions,
-            platform: msg.platform
-          });
-        } catch { /* tab may not have the content script yet — OK */ }
-      }
+      // Prefers the exact capture-origin tab over the current active tab;
+      // Haiku fact-check is async (~1-2s) and the user may have switched.
+      await dispatchToOriginTab(originTabId, {
+        type: 'EINSTEIN_CONTRADICTION',
+        contradictions: body.contradictions,
+        platform: msg.platform
+      });
       // Global badge stays in sync with popup expectations.
       updateContradictionBadge(body.contradictions.length);
     }
