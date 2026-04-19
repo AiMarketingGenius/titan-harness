@@ -307,6 +307,20 @@ async function loadStats() {
       const used = user.memories_this_week || 0;
       document.getElementById('stat-weekly').textContent = `${used}/${limit}`;
     }
+
+    // Integration feedback toast (post-CT-0417-10b brand polish):
+    // captured = total captured this session ; available = memories
+    // queryable by Atlas agents. Both pull from the same count endpoints
+    // used above + the service-worker hot cache.
+    const intCapturedEl = document.getElementById('int-captured');
+    const intAvailableEl = document.getElementById('int-available');
+    if (intCapturedEl) {
+      const captured = swStats?.sessionCapturedCount ?? memoryCount;
+      intCapturedEl.textContent = `${captured} captured`;
+    }
+    if (intAvailableEl) {
+      intAvailableEl.textContent = `${memoryCount} available`;
+    }
   } catch (err) {
     console.error('[Popup] Stats error:', err);
   }
