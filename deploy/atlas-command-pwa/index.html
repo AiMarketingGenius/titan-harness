@@ -52,17 +52,14 @@ header{display:flex;align-items:center;gap:12px;padding:8px 4px 18px}
 .live .body .t2{font-size:12px;color:rgba(244,239,230,0.6);margin-top:2px}
 .live .chev{font-size:18px;color:rgba(244,239,230,0.4)}
 
-/* Status strip */
-.status{display:flex;align-items:center;gap:14px;padding:14px 16px;border-radius:var(--radius);
-  background:var(--surface);border:1px solid var(--line);margin-bottom:20px}
-.dot{width:12px;height:12px;border-radius:50%;background:#6B7280;flex-shrink:0;
-  box-shadow:0 0 0 0 rgba(0,0,0,0);transition:all .3s}
-.dot.ok{background:var(--ok);box-shadow:0 0 14px var(--ok)}
-.dot.warn{background:var(--warn);box-shadow:0 0 14px var(--warn)}
-.dot.err{background:var(--err);box-shadow:0 0 14px var(--err)}
-.status-body{flex:1;min-width:0}
-.status-label{font-size:15px;font-weight:500}
-.status-meta{font-size:12px;color:rgba(244,239,230,0.55);margin-top:2px}
+/* Status pill — compact single-line (v2.0.1) */
+.status-pill{display:inline-flex;align-items:center;gap:8px;padding:6px 12px;border-radius:999px;
+  background:var(--surface);border:1px solid var(--line);font-size:13px;color:rgba(244,239,230,0.8);
+  margin:0 0 18px;letter-spacing:0.01em}
+.dot{width:8px;height:8px;border-radius:50%;background:#6B7280;flex-shrink:0;transition:background .2s}
+.dot.ok{background:var(--ok);box-shadow:0 0 8px var(--ok)}
+.dot.warn{background:var(--warn);box-shadow:0 0 8px var(--warn)}
+.dot.err{background:var(--err);box-shadow:0 0 8px var(--err)}
 
 /* Power buttons */
 .power-row{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:24px}
@@ -152,12 +149,9 @@ footer{text-align:center;font-size:11px;color:rgba(244,239,230,0.35);margin-top:
     <div class="chev">›</div>
   </a>
 
-  <div class="status" id="statusStrip">
+  <div class="status-pill" id="statusStrip">
     <div class="dot" id="statusDot"></div>
-    <div class="status-body">
-      <div class="status-label" id="statusLabel">Connecting…</div>
-      <div class="status-meta" id="statusMeta">—</div>
-    </div>
+    <span id="statusLabel">Connecting…</span>
   </div>
 
   <div class="power-row">
@@ -281,25 +275,16 @@ async function callTitan(method, path, body, extraHeaders){
 function setStatusUI(data){
   const dot = document.getElementById('statusDot');
   const lbl = document.getElementById('statusLabel');
-  const meta = document.getElementById('statusMeta');
   dot.classList.remove('ok','warn','err');
-  const state = (data && data.state) || 'unknown';
-  const map = {
-    alive:['ok','Mac online'], context_loaded:['ok','Ready'],
-    booting:['warn','Booting…'], killing:['warn','Shutting down…'],
-    dead:['err','Offline'], failed:['err','Failed'],
-    unknown:['warn','Idle / no recent state']
-  };
-  const [cls, label] = map[state] || ['warn', state];
-  dot.classList.add(cls);
-  lbl.textContent = label;
-  const bits = [];
-  if(typeof data.uptime_s==='number') bits.push('uptime '+fmtDur(data.uptime_s));
-  if(typeof data.exchange_count==='number') bits.push('activity '+data.exchange_count);
-  if(data.terminal_live === false) bits.push('⚠ terminal dead');
-  meta.textContent = bits.join(' · ') || '—';
+  // 3-state model: Mac online (green), Connecting (amber), Offline (red)
+  if(data && data.ok === true && data.terminal_live === true){
+    dot.classList.add('ok'); lbl.textContent = 'Mac online';
+  } else if(data && data.ok === true){
+    dot.classList.add('warn'); lbl.textContent = 'Connecting';
+  } else {
+    dot.classList.add('err'); lbl.textContent = 'Offline';
+  }
 }
-function fmtDur(s){ if(s<60) return s+'s'; if(s<3600) return Math.floor(s/60)+'m'; return Math.floor(s/3600)+'h'+Math.floor((s%3600)/60)+'m'; }
 
 async function pollStatus(){
   try{
