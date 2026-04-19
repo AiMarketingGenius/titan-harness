@@ -84,11 +84,16 @@ def provision_tenant(
     webauthn_rp_name: str | None = None,
     vapid_public_key: str | None = None,
     vapid_subject: str | None = None,
+    seed_roster: bool = True,
 ) -> dict[str, Any]:
     """Provision a tenant row or return the existing row on slug conflict.
 
+    When `seed_roster=True` (default), also seeds the 7-agent default roster
+    in the same tx via lib.tenant_roster.seed_default_roster — makes tenant
+    provisioning atomic: tenant row + roster land together or not at all.
+
     Returns a dict with keys: id, slug, name, subdomain, plan_tier, status,
-    created_at, was_existing.
+    created_at, was_existing, roster_seeded (count inserted, 0 if already).
     """
     _validate(slug, name, subdomain, plan_tier)
 
@@ -136,6 +141,12 @@ def provision_tenant(
                     raise RuntimeError(
                         f"slug={slug!r} conflicted on INSERT but absent on SELECT"
                     )
+
+        roster_seeded = 0
+        if seed_roster:
+            from lib.tenant_roster import seed_default_roster
+            roster_seeded = seed_default_roster(conn, row["id"])
+
         conn.commit()
     finally:
         conn.close()
@@ -144,6 +155,7 @@ def provision_tenant(
     result["id"] = str(result["id"])
     result["created_at"] = result["created_at"].isoformat() if result["created_at"] else None
     result["was_existing"] = was_existing
+    result["roster_seeded"] = roster_seeded
     return result
 
 
@@ -168,6 +180,13 @@ def _cli(argv: list[str] | None = None) -> int:
     parser.add_argument("--webauthn-rp-name", help="WebAuthn RP display name")
     parser.add_argument("--vapid-public-key")
     parser.add_argument("--vapid-subject")
+    parser.add_argument(
+        "--no-seed-roster",
+        dest="seed_roster",
+        action="store_false",
+        help="Skip auto-seeding the 7-agent default roster",
+    )
+    parser.set_defaults(seed_roster=True)
     args = parser.parse_args(argv)
 
     brand = None
@@ -189,6 +208,7 @@ def _cli(argv: list[str] | None = None) -> int:
             webauthn_rp_name=args.webauthn_rp_name,
             vapid_public_key=args.vapid_public_key,
             vapid_subject=args.vapid_subject,
+            seed_roster=args.seed_roster,
         )
     except (ValueError, RuntimeError) as exc:
         print(f"ERROR: {exc}", file=sys.stderr)
