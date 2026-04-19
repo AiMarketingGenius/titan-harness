@@ -53,6 +53,35 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       handleNewResponse(message);
       break;
 
+    // CAPTURE_MESSAGE: alias for NEW_RESPONSE with a nested payload shape.
+    // chatgpt.js / gemini.js / copilot.js (post v0.1.2 hardened-selectors
+    // refactor) send this shape with additional fields (platform_name,
+    // model_used, message_id, role, source_timestamp). Without this case
+    // those captures were silently dropped by the switch — three of six
+    // platforms stored zero memories. Found 2026-04-19 during Item 2 scope
+    // investigation. Unwraps payload into flat NEW_RESPONSE shape +
+    // preserves extra fields in provenance so they survive the pipeline.
+    case 'CAPTURE_MESSAGE': {
+      const p = message.payload || {};
+      handleNewResponse({
+        platform: p.platform,
+        content: p.content,
+        contentLength: (p.content || '').length,
+        provenance: {
+          platform: p.platform,
+          platform_name: p.platform_name,
+          thread_id: p.thread_id,
+          thread_url: p.thread_url,
+          exchange_number: p.exchange_number,
+          timestamp: p.source_timestamp,
+          model_used: p.model_used,
+          message_id: p.message_id,
+          role: p.role,
+        },
+      });
+      break;
+    }
+
     case 'SEARCH_MEMORIES':
       handleSearch(message).then(sendResponse);
       return true;
