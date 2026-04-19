@@ -5,16 +5,18 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<meta name="apple-mobile-web-app-title" content="Atlas">
+<meta name="apple-mobile-web-app-title" content="AMG">
 <meta name="theme-color" content="#0A1F44">
 <link rel="manifest" href="/manifest.json">
+<link rel="icon" type="image/png" href="/favicon.png">
 <link rel="apple-touch-icon" href="/icon-192.png">
 <link rel="apple-touch-startup-image" href="/icon-512.png">
-<title>Atlas Command</title>
+<title>AMG Mobile Command</title>
 <style>
 :root{
   --navy:#0A1F44; --navy-deep:#060F26; --gold:#C9A961; --gold-soft:#D4B97A;
   --cream:#F4EFE6; --ink:#0F1A2E; --ok:#10B981; --warn:#F59E0B; --err:#DC2626;
+  --blue:#2563EB;
   --surface:rgba(255,255,255,0.04); --line:rgba(255,255,255,0.08);
   --fs-display:clamp(32px,8vw,44px);
   --radius:16px;
@@ -32,12 +34,23 @@ html,body{margin:0;padding:0;background:var(--navy-deep);color:var(--cream);
 
 /* Header */
 header{display:flex;align-items:center;gap:12px;padding:8px 4px 18px}
-.logo{width:36px;height:36px;border-radius:10px;background:linear-gradient(135deg,var(--gold),var(--gold-soft));
-  display:flex;align-items:center;justify-content:center;color:var(--navy-deep);font-weight:700;font-size:18px;font-family:"Instrument Serif",serif;font-style:italic}
-.brand{font-size:18px;letter-spacing:-0.01em}
-.brand .muted{color:var(--gold);font-size:13px;margin-left:8px;letter-spacing:0.02em}
-.settings-btn{margin-left:auto;background:transparent;border:1px solid var(--line);color:var(--cream);
+.brand-text{flex:1;min-width:0;line-height:1.15}
+.brand-text .top{font-family:"Instrument Serif",serif;font-style:italic;font-size:22px;color:var(--cream);letter-spacing:-0.005em}
+.brand-text .sub{font-size:11px;letter-spacing:0.12em;text-transform:uppercase;color:var(--gold);margin-top:2px;font-weight:500}
+.settings-btn{background:transparent;border:1px solid var(--line);color:var(--cream);
   padding:8px 12px;border-radius:10px;font-size:13px;min-height:36px}
+
+/* Live Session (primary CTA) */
+.live{display:flex;align-items:center;gap:14px;background:linear-gradient(135deg,rgba(37,99,235,0.18),rgba(37,99,235,0.06));
+  border:1px solid rgba(37,99,235,0.35);border-radius:var(--radius);padding:18px 18px;margin-bottom:20px;
+  color:var(--cream);text-decoration:none;transition:transform .15s ease}
+.live:active{transform:scale(0.98)}
+.live .ico{width:44px;height:44px;border-radius:12px;background:rgba(37,99,235,0.25);
+  display:flex;align-items:center;justify-content:center;font-size:22px;flex-shrink:0}
+.live .body{flex:1;min-width:0}
+.live .body .t1{font-size:16px;font-weight:600;letter-spacing:-0.005em}
+.live .body .t2{font-size:12px;color:rgba(244,239,230,0.6);margin-top:2px}
+.live .chev{font-size:18px;color:rgba(244,239,230,0.4)}
 
 /* Status strip */
 .status{display:flex;align-items:center;gap:14px;padding:14px 16px;border-radius:var(--radius);
@@ -69,7 +82,6 @@ header{display:flex;align-items:center;gap:12px;padding:8px 4px 18px}
   margin:24px 4px 10px}
 
 /* Actions */
-.actions{display:grid;grid-template-columns:1fr 1fr;gap:10px}
 .act{background:var(--surface);border:1px solid var(--line);border-radius:14px;
   padding:14px;min-height:72px;color:var(--cream);font-size:15px;text-align:left;
   display:flex;align-items:center;gap:12px;text-decoration:none}
@@ -93,19 +105,14 @@ input[type=file]{position:absolute;left:-9999px}
 .rec-label{font-size:14px;color:rgba(244,239,230,0.7)}
 .rec-label strong{display:block;color:var(--cream);font-size:15px;margin-bottom:2px;font-weight:500}
 
-/* Decisions feed */
-.feed{display:flex;flex-direction:column;gap:8px;margin-top:8px}
-.card{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:12px 14px}
-.card-meta{font-size:11px;color:rgba(244,239,230,0.45);display:flex;gap:6px;flex-wrap:wrap;margin-bottom:4px}
-.tag{background:rgba(201,169,97,0.12);color:var(--gold);padding:2px 8px;border-radius:6px;font-size:10px}
-.card-text{font-size:13px;line-height:1.45}
-
 /* Settings sheet */
-.sheet{position:fixed;inset:0;background:rgba(6,15,38,0.85);backdrop-filter:blur(20px);
+.sheet{position:fixed;inset:0;background:rgba(6,15,38,0.92);backdrop-filter:blur(20px);
   display:none;z-index:100;padding:30px 16px;overflow-y:auto}
 .sheet.open{display:block}
-.sheet h2{margin:0 0 6px;font-family:"Instrument Serif",serif;font-size:30px;font-style:italic;color:var(--gold)}
-.sheet p{color:rgba(244,239,230,0.65);font-size:14px;margin:0 0 20px}
+.sheet-logo{display:block;margin:0 auto 16px;max-width:240px;max-height:160px;object-fit:contain;
+  background:#fff;border-radius:20px;padding:12px 18px;box-shadow:0 8px 28px rgba(0,0,0,0.35)}
+.sheet h2{margin:0 0 6px;font-family:"Instrument Serif",serif;font-size:30px;font-style:italic;color:var(--gold);text-align:center}
+.sheet p{color:rgba(244,239,230,0.65);font-size:14px;margin:0 0 20px;text-align:center}
 .field{display:block;margin-bottom:16px}
 .field label{display:block;font-size:12px;letter-spacing:0.06em;text-transform:uppercase;color:var(--gold);margin-bottom:6px}
 .field input{width:100%;background:rgba(255,255,255,0.05);border:1px solid var(--line);
@@ -129,10 +136,21 @@ footer{text-align:center;font-size:11px;color:rgba(244,239,230,0.35);margin-top:
 <body>
 <div class="wrap">
   <header>
-    <div class="logo">A</div>
-    <div class="brand">Atlas <span class="serif">Command</span><span class="muted">v1.0</span></div>
+    <div class="brand-text">
+      <div class="top">Ai Marketing Genius</div>
+      <div class="sub">Mobile Command</div>
+    </div>
     <button class="settings-btn" data-action="open-settings">Settings</button>
   </header>
+
+  <a class="live" id="liveSession" data-action="open-live-session" href="#">
+    <div class="ico">🖥️</div>
+    <div class="body">
+      <div class="t1">Live Session</div>
+      <div class="t2">Connect to your Mac environment</div>
+    </div>
+    <div class="chev">›</div>
+  </a>
 
   <div class="status" id="statusStrip">
     <div class="dot" id="statusDot"></div>
@@ -143,61 +161,55 @@ footer{text-align:center;font-size:11px;color:rgba(244,239,230,0.35);margin-top:
   </div>
 
   <div class="power-row">
-    <button class="pw off" id="btnOff" onclick="powerOff()">
+    <button class="pw off" id="btnOff" type="button">
       <div class="ico">⏻</div><div>Power Off</div>
     </button>
-    <button class="pw on" id="btnOn" onclick="powerOn()">
+    <button class="pw on" id="btnOn" type="button">
       <div class="ico">▶</div><div>Power On</div>
     </button>
   </div>
 
   <div class="section-title">Upload</div>
   <label class="drop" for="fileInput">
-    <div>Tap to pick files — <strong>drops into ~/titan-session/uploads/</strong></div>
-    <input id="fileInput" type="file" multiple onchange="handleFiles(this.files)">
+    <div>Tap to pick files — <strong>send to your Mac</strong></div>
+    <input id="fileInput" type="file" multiple>
   </label>
-
-  <div class="section-title">Voice memo</div>
-  <div class="voice-row">
-    <button class="rec-btn" id="recBtn" onclick="toggleRecord()">●</button>
-    <div class="rec-label">
-      <strong id="recLabel">Tap to record</strong>
-      <span id="recMeta">saves to voice-memos/</span>
-    </div>
-  </div>
 
   <div class="section-title">Talk to Alex</div>
   <a class="act" href="https://voice.aimarketinggenius.io" target="_blank" style="grid-column:1/-1">
-    <div class="ico">◌</div>
-    <div><strong>Open voice orb</strong><div style="font-size:12px;color:rgba(244,239,230,0.55)">voice.aimarketinggenius.io</div></div>
+    <div class="ico">🎤</div>
+    <div><strong>Open voice orb</strong><div style="font-size:12px;color:rgba(244,239,230,0.55)">Live voice conversation with Alex</div></div>
   </a>
 
-  <div class="section-title">Recent decisions</div>
-  <div class="feed" id="feed"><div class="card"><div class="card-text">Loading…</div></div></div>
-
-  <footer>AMG · Atlas Command PWA · CT-0419-17</footer>
+  <footer>Ai Marketing Genius · Mobile Command</footer>
 </div>
 
 <div class="sheet" id="settingsSheet">
+  <img class="sheet-logo" src="/amg-logo.png" alt="Ai Marketing Genius">
   <h2>Settings</h2>
-  <p>Atlas talks to your Mac over Tailscale. Paste the HMAC secret + server URL once; stored locally only.</p>
+  <p>Mobile Command talks to your Mac over Tailscale. Paste the HMAC secret + server URL once; stored locally only.</p>
   <div class="field">
     <label>Server URL (Tailscale) <span id="serverSaved" style="float:right;font-size:11px;color:rgba(244,239,230,0.5);letter-spacing:0;text-transform:none"></span></label>
-    <input id="inpServer" type="text" inputmode="text" enterkeyhint="next" placeholder="https://solonzs-macbook-pro-3.tailf4b4ea.ts.net" autocomplete="off" autocapitalize="none" autocorrect="off" spellcheck="false" data-1p-ignore="true" data-lpignore="true" data-form-type="other" name="atlas-server-2026">
+    <input id="inpServer" type="text" inputmode="text" enterkeyhint="next" placeholder="https://solonzs-macbook-pro-3.tailf4b4ea.ts.net" autocomplete="off" autocapitalize="none" autocorrect="off" spellcheck="false" data-1p-ignore="true" data-lpignore="true" data-form-type="other" name="amg-server-2026">
   </div>
   <div class="field">
     <label>HMAC Secret <span id="secretMasked" style="float:right;font-size:11px;color:rgba(244,239,230,0.5);letter-spacing:0;text-transform:none"></span></label>
-    <input id="inpSecret" type="text" inputmode="text" enterkeyhint="done" placeholder="paste 64-char base64" autocomplete="off" autocapitalize="none" autocorrect="off" spellcheck="false" data-1p-ignore="true" data-lpignore="true" data-form-type="other" name="atlas-hmac-2026">
+    <input id="inpSecret" type="text" inputmode="text" enterkeyhint="next" placeholder="paste 64-char base64" autocomplete="off" autocapitalize="none" autocorrect="off" spellcheck="false" data-1p-ignore="true" data-lpignore="true" data-form-type="other" name="amg-hmac-2026">
     <div style="font-size:11px;color:rgba(244,239,230,0.45);margin-top:6px;letter-spacing:0;text-transform:none">Stored locally only. Never transmitted.</div>
+  </div>
+  <div class="field">
+    <label>Live Session URL <span id="liveSaved" style="float:right;font-size:11px;color:rgba(244,239,230,0.5);letter-spacing:0;text-transform:none"></span></label>
+    <input id="inpLive" type="text" inputmode="url" enterkeyhint="done" placeholder="https://…" autocomplete="off" autocapitalize="none" autocorrect="off" spellcheck="false" data-1p-ignore="true" data-lpignore="true" data-form-type="other" name="amg-live-2026">
+    <div style="font-size:11px;color:rgba(244,239,230,0.45);margin-top:6px;letter-spacing:0;text-transform:none">Deep-link target for the Live Session button.</div>
     <div style="display:flex;gap:8px;margin-top:10px">
-      <button type="button" data-action="paste-server" style="flex:1;padding:10px;border-radius:8px;border:1px solid rgba(201,169,97,0.4);background:rgba(201,169,97,0.08);color:var(--gold);font-size:13px">📋 Paste server URL</button>
+      <button type="button" data-action="paste-server" style="flex:1;padding:10px;border-radius:8px;border:1px solid rgba(201,169,97,0.4);background:rgba(201,169,97,0.08);color:var(--gold);font-size:13px">📋 Paste server</button>
       <button type="button" data-action="paste-secret" style="flex:1;padding:10px;border-radius:8px;border:1px solid rgba(201,169,97,0.4);background:rgba(201,169,97,0.08);color:var(--gold);font-size:13px">📋 Paste secret</button>
+      <button type="button" data-action="paste-live" style="flex:1;padding:10px;border-radius:8px;border:1px solid rgba(201,169,97,0.4);background:rgba(201,169,97,0.08);color:var(--gold);font-size:13px">📋 Paste URL</button>
     </div>
-    <div id="debugRow" style="font-size:10px;color:rgba(244,239,230,0.4);margin-top:10px;font-family:monospace;line-height:1.4"></div>
   </div>
   <div class="sheet-actions">
-    <button class="btn ghost" data-action="cancel">Cancel</button>
-    <button class="btn primary" data-action="save">Save</button>
+    <button class="btn ghost" data-action="cancel" type="button">Cancel</button>
+    <button class="btn primary" data-action="save" type="button">Save</button>
   </div>
 </div>
 
@@ -206,8 +218,9 @@ footer{text-align:center;font-size:11px;color:rgba(244,239,230,0.35);margin-top:
 <script>
 const DEFAULT_SERVER = 'https://solonzs-macbook-pro-3.tailf4b4ea.ts.net';
 const cfg = {
-  server: localStorage.getItem('atlas.server') || DEFAULT_SERVER,
-  secret: localStorage.getItem('atlas.secret') || '',
+  server: localStorage.getItem('amg.server') || localStorage.getItem('atlas.server') || DEFAULT_SERVER,
+  secret: localStorage.getItem('amg.secret') || localStorage.getItem('atlas.secret') || '',
+  live:   localStorage.getItem('amg.live')   || '',
 };
 let pollTimer, mediaRecorder, recordedChunks = [];
 
@@ -272,9 +285,9 @@ function setStatusUI(data){
   dot.classList.remove('ok','warn','err');
   const state = (data && data.state) || 'unknown';
   const map = {
-    alive:['ok','Titan alive'], context_loaded:['ok','Context loaded'],
+    alive:['ok','Mac online'], context_loaded:['ok','Ready'],
     booting:['warn','Booting…'], killing:['warn','Shutting down…'],
-    dead:['err','Dead'], failed:['err','Failed'],
+    dead:['err','Offline'], failed:['err','Failed'],
     unknown:['warn','Idle / no recent state']
   };
   const [cls, label] = map[state] || ['warn', state];
@@ -282,7 +295,7 @@ function setStatusUI(data){
   lbl.textContent = label;
   const bits = [];
   if(typeof data.uptime_s==='number') bits.push('uptime '+fmtDur(data.uptime_s));
-  if(typeof data.exchange_count==='number') bits.push('xchg '+data.exchange_count);
+  if(typeof data.exchange_count==='number') bits.push('activity '+data.exchange_count);
   if(data.terminal_live === false) bits.push('⚠ terminal dead');
   meta.textContent = bits.join(' · ') || '—';
 }
@@ -295,26 +308,8 @@ async function pollStatus(){
   }catch(e){ setStatusUI({state:'unknown'}); }
 }
 
-async function loadDecisions(){
-  if(!cfg.secret) return;
-  try{
-    const r = await callTitan('GET', '/v1/titan/recent-decisions');
-    if(!r.ok) throw new Error(r.body.error||'err');
-    const feed = document.getElementById('feed'); feed.innerHTML = '';
-    const rows = (r.body && r.body.decisions) || [];
-    if(rows.length===0){ feed.innerHTML = '<div class="card"><div class="card-text" style="color:rgba(244,239,230,0.45)">No recent decisions</div></div>'; return; }
-    rows.forEach(d=>{
-      const el = document.createElement('div'); el.className = 'card';
-      const tags = (d.tags||[]).slice(0,3).map(t=>`<span class="tag">${escapeHtml(t)}</span>`).join('');
-      el.innerHTML = `<div class="card-meta">${escapeHtml((d.created_at||'').substr(0,16).replace('T',' '))} ${tags}</div><div class="card-text">${escapeHtml(d.decision_text||'')}</div>`;
-      feed.appendChild(el);
-    });
-  }catch(e){ /* silent */ }
-}
-function escapeHtml(s){ return String(s).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
-
 async function powerOff(){
-  if(!confirm('Power off Titan? Graceful shutdown, no auto-boot.')) return;
+  if(!confirm('Power off the Mac session? Graceful shutdown, no auto-boot.')) return;
   haptic(); const btn = document.getElementById('btnOff'); btn.disabled = true;
   try{
     const r = await callTitan('POST', '/v1/titan/shutdown', '');
@@ -342,8 +337,8 @@ async function handleFiles(files){
         'X-Titan-Filename': f.name,
       };
       const r = await callTitan('POST', '/v1/titan/upload', buf, headers);
-      if(r.ok) toast(`Uploaded ${f.name} · ${fmtBytes(f.size)}`);
-      else toast(`Upload failed: ${r.body.error||r.status}`, true);
+      if(r.ok) toast('Uploaded '+f.name+' · '+fmtBytes(f.size));
+      else toast('Upload failed: '+(r.body.error||r.status), true);
     }catch(e){ toast('Error: '+e.message, true); }
   }
 }
@@ -374,8 +369,8 @@ async function toggleRecord(){
       };
       try{
         const r = await callTitan('POST', '/v1/titan/voice-memo', buf, headers);
-        if(r.ok){ toast(`Memo saved · ${fmtBytes(blob.size)}`); lbl.textContent = 'Tap to record'; meta.textContent = 'last: '+new Date().toLocaleTimeString(); }
-        else { toast(`Memo failed: ${r.body.error||r.status}`, true); lbl.textContent = 'Tap to record'; }
+        if(r.ok){ toast('Memo saved · '+fmtBytes(blob.size)); lbl.textContent = 'Tap to record'; meta.textContent = 'last: '+new Date().toLocaleTimeString(); }
+        else { toast('Memo failed: '+(r.body.error||r.status), true); lbl.textContent = 'Tap to record'; }
       }catch(e){ toast('Error: '+e.message, true); lbl.textContent = 'Tap to record'; }
     };
     mediaRecorder.start();
@@ -385,25 +380,26 @@ async function toggleRecord(){
   }catch(e){ toast('Mic permission needed', true); }
 }
 
+function openLiveSession(){
+  if(!cfg.live){ toast('Set Live Session URL in Settings first', true); openSettings(); return; }
+  haptic();
+  window.location.href = cfg.live;
+}
+
 function openSettings(){
   const ss = document.getElementById('inpServer');
   const ks = document.getElementById('inpSecret');
+  const ls = document.getElementById('inpLive');
   ss.value = cfg.server || '';
   ks.value = cfg.secret || '';
+  ls.value = cfg.live || '';
   const m = document.getElementById('secretMasked');
   const ms = document.getElementById('serverSaved');
+  const lm = document.getElementById('liveSaved');
   if(cfg.secret) m.textContent = 'saved: ' + cfg.secret.slice(0,4) + '…' + cfg.secret.slice(-3); else m.textContent = '';
   if(cfg.server) ms.textContent = 'saved'; else ms.textContent = '';
+  if(cfg.live) lm.textContent = 'saved'; else lm.textContent = '';
   document.getElementById('settingsSheet').classList.add('open');
-  updateDebugRow();
-}
-
-function updateDebugRow(){
-  const d = document.getElementById('debugRow');
-  if(!d) return;
-  const ss = document.getElementById('inpServer');
-  const ks = document.getElementById('inpSecret');
-  d.textContent = 'server field: ' + (ss.value.length) + ' chars · secret field: ' + (ks.value.length) + ' chars · cfg: s=' + (cfg.server.length) + ' k=' + (cfg.secret.length);
 }
 
 async function pasteInto(id){
@@ -411,7 +407,6 @@ async function pasteInto(id){
     const text = await navigator.clipboard.readText();
     if(!text){ toast('Clipboard empty', true); return; }
     document.getElementById(id).value = text.trim();
-    updateDebugRow();
     toast('Pasted ' + text.trim().length + ' chars');
   }catch(e){ toast('Clipboard blocked: ' + e.message, true); }
 }
@@ -419,25 +414,27 @@ function closeSettings(){ document.getElementById('settingsSheet').classList.rem
 function saveSettings(){
   const sRaw = document.getElementById('inpServer').value;
   const kRaw = document.getElementById('inpSecret').value;
+  const lRaw = document.getElementById('inpLive').value;
   const s = (sRaw||'').trim();
   const k = (kRaw||'').trim();
-  if(!s || !k){ toast('Both fields required · server=' + s.length + ' secret=' + k.length, true); return; }
-  cfg.server = s; cfg.secret = k;
+  const l = (lRaw||'').trim();
+  if(!s || !k){ toast('Server + HMAC required', true); return; }
+  cfg.server = s; cfg.secret = k; cfg.live = l;
   try{
-    localStorage.setItem('atlas.server', s);
-    localStorage.setItem('atlas.secret', k);
+    localStorage.setItem('amg.server', s);
+    localStorage.setItem('amg.secret', k);
+    localStorage.setItem('amg.live', l);
   }catch(e){ toast('Save failed: ' + e.message, true); return; }
-  // Verify write actually landed
-  const vs = localStorage.getItem('atlas.server');
-  const vk = localStorage.getItem('atlas.secret');
-  if(vs !== s || vk !== k){ toast('Persistence verify failed · iOS Private Mode?', true); return; }
+  const vs = localStorage.getItem('amg.server');
+  const vk = localStorage.getItem('amg.secret');
+  const vl = localStorage.getItem('amg.live');
+  if(vs !== s || vk !== k || vl !== l){ toast('Persistence verify failed · iOS Private Mode?', true); return; }
   closeSettings();
   toast('Saved · secret ' + k.slice(0,4) + '…' + k.slice(-3));
-  pollStatus(); loadDecisions();
+  pollStatus();
 }
 
-// Defensive event binding — use ONLY click to avoid double-fire from click+touchend
-// (iOS synthesizes click from touch; adding touchend fires twice, cancels mic flow).
+// Event binding — listener-only, no onclick attributes (iOS PWA standalone quirk)
 function bind(id, fn){
   const el = document.getElementById(id);
   if(!el) return;
@@ -447,39 +444,33 @@ window.addEventListener('DOMContentLoaded', ()=>{
   bind('btnOff', powerOff);
   bind('btnOn', powerOn);
   bind('recBtn', toggleRecord);
+  const fi = document.getElementById('fileInput');
+  if(fi) fi.addEventListener('change', (e)=>handleFiles(e.target.files));
 });
-// Save + Cancel + Settings — bind directly, no onclick dependency
+
+// Delegated click handlers for data-action buttons
 document.addEventListener('click', (e)=>{
   const t = e.target.closest('[data-action]');
   if(!t) return;
-  e.preventDefault();
   const action = t.getAttribute('data-action');
+  // Live session is an <a> — don't preventDefault; just trigger our handler and let nav happen
+  if(action==='open-live-session'){ e.preventDefault(); openLiveSession(); return; }
+  e.preventDefault();
   if(action==='save') saveSettings();
   else if(action==='cancel') closeSettings();
   else if(action==='open-settings') openSettings();
   else if(action==='paste-server') pasteInto('inpServer');
   else if(action==='paste-secret') pasteInto('inpSecret');
-});
-
-// Watch input events for debugging — track value changes live
-['inpServer','inpSecret'].forEach(id=>{
-  document.addEventListener('DOMContentLoaded',()=>{
-    const el = document.getElementById(id);
-    if(!el) return;
-    el.addEventListener('input', updateDebugRow);
-    el.addEventListener('paste', ()=>setTimeout(updateDebugRow, 50));
-    el.addEventListener('blur', updateDebugRow);
-  });
+  else if(action==='paste-live') pasteInto('inpLive');
 });
 
 // First run — if unconfigured, open settings
 if(!cfg.server || !cfg.secret){ openSettings(); }
 pollStatus(); setInterval(pollStatus, 3000);
-loadDecisions(); setInterval(loadDecisions, 30000);
 
 // Service worker — update-and-skip-waiting so new versions take effect next load
 if('serviceWorker' in navigator){
-  navigator.serviceWorker.register('/service-worker.js?v=3').then(reg=>{
+  navigator.serviceWorker.register('/service-worker.js?v=10').then(reg=>{
     reg.update();
     if(reg.waiting) reg.waiting.postMessage({type:'SKIP_WAITING'});
     reg.addEventListener('updatefound', ()=>{

@@ -1,14 +1,15 @@
 {
-  "name": "Atlas Command",
-  "short_name": "Atlas",
-  "description": "AMG Titan mobile control",
+  "name": "AMG Mobile Command",
+  "short_name": "AMG",
+  "description": "AI Marketing Genius — Mobile Command",
   "start_url": "/",
   "display": "standalone",
   "orientation": "portrait",
   "background_color": "#060F26",
   "theme_color": "#0A1F44",
   "icons": [
-    { "src": "/icon-192.png", "sizes": "192x192", "type": "image/png" },
-    { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+    { "src": "/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
   ]
 }
