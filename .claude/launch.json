@@ -100,6 +100,18 @@
         "deploy/aimg-voice-demo"
       ],
       "port": 8749
+    },
+    {
+      "name": "atlas-command-pwa",
+      "runtimeExecutable": "python3",
+      "runtimeArgs": [
+        "-m",
+        "http.server",
+        "8750",
+        "--directory",
+        "deploy/atlas-command-pwa"
+      ],
+      "port": 8750
     }
   ]
 }

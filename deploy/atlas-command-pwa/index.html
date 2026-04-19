@@ -1,0 +1,410 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Atlas">
+<meta name="theme-color" content="#0A1F44">
+<link rel="manifest" href="/manifest.json">
+<link rel="apple-touch-icon" href="/icon-192.png">
+<link rel="apple-touch-startup-image" href="/icon-512.png">
+<title>Atlas Command</title>
+<style>
+:root{
+  --navy:#0A1F44; --navy-deep:#060F26; --gold:#C9A961; --gold-soft:#D4B97A;
+  --cream:#F4EFE6; --ink:#0F1A2E; --ok:#10B981; --warn:#F59E0B; --err:#DC2626;
+  --surface:rgba(255,255,255,0.04); --line:rgba(255,255,255,0.08);
+  --fs-display:clamp(32px,8vw,44px);
+  --radius:16px;
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;padding:0;background:var(--navy-deep);color:var(--cream);
+  font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","Inter",sans-serif;
+  font-size:16px;line-height:1.5;min-height:100vh;
+  padding:env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+  background:radial-gradient(ellipse at top,#0A1F44 0%,#060F26 60%) fixed;
+  -webkit-font-smoothing:antialiased;
+}
+.serif{font-family:"Instrument Serif","Iowan Old Style",Georgia,serif;font-weight:400;font-style:italic}
+.wrap{max-width:520px;margin:0 auto;padding:20px 16px 40px}
+
+/* Header */
+header{display:flex;align-items:center;gap:12px;padding:8px 4px 18px}
+.logo{width:36px;height:36px;border-radius:10px;background:linear-gradient(135deg,var(--gold),var(--gold-soft));
+  display:flex;align-items:center;justify-content:center;color:var(--navy-deep);font-weight:700;font-size:18px;font-family:"Instrument Serif",serif;font-style:italic}
+.brand{font-size:18px;letter-spacing:-0.01em}
+.brand .muted{color:var(--gold);font-size:13px;margin-left:8px;letter-spacing:0.02em}
+.settings-btn{margin-left:auto;background:transparent;border:1px solid var(--line);color:var(--cream);
+  padding:8px 12px;border-radius:10px;font-size:13px;min-height:36px}
+
+/* Status strip */
+.status{display:flex;align-items:center;gap:14px;padding:14px 16px;border-radius:var(--radius);
+  background:var(--surface);border:1px solid var(--line);margin-bottom:20px}
+.dot{width:12px;height:12px;border-radius:50%;background:#6B7280;flex-shrink:0;
+  box-shadow:0 0 0 0 rgba(0,0,0,0);transition:all .3s}
+.dot.ok{background:var(--ok);box-shadow:0 0 14px var(--ok)}
+.dot.warn{background:var(--warn);box-shadow:0 0 14px var(--warn)}
+.dot.err{background:var(--err);box-shadow:0 0 14px var(--err)}
+.status-body{flex:1;min-width:0}
+.status-label{font-size:15px;font-weight:500}
+.status-meta{font-size:12px;color:rgba(244,239,230,0.55);margin-top:2px}
+
+/* Power buttons */
+.power-row{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:24px}
+.pw{appearance:none;border:0;border-radius:var(--radius);padding:28px 12px;color:#fff;
+  font-size:17px;font-weight:600;letter-spacing:0.01em;
+  min-height:112px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;
+  transition:transform .15s ease,box-shadow .15s ease;
+  box-shadow:0 8px 24px rgba(0,0,0,0.35)}
+.pw:active{transform:scale(0.97)}
+.pw .ico{font-size:28px;line-height:1}
+.pw.off{background:linear-gradient(180deg,#E24D4D,#B01E1E)}
+.pw.on{background:linear-gradient(180deg,#10B981,#0E7A5C)}
+.pw:disabled{opacity:0.55;filter:saturate(0.7)}
+
+/* Section */
+.section-title{font-size:13px;letter-spacing:0.08em;text-transform:uppercase;color:var(--gold);
+  margin:24px 4px 10px}
+
+/* Actions */
+.actions{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.act{background:var(--surface);border:1px solid var(--line);border-radius:14px;
+  padding:14px;min-height:72px;color:var(--cream);font-size:15px;text-align:left;
+  display:flex;align-items:center;gap:12px;text-decoration:none}
+.act .ico{width:36px;height:36px;border-radius:10px;background:rgba(201,169,97,0.15);
+  color:var(--gold);display:flex;align-items:center;justify-content:center;font-size:18px}
+.act:active{transform:scale(0.98)}
+
+/* Upload */
+.drop{border:1.5px dashed rgba(201,169,97,0.35);border-radius:var(--radius);padding:22px;
+  text-align:center;color:rgba(244,239,230,0.7);margin-top:10px;font-size:14px}
+.drop strong{color:var(--gold);font-weight:500}
+input[type=file]{position:absolute;left:-9999px}
+
+/* Voice memo */
+.voice-row{display:flex;align-items:center;gap:12px;margin-top:10px;
+  background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:14px}
+.rec-btn{width:56px;height:56px;border-radius:50%;border:0;background:linear-gradient(180deg,#E24D4D,#B01E1E);
+  color:#fff;font-size:22px;flex-shrink:0;box-shadow:0 4px 14px rgba(220,38,38,0.4)}
+.rec-btn.recording{background:#7F1D1D;animation:pulse 1.4s ease-in-out infinite}
+@keyframes pulse{0%,100%{box-shadow:0 0 0 0 rgba(220,38,38,0.6)}50%{box-shadow:0 0 0 14px rgba(220,38,38,0)}}
+.rec-label{font-size:14px;color:rgba(244,239,230,0.7)}
+.rec-label strong{display:block;color:var(--cream);font-size:15px;margin-bottom:2px;font-weight:500}
+
+/* Decisions feed */
+.feed{display:flex;flex-direction:column;gap:8px;margin-top:8px}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:12px 14px}
+.card-meta{font-size:11px;color:rgba(244,239,230,0.45);display:flex;gap:6px;flex-wrap:wrap;margin-bottom:4px}
+.tag{background:rgba(201,169,97,0.12);color:var(--gold);padding:2px 8px;border-radius:6px;font-size:10px}
+.card-text{font-size:13px;line-height:1.45}
+
+/* Settings sheet */
+.sheet{position:fixed;inset:0;background:rgba(6,15,38,0.85);backdrop-filter:blur(20px);
+  display:none;z-index:100;padding:30px 16px;overflow-y:auto}
+.sheet.open{display:block}
+.sheet h2{margin:0 0 6px;font-family:"Instrument Serif",serif;font-size:30px;font-style:italic;color:var(--gold)}
+.sheet p{color:rgba(244,239,230,0.65);font-size:14px;margin:0 0 20px}
+.field{display:block;margin-bottom:16px}
+.field label{display:block;font-size:12px;letter-spacing:0.06em;text-transform:uppercase;color:var(--gold);margin-bottom:6px}
+.field input{width:100%;background:rgba(255,255,255,0.05);border:1px solid var(--line);
+  color:var(--cream);padding:12px 14px;border-radius:10px;font-size:15px;font-family:"SF Mono",monospace}
+.sheet-actions{display:flex;gap:10px;margin-top:20px}
+.btn{flex:1;padding:14px;border-radius:10px;border:0;font-size:15px;font-weight:500;min-height:48px}
+.btn.primary{background:var(--gold);color:var(--navy-deep)}
+.btn.ghost{background:transparent;color:var(--cream);border:1px solid var(--line)}
+
+/* Toast */
+.toast{position:fixed;bottom:calc(20px + env(safe-area-inset-bottom));left:50%;transform:translateX(-50%) translateY(20px);
+  background:rgba(10,31,68,0.95);backdrop-filter:blur(20px);border:1px solid var(--line);
+  color:var(--cream);padding:12px 18px;border-radius:12px;font-size:14px;opacity:0;transition:all .25s;
+  max-width:90vw;z-index:200;pointer-events:none}
+.toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+.toast.err{border-color:var(--err);background:rgba(127,29,29,0.95)}
+
+footer{text-align:center;font-size:11px;color:rgba(244,239,230,0.35);margin-top:28px;letter-spacing:0.04em}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="logo">A</div>
+    <div class="brand">Atlas <span class="serif">Command</span><span class="muted">v1.0</span></div>
+    <button class="settings-btn" onclick="openSettings()">Settings</button>
+  </header>
+
+  <div class="status" id="statusStrip">
+    <div class="dot" id="statusDot"></div>
+    <div class="status-body">
+      <div class="status-label" id="statusLabel">Connecting…</div>
+      <div class="status-meta" id="statusMeta">—</div>
+    </div>
+  </div>
+
+  <div class="power-row">
+    <button class="pw off" id="btnOff" onclick="powerOff()">
+      <div class="ico">⏻</div><div>Power Off</div>
+    </button>
+    <button class="pw on" id="btnOn" onclick="powerOn()">
+      <div class="ico">▶</div><div>Power On</div>
+    </button>
+  </div>
+
+  <div class="section-title">Upload</div>
+  <label class="drop" for="fileInput">
+    <div>Tap to pick files — <strong>drops into ~/titan-session/uploads/</strong></div>
+    <input id="fileInput" type="file" multiple onchange="handleFiles(this.files)">
+  </label>
+
+  <div class="section-title">Voice memo</div>
+  <div class="voice-row">
+    <button class="rec-btn" id="recBtn" onclick="toggleRecord()">●</button>
+    <div class="rec-label">
+      <strong id="recLabel">Tap to record</strong>
+      <span id="recMeta">saves to voice-memos/</span>
+    </div>
+  </div>
+
+  <div class="section-title">Talk to Alex</div>
+  <a class="act" href="https://voice.aimarketinggenius.io" target="_blank" style="grid-column:1/-1">
+    <div class="ico">◌</div>
+    <div><strong>Open voice orb</strong><div style="font-size:12px;color:rgba(244,239,230,0.55)">voice.aimarketinggenius.io</div></div>
+  </a>
+
+  <div class="section-title">Recent decisions</div>
+  <div class="feed" id="feed"><div class="card"><div class="card-text">Loading…</div></div></div>
+
+  <footer>AMG · Atlas Command PWA · CT-0419-17</footer>
+</div>
+
+<div class="sheet" id="settingsSheet">
+  <h2>Settings</h2>
+  <p>Atlas talks to your Mac over Tailscale. Paste the HMAC secret + server URL once; stored locally only.</p>
+  <div class="field">
+    <label>Server URL (Tailscale)</label>
+    <input id="inpServer" type="url" placeholder="http://100.65.33.80:8765" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false">
+  </div>
+  <div class="field">
+    <label>HMAC Secret</label>
+    <input id="inpSecret" type="password" placeholder="paste 64-char base64" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false">
+  </div>
+  <div class="sheet-actions">
+    <button class="btn ghost" onclick="closeSettings()">Cancel</button>
+    <button class="btn primary" onclick="saveSettings()">Save</button>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const cfg = {
+  server: localStorage.getItem('atlas.server') || '',
+  secret: localStorage.getItem('atlas.secret') || '',
+};
+let pollTimer, mediaRecorder, recordedChunks = [];
+
+function toast(msg, isErr){
+  const t = document.getElementById('toast');
+  t.textContent = msg; t.classList.toggle('err', !!isErr); t.classList.add('show');
+  setTimeout(()=>t.classList.remove('show'), 2600);
+}
+
+function haptic(){ try{ navigator.vibrate && navigator.vibrate(10); }catch(e){} }
+
+async function hmac(secret, msg){
+  const enc = new TextEncoder();
+  const key = await crypto.subtle.importKey('raw', enc.encode(secret),
+    { name:'HMAC', hash:'SHA-256' }, false, ['sign']);
+  const sig = await crypto.subtle.sign('HMAC', key, enc.encode(msg));
+  return [...new Uint8Array(sig)].map(b=>b.toString(16).padStart(2,'0')).join('');
+}
+
+async function sha256Hex(buf){
+  const hash = await crypto.subtle.digest('SHA-256', buf);
+  return [...new Uint8Array(hash)].map(b=>b.toString(16).padStart(2,'0')).join('');
+}
+
+function nonce(){ return crypto.randomUUID(); }
+
+async function authHeaders(path, bodyBuf){
+  const ts = Math.floor(Date.now()/1000).toString();
+  const n = nonce();
+  let canonical = [ts, n, path].join('\n');
+  const headers = { 'X-Titan-Timestamp': ts, 'X-Titan-Nonce': n };
+  if(bodyBuf){
+    const h = await sha256Hex(bodyBuf);
+    canonical += '\n' + h;
+    headers['X-Titan-Body-Hash'] = h;
+  }
+  headers['X-Titan-Signature'] = await hmac(cfg.secret, canonical);
+  return headers;
+}
+
+async function callTitan(method, path, body, extraHeaders){
+  if(!cfg.server){ openSettings(); throw new Error('not configured'); }
+  const url = cfg.server.replace(/\/$/,'') + path;
+  const opts = { method, headers: Object.assign({}, extraHeaders||{}) };
+  if(method !== 'GET' && cfg.secret){
+    const buf = body instanceof ArrayBuffer ? body : (body ? new TextEncoder().encode(body).buffer : null);
+    Object.assign(opts.headers, await authHeaders(path, buf));
+    if(body) opts.body = body;
+  }
+  if(method === 'GET' && path !== '/v1/titan/status'){
+    Object.assign(opts.headers, await authHeaders(path, null));
+  }
+  const r = await fetch(url, opts);
+  const j = await r.json().catch(()=>({ok:false,error:'non_json'}));
+  return { ok: r.ok, status: r.status, body: j };
+}
+
+function setStatusUI(data){
+  const dot = document.getElementById('statusDot');
+  const lbl = document.getElementById('statusLabel');
+  const meta = document.getElementById('statusMeta');
+  dot.classList.remove('ok','warn','err');
+  const state = (data && data.state) || 'unknown';
+  const map = {
+    alive:['ok','Titan alive'], context_loaded:['ok','Context loaded'],
+    booting:['warn','Booting…'], killing:['warn','Shutting down…'],
+    dead:['err','Dead'], failed:['err','Failed'],
+    unknown:['warn','Idle / no recent state']
+  };
+  const [cls, label] = map[state] || ['warn', state];
+  dot.classList.add(cls);
+  lbl.textContent = label;
+  const bits = [];
+  if(typeof data.uptime_s==='number') bits.push('uptime '+fmtDur(data.uptime_s));
+  if(typeof data.exchange_count==='number') bits.push('xchg '+data.exchange_count);
+  if(data.terminal_live === false) bits.push('⚠ terminal dead');
+  meta.textContent = bits.join(' · ') || '—';
+}
+function fmtDur(s){ if(s<60) return s+'s'; if(s<3600) return Math.floor(s/60)+'m'; return Math.floor(s/3600)+'h'+Math.floor((s%3600)/60)+'m'; }
+
+async function pollStatus(){
+  try{
+    const r = await callTitan('GET', '/v1/titan/status');
+    if(r.ok) setStatusUI(r.body); else throw new Error(r.body.error||'err');
+  }catch(e){ setStatusUI({state:'unknown'}); }
+}
+
+async function loadDecisions(){
+  if(!cfg.secret) return;
+  try{
+    const r = await callTitan('GET', '/v1/titan/recent-decisions');
+    if(!r.ok) throw new Error(r.body.error||'err');
+    const feed = document.getElementById('feed'); feed.innerHTML = '';
+    const rows = (r.body && r.body.decisions) || [];
+    if(rows.length===0){ feed.innerHTML = '<div class="card"><div class="card-text" style="color:rgba(244,239,230,0.45)">No recent decisions</div></div>'; return; }
+    rows.forEach(d=>{
+      const el = document.createElement('div'); el.className = 'card';
+      const tags = (d.tags||[]).slice(0,3).map(t=>`<span class="tag">${escapeHtml(t)}</span>`).join('');
+      el.innerHTML = `<div class="card-meta">${escapeHtml((d.created_at||'').substr(0,16).replace('T',' '))} ${tags}</div><div class="card-text">${escapeHtml(d.decision_text||'')}</div>`;
+      feed.appendChild(el);
+    });
+  }catch(e){ /* silent */ }
+}
+function escapeHtml(s){ return String(s).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+
+async function powerOff(){
+  if(!confirm('Power off Titan? Graceful shutdown, no auto-boot.')) return;
+  haptic(); const btn = document.getElementById('btnOff'); btn.disabled = true;
+  try{
+    const r = await callTitan('POST', '/v1/titan/shutdown', '');
+    if(r.ok){ toast('Shutdown requested'); } else { toast('Failed: '+(r.body.error||r.status), true); }
+  }catch(e){ toast('Error: '+e.message, true); }
+  setTimeout(()=>{ btn.disabled = false; pollStatus(); }, 1500);
+}
+
+async function powerOn(){
+  haptic(); const btn = document.getElementById('btnOn'); btn.disabled = true;
+  try{
+    const r = await callTitan('POST', '/v1/titan/restart', '');
+    if(r.ok){ toast('Restart requested'); } else { toast('Failed: '+(r.body.error||r.status), true); }
+  }catch(e){ toast('Error: '+e.message, true); }
+  setTimeout(()=>{ btn.disabled = false; pollStatus(); }, 1500);
+}
+
+async function handleFiles(files){
+  for(const f of files){
+    haptic();
+    try{
+      const buf = await f.arrayBuffer();
+      const headers = {
+        'Content-Type': f.type || 'application/octet-stream',
+        'X-Titan-Filename': f.name,
+      };
+      const r = await callTitan('POST', '/v1/titan/upload', buf, headers);
+      if(r.ok) toast(`Uploaded ${f.name} · ${fmtBytes(f.size)}`);
+      else toast(`Upload failed: ${r.body.error||r.status}`, true);
+    }catch(e){ toast('Error: '+e.message, true); }
+  }
+}
+function fmtBytes(n){ if(n<1024) return n+'B'; if(n<1024*1024) return (n/1024).toFixed(1)+'KB'; return (n/1024/1024).toFixed(1)+'MB'; }
+
+async function toggleRecord(){
+  const btn = document.getElementById('recBtn');
+  const lbl = document.getElementById('recLabel');
+  const meta = document.getElementById('recMeta');
+  if(mediaRecorder && mediaRecorder.state === 'recording'){
+    mediaRecorder.stop();
+    btn.classList.remove('recording');
+    lbl.textContent = 'Uploading…';
+    return;
+  }
+  try{
+    const stream = await navigator.mediaDevices.getUserMedia({audio:true});
+    recordedChunks = [];
+    mediaRecorder = new MediaRecorder(stream, {mimeType:'audio/mp4'});
+    mediaRecorder.ondataavailable = e => { if(e.data && e.data.size) recordedChunks.push(e.data); };
+    mediaRecorder.onstop = async () => {
+      stream.getTracks().forEach(t=>t.stop());
+      const blob = new Blob(recordedChunks, {type:'audio/mp4'});
+      const buf = await blob.arrayBuffer();
+      const headers = {
+        'Content-Type':'audio/mp4',
+        'X-Titan-Filename': 'memo-'+Date.now()+'.m4a',
+      };
+      try{
+        const r = await callTitan('POST', '/v1/titan/voice-memo', buf, headers);
+        if(r.ok){ toast(`Memo saved · ${fmtBytes(blob.size)}`); lbl.textContent = 'Tap to record'; meta.textContent = 'last: '+new Date().toLocaleTimeString(); }
+        else { toast(`Memo failed: ${r.body.error||r.status}`, true); lbl.textContent = 'Tap to record'; }
+      }catch(e){ toast('Error: '+e.message, true); lbl.textContent = 'Tap to record'; }
+    };
+    mediaRecorder.start();
+    btn.classList.add('recording');
+    lbl.textContent = 'Recording… tap to stop';
+    haptic();
+  }catch(e){ toast('Mic permission needed', true); }
+}
+
+function openSettings(){
+  document.getElementById('inpServer').value = cfg.server;
+  document.getElementById('inpSecret').value = cfg.secret;
+  document.getElementById('settingsSheet').classList.add('open');
+}
+function closeSettings(){ document.getElementById('settingsSheet').classList.remove('open'); }
+function saveSettings(){
+  const s = document.getElementById('inpServer').value.trim();
+  const k = document.getElementById('inpSecret').value.trim();
+  if(!s || !k){ toast('Both fields required', true); return; }
+  cfg.server = s; cfg.secret = k;
+  localStorage.setItem('atlas.server', s);
+  localStorage.setItem('atlas.secret', k);
+  closeSettings();
+  toast('Saved · testing connection');
+  pollStatus(); loadDecisions();
+}
+
+// First run — if unconfigured, open settings
+if(!cfg.server || !cfg.secret){ openSettings(); }
+pollStatus(); setInterval(pollStatus, 3000);
+loadDecisions(); setInterval(loadDecisions, 30000);
+
+// Service worker for add-to-home-screen
+if('serviceWorker' in navigator){
+  navigator.serviceWorker.register('/service-worker.js').catch(()=>{});
+}
+</script>
+</body>
+</html>
