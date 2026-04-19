@@ -1,10 +1,14 @@
 // Atlas Command PWA — minimal offline shell cache
-const CACHE = 'atlas-v1';
+const CACHE = 'atlas-v3-' + (self.registration ? self.registration.scope : '');
 const ASSETS = ['/', '/index.html', '/manifest.json', '/icon-192.png', '/icon-512.png'];
 
 self.addEventListener('install', e => {
   e.waitUntil(caches.open(CACHE).then(c => c.addAll(ASSETS)));
   self.skipWaiting();
+});
+
+self.addEventListener('message', e => {
+  if (e.data && e.data.type === 'SKIP_WAITING') self.skipWaiting();
 });
 
 self.addEventListener('activate', e => {

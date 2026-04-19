@@ -131,7 +131,7 @@ footer{text-align:center;font-size:11px;color:rgba(244,239,230,0.35);margin-top:
   <header>
     <div class="logo">A</div>
     <div class="brand">Atlas <span class="serif">Command</span><span class="muted">v1.0</span></div>
-    <button class="settings-btn" onclick="openSettings()">Settings</button>
+    <button class="settings-btn" data-action="open-settings">Settings</button>
   </header>
 
   <div class="status" id="statusStrip">
@@ -186,12 +186,13 @@ footer{text-align:center;font-size:11px;color:rgba(244,239,230,0.35);margin-top:
     <input id="inpServer" type="url" placeholder="http://100.65.33.80:8765" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false">
   </div>
   <div class="field">
-    <label>HMAC Secret</label>
-    <input id="inpSecret" type="password" placeholder="paste 64-char base64" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false">
+    <label>HMAC Secret <span id="secretMasked" style="float:right;font-size:11px;color:rgba(244,239,230,0.5);letter-spacing:0;text-transform:none"></span></label>
+    <input id="inpSecret" type="text" placeholder="paste 64-char base64" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" data-1p-ignore="true" data-lpignore="true" data-form-type="other">
+    <div style="font-size:11px;color:rgba(244,239,230,0.45);margin-top:6px;letter-spacing:0;text-transform:none">Shown as plain text so iOS Safari doesn't strip it. Never transmitted — stored locally only.</div>
   </div>
   <div class="sheet-actions">
-    <button class="btn ghost" onclick="closeSettings()">Cancel</button>
-    <button class="btn primary" onclick="saveSettings()">Save</button>
+    <button class="btn ghost" data-action="cancel">Cancel</button>
+    <button class="btn primary" data-action="save">Save</button>
   </div>
 </div>
 
@@ -379,31 +380,74 @@ async function toggleRecord(){
 }
 
 function openSettings(){
-  document.getElementById('inpServer').value = cfg.server;
-  document.getElementById('inpSecret').value = cfg.secret;
+  document.getElementById('inpServer').value = cfg.server || '';
+  document.getElementById('inpSecret').value = cfg.secret || '';
+  const m = document.getElementById('secretMasked');
+  if(cfg.secret) m.textContent = 'saved: ' + cfg.secret.slice(0,4) + '…' + cfg.secret.slice(-3); else m.textContent = '';
   document.getElementById('settingsSheet').classList.add('open');
 }
 function closeSettings(){ document.getElementById('settingsSheet').classList.remove('open'); }
 function saveSettings(){
-  const s = document.getElementById('inpServer').value.trim();
-  const k = document.getElementById('inpSecret').value.trim();
-  if(!s || !k){ toast('Both fields required', true); return; }
+  const sRaw = document.getElementById('inpServer').value;
+  const kRaw = document.getElementById('inpSecret').value;
+  const s = (sRaw||'').trim();
+  const k = (kRaw||'').trim();
+  if(!s || !k){ toast('Both fields required · server=' + s.length + ' secret=' + k.length, true); return; }
   cfg.server = s; cfg.secret = k;
-  localStorage.setItem('atlas.server', s);
-  localStorage.setItem('atlas.secret', k);
+  try{
+    localStorage.setItem('atlas.server', s);
+    localStorage.setItem('atlas.secret', k);
+  }catch(e){ toast('Save failed: ' + e.message, true); return; }
+  // Verify write actually landed
+  const vs = localStorage.getItem('atlas.server');
+  const vk = localStorage.getItem('atlas.secret');
+  if(vs !== s || vk !== k){ toast('Persistence verify failed · iOS Private Mode?', true); return; }
   closeSettings();
-  toast('Saved · testing connection');
+  toast('Saved · secret ' + k.slice(0,4) + '…' + k.slice(-3));
   pollStatus(); loadDecisions();
 }
+
+// Defensive event binding — onclick="fn()" can fail silently on iOS PWA contexts.
+// Bind via addEventListener on both click (desktop) and touchend (iOS reliable).
+function bind(id, fn){
+  const el = document.getElementById(id);
+  if(!el) return;
+  const handler = (e)=>{ e.preventDefault(); fn(); };
+  el.addEventListener('click', handler);
+  el.addEventListener('touchend', handler, { passive:false });
+}
+window.addEventListener('DOMContentLoaded', ()=>{
+  bind('btnOff', powerOff);
+  bind('btnOn', powerOn);
+  bind('recBtn', toggleRecord);
+});
+// Save + Cancel + Settings — bind directly, no onclick dependency
+document.addEventListener('click', (e)=>{
+  const t = e.target.closest('[data-action]');
+  if(!t) return;
+  e.preventDefault();
+  const action = t.getAttribute('data-action');
+  if(action==='save') saveSettings();
+  else if(action==='cancel') closeSettings();
+  else if(action==='open-settings') openSettings();
+});
 
 // First run — if unconfigured, open settings
 if(!cfg.server || !cfg.secret){ openSettings(); }
 pollStatus(); setInterval(pollStatus, 3000);
 loadDecisions(); setInterval(loadDecisions, 30000);
 
-// Service worker for add-to-home-screen
+// Service worker — update-and-skip-waiting so new versions take effect next load
 if('serviceWorker' in navigator){
-  navigator.serviceWorker.register('/service-worker.js').catch(()=>{});
+  navigator.serviceWorker.register('/service-worker.js?v=3').then(reg=>{
+    reg.update();
+    if(reg.waiting) reg.waiting.postMessage({type:'SKIP_WAITING'});
+    reg.addEventListener('updatefound', ()=>{
+      const nw = reg.installing; if(!nw) return;
+      nw.addEventListener('statechange', ()=>{ if(nw.state==='installed' && navigator.serviceWorker.controller){ nw.postMessage({type:'SKIP_WAITING'}); }});
+    });
+  }).catch(()=>{});
+  navigator.serviceWorker.addEventListener('controllerchange', ()=>{ /* no reload loop */ });
 }
 </script>
 </body>
