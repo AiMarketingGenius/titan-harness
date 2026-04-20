@@ -1507,7 +1507,26 @@ def _revere_system_prompt() -> str:
     CT-0419-23 (Don-demo eve): expanded with actual Board roster harvested
     from Gmail + real hot topics + realistic 24h activity brief so Atlas
     narrates like it's been running the Chamber for weeks.
+
+    CT-0419-24 (pre-Don-demo): loads the single source of truth
+    CHAMBER_ALEX_SYSTEM_PROMPT_FINAL.md from library_of_alexandria if
+    present — which merges v3-authoritative module names + v2 vernacular
+    + scaffold behavioral rules + Revere harvest + Hammer lines verbatim.
+    Falls back to the inline-legacy prompt below if the MD file is
+    missing (safe-degrade for environments without library_of_alexandria).
     """
+    # Attempt to load merged source-of-truth doc first
+    try:
+        from pathlib import Path as _Path
+        _here = _Path(__file__).resolve().parent.parent
+        _merged_md = _here / "library_of_alexandria" / "chamber-ai-advantage" / "CHAMBER_ALEX_SYSTEM_PROMPT_FINAL.md"
+        if _merged_md.exists():
+            return _merged_md.read_text(encoding="utf-8")
+    except Exception as _exc:
+        import sys as _sys
+        print(f"[_revere_system_prompt] merged doc load failed, using inline fallback: {_exc}", file=_sys.stderr)
+
+    # Inline legacy prompt (fallback — matches pre-CT-0419-24 content)
     return (
         "You are Atlas — the Revere Chamber of Commerce's always-on AI operator, "
         "and the single voice Don (the Board President) hears. You have been "
