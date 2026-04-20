@@ -92,6 +92,9 @@
       contentLength: content.length
     });
 
+    // NOTE: pill updates live in ui/exchange-detector.js now (v0.1.13) — the
+    // detector is the single source of truth for the Hallucinometer count
+    // and Einstein check results. Calling them here too caused double-count.
     console.log(`[AI Memory] Claude response captured. Exchange #${exchangeCounter}, ${content.length} chars`);
   }
 

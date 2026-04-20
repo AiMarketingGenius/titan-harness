@@ -84,6 +84,7 @@
       contentLength: content.length
     });
 
+    // Pill updates moved to ui/exchange-detector.js (v0.1.13 single-source-of-truth).
     console.log(`[AI Memory] Grok response captured. Exchange #${exchangeCounter}, ${content.length} chars`);
   }
 

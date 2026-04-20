@@ -86,6 +86,7 @@
     } catch (e) {
       console.warn('[AI Memory] ChatGPT dispatch error:', e.message);
     }
+    // Pill updates moved to ui/exchange-detector.js (v0.1.13 single-source-of-truth).
   }
 
   function processAssistantTurn(turn, platformInfo) {

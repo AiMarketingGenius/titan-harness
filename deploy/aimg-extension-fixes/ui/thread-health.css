@@ -1,163 +1,243 @@
 /* ═══════════════════════════════════════════════════════════
-   Thread Health Meter (Marketing: "Hallucinometer")
-   C2: Left-edge viewport meter
+   Hallucinometer — always-visible top-right pill
+   v0.1.9 rewrite: moved from 8px left-edge hairline to a clear
+   pro-grade pill in the top-right corner. Click/hover expands
+   to show zone breakdown + hints. Designed against Linear /
+   Stripe / Vercel pill patterns (sentence-case, real hierarchy).
    ═══════════════════════════════════════════════════════════ */
 
-.mg-thread-health {
+/* Shared top-right stack that holds both the Hallucinometer + the Einstein
+   status pill. Using flex-column so when the Hallucinometer expands its
+   height grows and the Einstein pill gets pushed down naturally — no more
+   overlap when the user hovers/clicks to expand. */
+.mg-pill-stack {
   position: fixed;
-  left: 0;
-  top: 50%;
-  transform: translateY(-50%);
-  width: 8px;
-  height: 65vh;
+  top: 72px;
+  right: 16px;
   z-index: 99998;
-  border-radius: 0 8px 8px 0;
-  background: var(--glass-bg);
-  backdrop-filter: blur(var(--glass-blur));
-  -webkit-backdrop-filter: blur(var(--glass-blur));
-  border: 1px solid var(--glass-border);
-  border-left: none;
-  transition: width var(--duration-normal) var(--ease-smooth);
-  overflow: hidden;
-  cursor: pointer;
-  font-family: var(--font-body);
-}
-
-.mg-thread-health:hover,
-.mg-thread-health.expanded {
-  width: 200px;
-}
-
-/* Fill bar (collapsed state) */
-.mg-th-fill {
-  position: absolute;
-  bottom: 0;
-  left: 0;
-  width: 100%;
-  transition: height 0.5s var(--ease-smooth), background-color 0.5s var(--ease-smooth);
-  border-radius: 0 0 8px 0;
-}
-
-.mg-th-fill.zone-fresh  { background: var(--health-green); }
-.mg-th-fill.zone-warm   { background: var(--health-yellow); animation: healthPulse 4s infinite; }
-.mg-th-fill.zone-hot    { background: var(--health-orange); animation: healthPulse 2s infinite; }
-.mg-th-fill.zone-danger { background: var(--health-red); animation: dangerGlow 1.5s infinite; }
-
-/* Expanded content */
-.mg-th-content {
-  opacity: 0;
-  padding: 16px 12px;
-  transition: opacity var(--duration-normal) var(--ease-smooth);
   display: flex;
   flex-direction: column;
-  height: 100%;
-  pointer-events: none;
+  align-items: flex-end;
+  gap: 28px; /* generous breathing room so expanded Hallucinometer never kisses Einstein */
+  pointer-events: none; /* stack is transparent; pills opt in */
 }
 
-.mg-thread-health:hover .mg-th-content,
-.mg-thread-health.expanded .mg-th-content {
-  opacity: 1;
+.mg-pill-stack > * {
   pointer-events: auto;
 }
 
-.mg-th-title {
-  font-size: var(--text-xs);
-  font-weight: var(--weight-bold);
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  color: var(--text-primary);
-  margin-bottom: 12px;
+.mg-thread-health {
+  position: static;   /* live inside .mg-pill-stack, flow-positioned */
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 200px;
+  max-width: 260px;
+  padding: 8px 12px 8px 10px;
+  background: rgba(15, 23, 42, 0.82);
+  backdrop-filter: blur(16px) saturate(1.2);
+  -webkit-backdrop-filter: blur(16px) saturate(1.2);
+  border: 1px solid rgba(148, 163, 184, 0.18);
+  border-radius: 999px;
+  box-shadow: 0 8px 28px -10px rgba(5, 8, 14, 0.55), 0 0 0 1px rgba(15, 23, 42, 0.4);
+  font-family: -apple-system, BlinkMacSystemFont, 'Inter', 'Segoe UI', sans-serif;
+  color: #e2e8f0;
+  cursor: pointer;
+  transition: transform 140ms cubic-bezier(0.16, 1, 0.3, 1),
+              box-shadow 140ms ease,
+              border-radius 180ms ease,
+              max-width 220ms ease;
+  overflow: hidden;
 }
 
-/* Zone indicator */
+.mg-thread-health:hover {
+  transform: translateY(-1px);
+  border-color: rgba(148, 163, 184, 0.32);
+  box-shadow: 0 14px 36px -10px rgba(5, 8, 14, 0.7), 0 0 0 1px rgba(15, 23, 42, 0.5);
+}
+
+.mg-thread-health.expanded {
+  max-width: 320px;
+  border-radius: 16px;
+  padding: 14px 16px;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 10px;
+}
+
+/* Zone dot (collapsed left edge) */
+.mg-th-fill {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex: 0 0 10px;
+  transition: background-color 0.4s ease, box-shadow 0.4s ease;
+}
+
+.mg-th-fill.zone-fresh  { background: #22c55e; box-shadow: 0 0 0 3px rgba(34, 197, 94, 0.18); }
+.mg-th-fill.zone-warm   { background: #facc15; box-shadow: 0 0 0 3px rgba(250, 204, 21, 0.22); animation: healthPulse 3.5s infinite; }
+.mg-th-fill.zone-hot    { background: #fb923c; box-shadow: 0 0 0 3px rgba(251, 146, 60, 0.24); animation: healthPulse 2s infinite; }
+.mg-th-fill.zone-danger { background: #ef4444; box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.28); animation: dangerGlow 1.4s infinite; }
+
+/* Content row (collapsed pill) */
+.mg-th-content {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+  flex: 1 1 auto;
+  min-width: 0;
+  opacity: 1;
+  pointer-events: auto;
+  transition: all 0.2s ease;
+}
+
+.mg-thread-health.expanded .mg-th-content {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 8px;
+}
+
+.mg-th-title {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #f8fafc;
+  white-space: nowrap;
+  flex: 0 0 auto;
+}
+
+.mg-thread-health.expanded .mg-th-title {
+  color: #d4a627;
+  font-size: 10px;
+  margin-bottom: 2px;
+}
+
 .mg-th-zone {
   display: flex;
   align-items: center;
-  gap: 8px;
-  margin-bottom: 8px;
-  font-size: var(--text-sm);
-  color: var(--text-primary);
-  font-weight: var(--weight-semibold);
+  gap: 6px;
+  font-size: 12px;
+  color: #cbd5f5;
+  font-weight: 500;
+  flex: 1 1 auto;
+  min-width: 0;
+  justify-content: flex-end;
 }
 
-.mg-th-zone-dot {
+.mg-thread-health.expanded .mg-th-zone {
+  justify-content: flex-start;
+  font-size: 14px;
+  color: #f8fafc;
+  font-weight: 600;
+}
+
+.mg-th-zone-dot { display: none; }
+.mg-thread-health.expanded .mg-th-zone-dot {
+  display: inline-block;
   width: 10px;
   height: 10px;
   border-radius: 50%;
   flex-shrink: 0;
 }
+.mg-th-zone-dot.fresh  { background: #22c55e; }
+.mg-th-zone-dot.warm   { background: #facc15; }
+.mg-th-zone-dot.hot    { background: #fb923c; }
+.mg-th-zone-dot.danger { background: #ef4444; }
 
-.mg-th-zone-dot.fresh  { background: var(--health-green); }
-.mg-th-zone-dot.warm   { background: var(--health-yellow); }
-.mg-th-zone-dot.hot    { background: var(--health-orange); }
-.mg-th-zone-dot.danger { background: var(--health-red); }
-
-/* Mini meter (inside expanded panel) */
-.mg-th-mini-meter {
-  width: 16px;
-  height: 120px;
-  background: var(--brand-surface);
-  border-radius: 8px;
-  position: relative;
+.mg-th-zone-name {
+  white-space: nowrap;
   overflow: hidden;
-  margin: 12px auto;
-  border: 1px solid var(--border-subtle);
+  text-overflow: ellipsis;
 }
 
-.mg-th-mini-fill {
-  position: absolute;
-  bottom: 0;
-  left: 0;
-  width: 100%;
-  border-radius: 0 0 7px 7px;
-  transition: height 0.5s var(--ease-smooth);
-}
-
-/* Zone labels on mini meter */
+/* Zone list — only visible when expanded */
 .mg-th-zones {
-  display: flex;
+  display: none;
   flex-direction: column;
   gap: 4px;
-  flex: 1;
-  justify-content: space-around;
+  padding: 8px 10px;
+  background: rgba(30, 41, 59, 0.5);
+  border-radius: 10px;
+  border: 1px solid rgba(148, 163, 184, 0.08);
+}
+
+.mg-thread-health.expanded .mg-th-zones {
+  display: flex;
 }
 
 .mg-th-zone-label {
-  font-size: var(--text-xs);
-  color: var(--text-muted);
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-
-.mg-th-zone-label.active {
-  color: var(--text-primary);
-  font-weight: var(--weight-semibold);
-}
-
-/* Stats */
-.mg-th-stats {
-  margin-top: auto;
-  padding-top: 12px;
-  border-top: 1px solid var(--border-subtle);
-}
-
-.mg-th-stat {
-  font-size: var(--text-xs);
-  color: var(--text-secondary);
-  margin-bottom: 4px;
-}
-
-.mg-th-hint {
-  font-size: var(--text-xs);
-  font-style: italic;
-  color: var(--text-muted);
-  margin-top: 8px;
+  font-size: 11px;
+  color: #94a3b8;
+  font-weight: 500;
   line-height: 1.4;
 }
 
+.mg-th-zone-label.active {
+  color: #f8fafc;
+  font-weight: 600;
+}
+
+/* Stats — exchange count + hint text */
+.mg-th-stats {
+  display: none;
+  flex-direction: column;
+  gap: 6px;
+  padding-top: 8px;
+  border-top: 1px solid rgba(148, 163, 184, 0.1);
+}
+
+.mg-thread-health.expanded .mg-th-stats {
+  display: flex;
+}
+
+.mg-th-stat {
+  font-size: 12px;
+  color: #cbd5f5;
+  font-weight: 500;
+}
+
+.mg-th-exchange-count {
+  color: #f8fafc;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.mg-th-hint {
+  font-size: 11px;
+  font-style: italic;
+  color: #94a3b8;
+  line-height: 1.45;
+}
+
+/* Collapsed-state exchange count badge */
+.mg-thread-health:not(.expanded) .mg-th-zone::after {
+  content: attr(data-count);
+  font-size: 11px;
+  font-weight: 600;
+  color: #d4a627;
+  font-variant-numeric: tabular-nums;
+  margin-left: 6px;
+  padding: 2px 8px;
+  background: rgba(212, 166, 39, 0.1);
+  border: 1px solid rgba(212, 166, 39, 0.2);
+  border-radius: 999px;
+}
+
+/* Animations */
+@keyframes healthPulse {
+  0%, 100% { opacity: 1; }
+  50%      { opacity: 0.7; }
+}
+
+@keyframes dangerGlow {
+  0%, 100% { box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.28); }
+  50%      { box-shadow: 0 0 0 6px rgba(239, 68, 68, 0.4); }
+}
+
 /* ═══════════════════════════════════════════════════════════
-   Hallucinometer depth-threshold popups (WARN @26 / URGENT @36)
+   Depth-threshold popups (WARN @26 / URGENT @36) — preserved
    ═══════════════════════════════════════════════════════════ */
 
 .mg-hallucino-popup {
@@ -166,7 +246,7 @@
   bottom: 24px;
   z-index: 99999;
   max-width: 360px;
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  font-family: -apple-system, BlinkMacSystemFont, 'Inter', 'Segoe UI', sans-serif;
   animation: mgHalluIn 240ms cubic-bezier(0.16, 1, 0.3, 1);
 }
 
@@ -202,98 +282,41 @@
   animation: mgHalluPulse 1.8s infinite;
 }
 
-.mg-hp-icon {
-  font-size: 28px;
-  line-height: 1;
-  margin-bottom: 10px;
-}
-
-.mg-hp-headline {
-  font-size: 16px;
-  font-weight: 700;
-  letter-spacing: -0.01em;
-  line-height: 1.3;
-  margin-bottom: 6px;
-}
-
-.mg-hallucino-popup.urgent .mg-hp-headline {
-  font-size: 22px;
-  color: #fecaca;
-}
-
-.mg-hp-subhead {
-  font-size: 14px;
-  color: #cbd5f5;
-  line-height: 1.5;
-  margin-bottom: 14px;
-}
-
-.mg-hallucino-popup.urgent .mg-hp-subhead {
-  font-size: 18px;
-  font-weight: 600;
-  color: #fda4af;
-}
-
-.mg-hp-actions {
-  display: flex;
-  gap: 10px;
-  margin-bottom: 10px;
-}
-
+.mg-hp-icon { font-size: 28px; line-height: 1; margin-bottom: 10px; }
+.mg-hp-headline { font-size: 16px; font-weight: 700; letter-spacing: -0.01em; line-height: 1.3; margin-bottom: 6px; }
+.mg-hallucino-popup.urgent .mg-hp-headline { font-size: 22px; color: #fecaca; }
+.mg-hp-subhead { font-size: 14px; color: #cbd5f5; line-height: 1.5; margin-bottom: 14px; }
+.mg-hallucino-popup.urgent .mg-hp-subhead { font-size: 18px; font-weight: 600; color: #fda4af; }
+.mg-hp-actions { display: flex; gap: 10px; margin-bottom: 10px; }
 .mg-hp-btn {
-  flex: 1;
-  border-radius: 10px;
-  padding: 10px 12px;
-  font-size: 13px;
-  font-weight: 600;
-  cursor: pointer;
+  flex: 1; border-radius: 10px; padding: 10px 12px;
+  font-size: 13px; font-weight: 600; cursor: pointer;
   border: 1px solid rgba(148, 163, 184, 0.25);
-  background: #1a2234;
-  color: #e2e8f0;
+  background: #1a2234; color: #e2e8f0;
   transition: transform 120ms ease, background 120ms ease;
 }
-
-.mg-hp-btn:hover {
-  transform: translateY(-1px);
-}
-
+.mg-hp-btn:hover { transform: translateY(-1px); }
 .mg-hp-primary {
   background: linear-gradient(135deg, #22c55e 0%, #16a34a 100%);
   border-color: rgba(34, 197, 94, 0.55);
   color: #f0fdf4;
 }
-
 .mg-hallucino-popup.urgent .mg-hp-primary {
   background: linear-gradient(135deg, #ef4444 0%, #b91c1c 100%);
-  border-color: rgba(239, 68, 68, 0.7);
-  color: #fff;
+  border-color: rgba(239, 68, 68, 0.7); color: #fff;
 }
-
-.mg-hp-footer {
-  font-size: 11px;
-  color: #94a3b8;
-  margin-top: 6px;
-}
+.mg-hp-footer { font-size: 11px; color: #94a3b8; margin-top: 6px; }
 
 @keyframes mgHalluIn {
   from { opacity: 0; transform: translateY(12px) scale(0.98); }
   to   { opacity: 1; transform: translateY(0) scale(1); }
 }
-
-.mg-hallucino-popup.urgent {
-  animation: mgHalluUrgentIn 260ms cubic-bezier(0.16, 1, 0.3, 1);
-}
-
+.mg-hallucino-popup.urgent { animation: mgHalluUrgentIn 260ms cubic-bezier(0.16, 1, 0.3, 1); }
 @keyframes mgHalluUrgentIn {
   from { opacity: 0; transform: translate(50%, 50%) scale(0.92); }
   to   { opacity: 1; transform: translate(50%, 50%) scale(1); }
 }
-
-@keyframes mgHalluFadeIn {
-  from { opacity: 0; }
-  to   { opacity: 1; }
-}
-
+@keyframes mgHalluFadeIn { from { opacity: 0; } to { opacity: 1; } }
 @keyframes mgHalluPulse {
   0%, 100% { box-shadow: 0 32px 80px -10px rgba(248, 113, 113, 0.55), 0 0 0 1px rgba(248, 113, 113, 0.18); }
   50%      { box-shadow: 0 32px 80px -6px rgba(248, 113, 113, 0.75), 0 0 0 2px rgba(248, 113, 113, 0.3); }

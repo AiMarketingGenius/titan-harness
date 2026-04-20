@@ -139,6 +139,16 @@ function handleNewResponse(msg, sender) {
     receivedAt: Date.now()
   });
 
+  // Hallucinometer wire (CT-0420 fix, was missing in every prior build): push
+  // the current exchange count back to the origin tab so thread-health.js can
+  // update the Hallucinometer meter. Without this the meter rendered stuck at
+  // "Exchange: 0/40 · Fresh" no matter how long the thread got.
+  const exchanges = Number(msg?.provenance?.exchange_number) || 0;
+  if (exchanges > 0) {
+    dispatchToOriginTab(originTabId, { type: 'THREAD_HEALTH_UPDATE', exchanges })
+      .catch(err => console.warn('[SW] Hallucinometer dispatch error:', err));
+  }
+
   // Demo selective-mock pass — runs FIRST, before the real Haiku call. If incoming content
   // matches a pre-scripted Chamber demo claim, the summary badge fires immediately with a
   // canned verified/flagged result. Ensures the Monday Don demo gets deterministic Einstein

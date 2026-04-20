@@ -1,0 +1,125 @@
+/* ═══════════════════════════════════════════════════════════
+   Einstein Fact Checker — always-on status pill
+   Sits below the Hallucinometer (top:76+44px = 120px).
+   Matches pill design language: dark glass, subtle border,
+   color-coded dot indicating idle / verified / flagged state.
+   ═══════════════════════════════════════════════════════════ */
+
+.mg-einstein-status {
+  /* Lives inside .mg-pill-stack (see thread-health.css). Flow-positioned so
+     when the Hallucinometer above expands, this pill gets pushed down
+     automatically instead of colliding. */
+  position: static;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px 8px 10px;
+  min-width: 200px;
+  max-width: 260px;
+  background: rgba(15, 23, 42, 0.82);
+  backdrop-filter: blur(16px) saturate(1.2);
+  -webkit-backdrop-filter: blur(16px) saturate(1.2);
+  border: 1px solid rgba(148, 163, 184, 0.18);
+  border-radius: 999px;
+  box-shadow: 0 8px 28px -10px rgba(5, 8, 14, 0.55), 0 0 0 1px rgba(15, 23, 42, 0.4);
+  font-family: -apple-system, BlinkMacSystemFont, 'Inter', 'Segoe UI', sans-serif;
+  color: #e2e8f0;
+  cursor: pointer;
+  transition: transform 140ms cubic-bezier(0.16, 1, 0.3, 1),
+              border-color 140ms ease,
+              box-shadow 140ms ease;
+}
+
+.mg-einstein-status:hover {
+  transform: translateY(-1px);
+  border-color: rgba(148, 163, 184, 0.32);
+  box-shadow: 0 14px 36px -10px rgba(5, 8, 14, 0.7), 0 0 0 1px rgba(15, 23, 42, 0.5);
+}
+
+/* Status dot */
+.mg-es-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex: 0 0 8px;
+  transition: background-color 0.3s ease, box-shadow 0.3s ease;
+}
+
+.mg-einstein-status.state-idle .mg-es-dot {
+  background: #26c6a8;
+  box-shadow: 0 0 0 3px rgba(38, 198, 168, 0.18);
+  animation: mgEsIdlePulse 2.8s infinite;
+}
+
+.mg-einstein-status.state-verified .mg-es-dot {
+  background: #26c6a8;
+  box-shadow: 0 0 0 3px rgba(38, 198, 168, 0.3);
+}
+
+.mg-einstein-status.state-flagged .mg-es-dot {
+  background: #ec4899;
+  box-shadow: 0 0 0 3px rgba(236, 72, 153, 0.28);
+  animation: mgEsFlaggedPulse 1.4s infinite;
+}
+
+/* Brand label (pink per Einstein UI language) */
+.mg-es-brand {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #ec4899;
+  white-space: nowrap;
+  flex: 0 0 auto;
+}
+
+/* State label */
+.mg-es-state {
+  font-size: 12px;
+  color: #cbd5f5;
+  font-weight: 500;
+  flex: 1 1 auto;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  text-align: right;
+}
+
+.mg-einstein-status.state-flagged .mg-es-state {
+  color: #fbcfe8;
+  font-weight: 600;
+}
+
+/* Counts (verified · flagged) — tucked to the right */
+.mg-es-counts {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  padding: 2px 8px;
+  background: rgba(236, 72, 153, 0.1);
+  border: 1px solid rgba(236, 72, 153, 0.2);
+  border-radius: 999px;
+  color: #fbcfe8;
+  flex: 0 0 auto;
+}
+
+.mg-es-verified { color: #86efac; font-weight: 700; }
+.mg-es-sep { color: rgba(203, 213, 245, 0.4); }
+.mg-es-flagged { color: #fda4af; font-weight: 700; }
+
+/* Expanded view (future: could show last-3 verifications timeline) */
+.mg-einstein-status.expanded {
+  min-width: 280px;
+}
+
+@keyframes mgEsIdlePulse {
+  0%, 100% { opacity: 1; }
+  50%      { opacity: 0.55; }
+}
+
+@keyframes mgEsFlaggedPulse {
+  0%, 100% { box-shadow: 0 0 0 3px rgba(236, 72, 153, 0.28); }
+  50%      { box-shadow: 0 0 0 6px rgba(236, 72, 153, 0.45); }
+}

@@ -85,6 +85,16 @@
   function createMeter() {
     if (meterEl) return;
 
+    // Shared stack container — both pills live inside it so flex-column flow
+    // handles the expand-without-overlap problem structurally.
+    let stack = document.getElementById('mg-pill-stack');
+    if (!stack) {
+      stack = document.createElement('div');
+      stack.id = 'mg-pill-stack';
+      stack.className = 'mg-pill-stack mg-extension';
+      document.body.appendChild(stack);
+    }
+
     meterEl = document.createElement('div');
     meterEl.className = 'mg-thread-health mg-extension';
     meterEl.innerHTML = `
@@ -108,7 +118,18 @@
       </div>
     `;
 
-    document.body.appendChild(meterEl);
+    stack.appendChild(meterEl);
+
+    // Click to toggle expanded state (hover also expands via :hover CSS; click
+    // locks it open on mobile / touch / when the user wants a stable read).
+    meterEl.addEventListener('click', (e) => {
+      if (e.target.closest('.mg-hp-btn')) return; // let popup buttons bubble normally
+      meterEl.classList.toggle('expanded');
+    });
+
+    // Initialize the collapsed-pill count chip to 0/cap.
+    const zoneEl = meterEl.querySelector('.mg-th-zone');
+    if (zoneEl) zoneEl.setAttribute('data-count', `0/${DISPLAY_CAP}`);
   }
 
   function updateMeter(exchanges) {
@@ -126,6 +147,9 @@
     const zoneDot = meterEl.querySelector('.mg-th-zone-dot');
     zoneDot.className = 'mg-th-zone-dot ' + newZone;
     meterEl.querySelector('.mg-th-zone-name').textContent = ZONES[newZone].label;
+    // Collapsed-pill exchange-count chip reads the data-count attribute via CSS ::after.
+    const zoneEl = meterEl.querySelector('.mg-th-zone');
+    if (zoneEl) zoneEl.setAttribute('data-count', `${exchanges}/${DISPLAY_CAP}`);
 
     meterEl.querySelectorAll('.mg-th-zone-label').forEach((el) => {
       el.classList.toggle('active', el.dataset.zone === newZone);

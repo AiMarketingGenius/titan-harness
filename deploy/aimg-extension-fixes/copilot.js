@@ -121,6 +121,7 @@
             } catch (e) {
               console.warn('[AI Memory] Copilot dispatch error:', e.message);
             }
+            // Pill updates moved to ui/exchange-detector.js (v0.1.13).
           }
         }
       }
