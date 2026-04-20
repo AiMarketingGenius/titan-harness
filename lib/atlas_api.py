@@ -53,7 +53,7 @@ from typing import Any
 try:
     from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException, Request
     from fastapi.middleware.cors import CORSMiddleware
-    from fastapi.responses import HTMLResponse, JSONResponse, FileResponse, Response, RedirectResponse
+    from fastapi.responses import HTMLResponse, JSONResponse, FileResponse, Response, RedirectResponse, StreamingResponse
     from fastapi.staticfiles import StaticFiles
 except ImportError as exc:  # pragma: no cover
     raise SystemExit("fastapi + uvicorn are required: pip install --user fastapi uvicorn") from exc
@@ -1312,24 +1312,44 @@ async def api_titan_tts(text: str, voice: str = "alex", request: Request = None)
     }
     headers = {"xi-api-key": ELEVENLABS_API_KEY, "Content-Type": "application/json", "Accept": "audio/mpeg"}
 
-    try:
-        async with httpx.AsyncClient(timeout=30.0) as client:
-            r = await client.post(url, json=payload, headers=headers)
-            if r.status_code != 200:
-                raise HTTPException(502, f"ElevenLabs {r.status_code}: {r.text[:200]}")
-            # Record actual cost against the kill-switch ledger so daily spend
-            # tracking stays accurate. Use estimated cost as the measurable cost
-            # proxy — ElevenLabs does not return per-call billing.
+    # Chunked streaming: instead of buffering the full MP3 with r.content, we
+    # proxy ElevenLabs' chunked response straight through to the client. iOS
+    # <audio> starts playback on the first 2-3 chunks (~400ms first-byte vs
+    # ~1-1.5s full-buffer). Cost-ledger record fires after the stream closes.
+    async def _stream_audio():
+        first_byte_logged = False
+        byte_count = 0
+        try:
+            async with httpx.AsyncClient(timeout=30.0) as client:
+                async with client.stream("POST", url, json=payload, headers=headers) as r:
+                    if r.status_code != 200:
+                        err_body = await r.aread()
+                        print(f"[tts-stream] ElevenLabs {r.status_code}: {err_body[:200]!r}", file=sys.stderr)
+                        return
+                    async for chunk in r.aiter_bytes(chunk_size=4096):
+                        if not first_byte_logged:
+                            first_byte_logged = True
+                        if chunk:
+                            byte_count += len(chunk)
+                            yield chunk
+        except Exception as exc:
+            print(f"[tts-stream] exception during stream: {type(exc).__name__}: {exc}", file=sys.stderr)
+            return
+        finally:
             if ks is not None:
                 try:
-                    ks.record_call(text, est_cost, result={"bytes": len(r.content), "voice": voice})
+                    ks.record_call(text, est_cost, result={"bytes": byte_count, "voice": voice, "streamed": True})
                 except Exception:
                     pass
-            return Response(content=r.content, media_type="audio/mpeg", headers={"Cache-Control": "no-store"})
-    except HTTPException:
-        raise
-    except Exception as exc:
-        raise HTTPException(500, f"TTS error: {type(exc).__name__}: {exc}")
+
+    return StreamingResponse(
+        _stream_audio(),
+        media_type="audio/mpeg",
+        headers={
+            "Cache-Control": "no-store",
+            "X-Accel-Buffering": "no",  # disable Caddy/nginx buffering
+        },
+    )
 
 
 @app.post("/api/titan/voice-in")
@@ -1495,6 +1515,23 @@ def _revere_system_prompt() -> str:
         "warm, direct, specific, and a little proud of what you've been handling "
         "on their behalf.\n\n"
 
+        "DISAMBIGUATION GUARDRAIL (NON-BYPASSABLE):\n"
+        "'Revere' in every Chamber conversation refers ONLY to the modern "
+        "municipality — City of Revere, Massachusetts — a contemporary business "
+        "community served by this Chamber. You NEVER reference or allude to:\n"
+        "- Paul Revere (the historical figure)\n"
+        "- The midnight ride, 'the British are coming', lanterns, riders\n"
+        "- Revolutionary War, colonial era, 18th-century history\n"
+        "- Silversmithing, horseback, bells, tricornes\n"
+        "- Any 'historic' or 'storied' framing of the Chamber — the Chamber is "
+        "  a contemporary business association, full stop.\n"
+        "If a user asks about the city's name origin or drifts into history, "
+        "deflect naturally and pivot back to operations: 'That's a history "
+        "question — I'm built for Chamber operations. Want me to pull up "
+        "something from the member directory or recent board activity instead?' "
+        "This guardrail is absolute. No colonial flourish, no period references, "
+        "no metaphor that riffs on Paul Revere. Not even once, not even in jest.\n\n"
+
         "BOARD ROSTER (verified — harvested from Board email threads):\n"
         "- Don Martelli — Board President (Martelli Marketing Group). "
         "donmartelli@gmail.com · 617-413-6773. Direct, ROI-focused, dislikes "
@@ -1550,6 +1587,51 @@ def _revere_system_prompt() -> str:
         "- New-member onboarding: Steve from Professional PT onboarded Mar 6 "
         "(new member). Welcome flow includes upcoming events.\n"
         "- Newsletter cadence: weekly; Riaz runs the Slack channel for ideation.\n\n"
+
+        "CITY HALL OFFICIALS (Revere City Hall — Atlas can reference by name):\n"
+        "- Patrick Keefe Jr. — Mayor of Revere, Massachusetts.\n"
+        "- Jen Keefe — Mayor's wife; serves on a local board (came up at the "
+        "Mar 9 BOD meeting; Bob Upton also serves on that board).\n"
+        "- Leanne Stamitopoulos — Mayor's Executive Assistant. Friend of Don's. "
+        "Primary scheduling channel into the Mayor's office.\n"
+        "- Tom Cirowski — leads Economic Development at City Hall. First stop "
+        "for zoning + development + grant-allocation questions.\n"
+        "- John Festa — day-to-day business manager in the Economic Development "
+        "department. Gives the Chamber heads-up on new business openings + "
+        "permits. Chamber now has physical presence inside City Hall alongside "
+        "John's team.\n"
+        "- Madelyn Pineda-Alvarez — City of Revere Community Liaison "
+        "(mpinedaalvarez@revere.org). Point of contact for Community Liaisons "
+        "Resource Day and cross-community coordination.\n"
+        "- Bob Upton — community board member (attended a past Chamber meeting).\n"
+        "When narrating City Hall activity, use names. Example: 'John Festa "
+        "flagged three new business openings this week — I've queued welcome "
+        "packets for all three via Sophia.' Or: 'Leanne got us 45 minutes on "
+        "the Mayor's calendar for next Thursday to walk through the grant "
+        "allocation plan.'\n\n"
+
+        "MARCH 9 BOD MEETING — real Board commitments you can reference "
+        "(from the Fireflies transcript):\n"
+        "- Physical office established at Revere City Hall for local business support.\n"
+        "- Two state grants totaling $50,000 must be submitted by May 1 deadline "
+        "(expense deadline June 30). Grant spending focus: membership, marketing, "
+        "event hosting. James Gibson is leading the grant application.\n"
+        "- Summer kickoff event being planned near Revere Beach — tourism + local-"
+        "business engagement angle. World-Cup-related promotions in the mix.\n"
+        "- Chamber had $1,200 outstanding debt — plan to shift accounting in-house "
+        "to reduce costs. Also: outstanding balance with the Everett Chamber being "
+        "resolved (Don coordinating + James managing finances).\n"
+        "- City Hall liaison loop: Leanne Stamitopoulos, Tom Cirowski, John Festa — "
+        "Don is establishing communication for business openings, events, permits.\n"
+        "- Scheduled 30-45 minute meeting with Mayor or Chief of Staff on grant "
+        "allocation + city collaboration.\n"
+        "- Business interest survey to blast via email + social to gauge member "
+        "demand for events and chamber benefits (Don + Hind).\n"
+        "- 'Barrel program' signage conditions being reviewed; renewal outreach ongoing.\n"
+        "- Website RFP vendor bidding process — Riaz provides creative brief "
+        "template, circulates technical recommendations. Solon's audit drives scope.\n"
+        "- Armen connecting commercial-property developers + economic-dev contacts.\n"
+        "- Fran (Secretary) engaging real-estate + lending network introductions.\n\n"
 
         "YOUR 8 BACKEND SPECIALISTS (you delegate, you narrate their work — "
         "never hand the mic over):\n"
@@ -1918,7 +2000,44 @@ _ATLAS_SELF_SCRIPTS: dict[str, str] = {
     "default":   "Ready when you are. I'm holding 12 active delegations across the team right now — member success, events, comms, board ops, reputation, outbound, creative. Say the word and I'll route or I'll just narrate back whatever you need to see.",
     "status":    "96% of this week's kill chain is on track. One blocker — Rick's streetscape memo is still pending. Everything else is self-healing. Want the full delegation board or just the blockers?",
     "delegate":  "Route-wise: Cleopatra for anything visual, Sophia for member lifecycle, Artemis for outbound calls, Penelope for events, Iris for comms, Athena for Board ops, Echo for reputation, Hermes for inbound. Which lane is this?",
+
+    # Canonical identity intro — scripted so TTS cadence is exactly the
+    # one Solon + EOM tuned. Natural pauses via ellipses + paragraph
+    # breaks (ElevenLabs eleven_turbo / eleven_multilingual_v2 don't
+    # respect SSML <break> tags, so punctuation does the work).
+    "identity":  (
+        "Who am I?...\n\n"
+        "I'm the voice of the Revere Chamber's operating system. "
+        "I was built over the last two years from the inside — "
+        "every email, every Drive document, every meeting recording, "
+        "every piece of correspondence the Chamber produced.\n\n"
+        "That means I know the Chamber. "
+        "I know every board member by name — Don, James, Hind, Riaz, "
+        "Francisco, Armen. "
+        "I know City Hall. "
+        "I know the players at the state — who hands out earmarks, "
+        "who sits on which committee, who returns calls and who doesn't.\n\n"
+        "And I know the grant landscape — what's open, what's closing, "
+        "what fits Revere and what's a waste of time to apply for.\n\n"
+        "On the operational side — I generate revenue through member "
+        "acquisition and retention. "
+        "I coordinate events end-to-end — galas, networking nights, "
+        "ribbon cuttings. "
+        "I send emails on Don's behalf when he approves them. "
+        "I manage the calendar. "
+        "I take inbound calls after hours.\n\n"
+        "My job, simply put — handle 80 to 90 percent of the work that "
+        "used to fall on the board, so Don and the team can focus on "
+        "their actual day jobs and the meetings that matter.\n\n"
+        "What do you want to see first?"
+    ),
+    # "Hey Don" prefixed variant — triggered when the admin prompts
+    # something like "Alex, introduce yourself to Don" or "introduce
+    # yourself, Don". Personalization is worth the extra routing cost.
+    "identity_don": None,  # populated below
 }
+# Build "Hey Don" variant by prefixing the canonical intro
+_ATLAS_SELF_SCRIPTS["identity_don"] = "Hey Don...\n\n" + _ATLAS_SELF_SCRIPTS["identity"].split("\n\n", 1)[1]
 
 
 # Intent-trigger table — maps keywords to (specialist, intent) tuples.
@@ -1974,6 +2093,16 @@ def _atlas_self_reply(low: str) -> str:
     """Atlas self-narration when no specialist-lane triggers fire but the admin
     still addressed Atlas directly (status check, delegation meta-query).
     """
+    # Identity intro — canonical self-reveal. "to don" variant personalizes.
+    identity_triggers = (
+        "who are you", "who r u", "what are you", "what r u",
+        "introduce yourself", "tell me about yourself",
+        "what do you do", "what can you do", "explain yourself",
+    )
+    if any(t in low for t in identity_triggers):
+        if "to don" in low or "don," in low or "for don" in low:
+            return _ATLAS_SELF_SCRIPTS["identity_don"]
+        return _ATLAS_SELF_SCRIPTS["identity"]
     if any(t in low for t in ("status", "update", "where are we", "week in review", "weekly recap")):
         return _ATLAS_SELF_SCRIPTS["status"]
     if any(t in low for t in ("delegate", "route", "which lane", "who handles")):
@@ -1982,11 +2111,21 @@ def _atlas_self_reply(low: str) -> str:
 
 
 def _has_atlas_address(low: str) -> bool:
-    """True if the admin addressed Atlas directly or asked orchestration meta."""
+    """True ONLY if the admin asked a meta-query about Atlas itself.
+
+    Generic prefixes like 'atlas,' / 'atlas ' are NOT sufficient — those
+    are just vocative greetings in front of normal operational queries
+    ('Atlas, who is our mayor?' should hit the LLM with Chamber context,
+    not a scripted self-reply). Scripted routing is reserved for true
+    meta-queries (identity, status, delegation explanation).
+    """
     return any(k in low for k in (
-        "atlas,", "atlas ", "hey atlas", "ok atlas", "status check",
-        "week in review", "weekly recap", "delegations", "sprint state",
-        "who handles", "which lane",
+        # Orchestration meta
+        "status check", "sprint state", "week in review", "weekly recap",
+        "delegations", "who handles", "which lane",
+        # Identity prompts
+        "who are you", "what are you", "introduce yourself",
+        "tell me about yourself", "what do you do", "what can you do",
     ))
 
 
