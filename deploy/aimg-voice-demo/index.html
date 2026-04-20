@@ -179,9 +179,9 @@
 
 <main>
   <div class="intro">
-    <div class="intro-kicker"><span class="intro-kicker-dot" aria-hidden="true"></span>Live voice · Alex</div>
-    <h1 class="intro-title">Talk to <span class="serif">Alex</span></h1>
-    <p class="intro-sub">Tap the orb once. Alex greets you, listens, and answers automatically. Tap End when you're done.</p>
+    <div class="intro-kicker"><span class="intro-kicker-dot" aria-hidden="true"></span>Live voice · Atlas</div>
+    <h1 class="intro-title">Talk to <span class="serif">Atlas</span></h1>
+    <p class="intro-sub">Your Chamber's always-on AI operator. Tap the orb once — Atlas greets you and you can just talk. Tap End when you're done.</p>
   </div>
 
   <div class="status-pill" id="statusPill" role="status" aria-live="polite">
@@ -240,7 +240,8 @@
   const SESSION_KEY = 'amg_voice_session_v2';
   const HISTORY_TURN_LIMIT = 32;
 
-  const GREETING_TEXT = "Hi there. I'm Alex from A.I. Marketing Genius. What's on your mind today?";
+  const GREETING_TEXT = "Hey Don. Atlas here. Been a busy 24 hours... want a quick brief on what I've handled, or do you have something specific on your mind?";
+  const PERSONA = 'revere';
 
   // VAD (voice activity detection) — energy-based, runs on AnalyserNode fftSize=256
   const VAD_THRESHOLD = 12;        // analyser avg 0-255; below = silence (tuned for iPhone mic gain in a quiet room)
@@ -503,7 +504,8 @@
     const form = new FormData();
     form.append('audio', blob, 'voice.webm');
     form.append('session_id', session.id);
-    const res = await fetch(API_BASE + '/api/titan/voice-in', { method: 'POST', body: form });
+    form.append('persona', PERSONA);
+    const res = await fetch(API_BASE + '/api/titan/voice-in?persona=' + PERSONA, { method: 'POST', body: form });
     if (!res.ok) throw new Error('voice-in ' + res.status);
     const data = await res.json();
     return {
@@ -513,10 +515,10 @@
   }
 
   async function sendMessage(text){
-    const res = await fetch(API_BASE + '/api/titan/message', {
+    const res = await fetch(API_BASE + '/api/titan/message?persona=' + PERSONA, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ text, session_id: session.id }),
+      body: JSON.stringify({ text, session_id: session.id, persona: PERSONA }),
     });
     if (!res.ok) throw new Error('message ' + res.status);
     const data = await res.json();
