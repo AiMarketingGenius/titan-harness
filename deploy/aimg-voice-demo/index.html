@@ -362,10 +362,22 @@
     endBtn.hidden = !show;
   }
 
-  function stopCurrentAudio(){
+  // Module-scope handle so external actions (End button, orb-tap during
+  // speaking, barge-in monitor, explicit abort) can force-resolve the
+  // currently pending playAlexAudio() Promise. Without this, a hung
+  // .play() on iOS leaves the state machine stuck on 'speaking' forever
+  // with no way to escape except page reload.
+  let _activePlaybackFinish = null;
+
+  function stopCurrentAudio(reason){
     if (alexPlayer) {
       try { alexPlayer.pause(); } catch {}
       try { alexPlayer.removeAttribute('src'); alexPlayer.load(); } catch {}
+    }
+    if (_activePlaybackFinish) {
+      const f = _activePlaybackFinish;
+      _activePlaybackFinish = null;
+      f(reason || 'external_stop');
     }
   }
 
@@ -515,36 +527,92 @@
   // Never create new Audio() per turn — iOS Safari loses the gesture
   // token after the first instance's ended event, silently blocking
   // subsequent .play() calls (classic "text-only after first reply" bug).
+  //
+  // Guarantees vs iOS Safari hang modes:
+  //  - Watchdog timeout (estimated audio duration + 6s ceiling) force-resolves
+  //    if neither 'ended' nor 'error' fire.
+  //  - Stall detector: if currentTime doesn't advance for 3s while not paused,
+  //    assume the buffer pipeline deadlocked and force-resolve.
+  //  - _activePlaybackFinish is a module-scope handle so stopCurrentAudio()
+  //    (called by End button, orb-tap, barge-in) force-resolves the Promise.
   async function playAlexAudio(text){
     return new Promise((resolve) => {
       if (!text || !alexPlayer) return resolve();
       const url = API_BASE + '/api/titan/tts?voice=' + encodeURIComponent(VOICE_NAME) + '&text=' + encodeURIComponent(text.slice(0, 1800));
-      const finish = () => {
+
+      // Estimate audio duration for watchdog: ~15 chars/sec speech + 6s ceiling
+      const estSec = Math.min(120, Math.max(8, (text.length / 15) + 6));
+
+      let settled = false;
+      let lastTimeCheck = 0;
+      let stallChecks = 0;
+      const stallInterval = setInterval(() => {
+        if (settled || !alexPlayer) return;
+        if (alexPlayer.paused) return;
+        const ct = alexPlayer.currentTime || 0;
+        if (ct <= lastTimeCheck + 0.05) {
+          stallChecks++;
+          if (stallChecks >= 3) {
+            console.warn('[alex] stall detected — currentTime not advancing, force-finish');
+            finish('stall');
+          }
+        } else {
+          stallChecks = 0;
+        }
+        lastTimeCheck = ct;
+      }, 1000);
+
+      const watchdog = setTimeout(() => {
+        console.warn('[alex] watchdog timeout at', estSec + 's — force-finish');
+        finish('watchdog');
+      }, estSec * 1000);
+
+      const finish = (reason) => {
+        if (settled) return;
+        settled = true;
+        console.log('[alex] playAlexAudio finish:', reason || 'unknown');
         stopBargeInMonitor();
-        alexPlayer.onended = null;
-        alexPlayer.onerror = null;
+        clearTimeout(watchdog);
+        clearInterval(stallInterval);
+        try { alexPlayer.onended = null; alexPlayer.onerror = null; } catch {}
+        _activePlaybackFinish = null;
         resolve();
       };
-      alexPlayer.onended = finish;
-      alexPlayer.onerror = () => { console.warn('[alex] playback error'); finish(); };
+
+      _activePlaybackFinish = finish;
+
+      alexPlayer.onended = () => finish('ended');
+      alexPlayer.onerror = (e) => { console.warn('[alex] onerror', e); finish('error'); };
+
       try { alexPlayer.pause(); } catch {}
-      alexPlayer.src = url;
-      // Start barge-in monitor before calling play so we catch even very early interruptions
+      try {
+        alexPlayer.src = url;
+      } catch (e) {
+        console.warn('[alex] src assign failed:', e);
+        return finish('src_fail');
+      }
+
       startBargeInMonitor();
+
       const p = alexPlayer.play();
       if (p && p.catch) {
-        p.catch(e => { console.warn('[alex] play blocked:', e && e.message); finish(); });
+        p.catch(e => { console.warn('[alex] play blocked:', e && e.message); finish('play_blocked'); });
       }
     });
   }
 
+  // Barge-in monitor: runs while Alex is speaking. Tolerates brief pause
+  // states (iOS fires pause during buffering). Only exits when the active
+  // playback has settled (promise finished) OR when it detects user speech
+  // above BARGEIN_THRESHOLD.
   function startBargeInMonitor(){
     if (!analyser) return;
     const tick = () => {
-      if (!analyser || alexPlayer.paused) return;
+      if (!_activePlaybackFinish) { bargeInRAF = null; return; }
       const avg = meterTick();
       if (avg > BARGEIN_THRESHOLD) {
-        stopCurrentAudio();
+        console.log('[alex] barge-in detected avg=' + avg.toFixed(1));
+        stopCurrentAudio('barge_in');
         return;
       }
       bargeInRAF = requestAnimationFrame(tick);
@@ -701,7 +769,9 @@
       return;
     }
     if (currentState === 'speaking') {
-      stopCurrentAudio(); // loop will advance to listening on next iteration
+      // User tap = force-advance. stopCurrentAudio now resolves the
+      // hung playback Promise if iOS deadlocked on play()/ended.
+      stopCurrentAudio('user_tap');
       return;
     }
     if (currentState === 'listening' || currentState === 'thinking' || currentState === 'greeting') {
