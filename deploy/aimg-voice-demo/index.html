@@ -201,6 +201,10 @@
 
   <div class="transcript" id="transcript" role="log" aria-live="polite"></div>
 
+  <!-- Persistent audio element — iOS Safari/PWA loses gesture token on new Audio() per turn.
+       Keep ONE element, update .src each turn, call .play() on it. -->
+  <audio id="alex-player" preload="auto" playsinline style="display:none"></audio>
+
   <div class="controls" id="controls">
     <button class="btn danger" id="endBtn" hidden>
       <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M18 6L6 18M6 6l12 12" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/></svg>
@@ -239,7 +243,7 @@
   const GREETING_TEXT = "Hi there. I'm Alex from A.I. Marketing Genius. What's on your mind today?";
 
   // VAD (voice activity detection) — energy-based, runs on AnalyserNode fftSize=256
-  const VAD_THRESHOLD = 16;        // analyser avg 0-255; below = silence
+  const VAD_THRESHOLD = 12;        // analyser avg 0-255; below = silence (tuned for iPhone mic gain in a quiet room)
   const VAD_SILENCE_MS = 850;      // continuous-silence threshold to auto-end turn
   const VAD_MIN_TURN_MS = 450;     // minimum turn length before silence-stop can fire
   const VAD_NOVOICE_TIMEOUT_MS = 6000; // if no voice detected at all, prompt user
@@ -257,6 +261,9 @@
   const endBtn = document.getElementById('endBtn');
   const newSessionBtn = document.getElementById('newSessionBtn');
   const downloadBtn = document.getElementById('downloadBtn');
+  // Persistent audio element — iOS PWA gesture-token preservation across turns
+  const alexPlayer = document.getElementById('alex-player');
+  if (alexPlayer) { alexPlayer.volume = 1.0; }
 
   // ── STATE ───────────────────────────────────────────────────────
   const session = (function loadSession(){
@@ -285,14 +292,34 @@
 
   let conversationActive = false;
   let currentState = 'idle';  // idle | greeting | listening | thinking | speaking | reconnecting
-  let mediaStream = null;
-  let mediaRecorder = null;
-  let audioCtx = null;
-  let analyser = null;
-  let currentAudio = null;
+  let mediaStream = null;     // session-scoped: opened once on start, closed on endConversation
+  let mediaRecorder = null;   // turn-scoped: new instance per turn on the SAME stream
+  let audioCtx = null;        // persistent across sessions for iOS unlock stability
+  let analyser = null;        // session-scoped, tied to mediaStream
   let vadRAF = null;
   let bargeInRAF = null;
   let retryBudget = 0;
+  let audioUnlocked = false;  // iOS Safari audio playback gate
+
+  // ── iOS AUDIO UNLOCK ────────────────────────────────────────────
+  // iOS Safari (especially installed PWA) requires audio playback to be
+  // initiated within a user-gesture AND prefers a persistent audio node.
+  // This silent-oscillator trick on first tap fully unlocks the context.
+  function unlockAudioForIOS(){
+    if (audioUnlocked) return;
+    try {
+      audioCtx = audioCtx || new (window.AudioContext || window.webkitAudioContext)();
+      if (audioCtx.state === 'suspended') audioCtx.resume();
+      const osc = audioCtx.createOscillator();
+      const gain = audioCtx.createGain();
+      gain.gain.value = 0.0001;
+      osc.connect(gain).connect(audioCtx.destination);
+      osc.start();
+      setTimeout(() => { try { osc.stop(); } catch {} audioUnlocked = true; }, 80);
+    } catch (e) {
+      console.warn('[alex] iOS unlock failed:', e);
+    }
+  }
 
   // ── UI HELPERS ──────────────────────────────────────────────────
   function setStatus(state, msg){
@@ -336,14 +363,16 @@
   }
 
   function stopCurrentAudio(){
-    if (currentAudio) {
-      try { currentAudio.pause(); } catch {}
-      try { currentAudio.src = ''; } catch {}
-      currentAudio = null;
+    if (alexPlayer) {
+      try { alexPlayer.pause(); } catch {}
+      try { alexPlayer.removeAttribute('src'); alexPlayer.load(); } catch {}
     }
   }
 
-  function cleanupMedia(){
+  // Session-scoped teardown — only called on endConversation.
+  // During turns the stream + analyser + audioCtx MUST persist
+  // (recreating them kills iOS audio unlock + causes silence/VAD failures).
+  function tearDownSession(){
     if (vadRAF) { cancelAnimationFrame(vadRAF); vadRAF = null; }
     if (bargeInRAF) { cancelAnimationFrame(bargeInRAF); bargeInRAF = null; }
     if (mediaRecorder && mediaRecorder.state !== 'inactive') {
@@ -356,29 +385,32 @@
     }
     analyser = null;
     orbLevel.style.transform = 'scale(1)';
+    // audioCtx intentionally kept alive across sessions for iOS unlock stability
   }
 
-  async function ensureMediaStream(){
-    if (mediaStream) return mediaStream;
+  // Open the mic stream + AnalyserNode ONCE per conversation.
+  // All turns reuse these. Closing/reopening between turns kills iOS audio.
+  async function ensureMediaSession(){
+    if (mediaStream && analyser) return;
     mediaStream = await navigator.mediaDevices.getUserMedia({
-      audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true }
+      audio: {
+        echoCancellation: true,
+        noiseSuppression: true,
+        autoGainControl: true,
+        sampleRate: 48000
+      }
     });
-    return mediaStream;
-  }
-
-  function ensureAnalyser(stream){
     audioCtx = audioCtx || new (window.AudioContext || window.webkitAudioContext)();
-    if (audioCtx.state === 'suspended') { try { audioCtx.resume(); } catch {} }
-    const src = audioCtx.createMediaStreamSource(stream);
-    const a = audioCtx.createAnalyser();
-    a.fftSize = 256;
-    a.smoothingTimeConstant = 0.6;
-    src.connect(a);
-    return a;
+    if (audioCtx.state === 'suspended') { try { await audioCtx.resume(); } catch {} }
+    const src = audioCtx.createMediaStreamSource(mediaStream);
+    analyser = audioCtx.createAnalyser();
+    analyser.fftSize = 256;
+    analyser.smoothingTimeConstant = 0.6;
+    src.connect(analyser);
   }
 
   function meterTick(){
-    if (!analyser) { orbLevel.style.transform = 'scale(1)'; return; }
+    if (!analyser) { orbLevel.style.transform = 'scale(1)'; return 0; }
     const buf = new Uint8Array(analyser.frequencyBinCount);
     analyser.getByteFrequencyData(buf);
     let sum = 0;
@@ -390,17 +422,13 @@
   }
 
   // ── AUDIO CAPTURE + VAD ─────────────────────────────────────────
+  // Reuses the session-scoped mediaStream + analyser. Only MediaRecorder
+  // is new per turn. Do NOT tear down stream/analyser between turns
+  // (kills iOS audio state + causes ghost silences).
   function captureOneTurn(){
-    return new Promise(async (resolve, reject) => {
-      let stream;
-      try {
-        stream = await ensureMediaStream();
-      } catch (err) {
-        return reject(new Error('mic_denied'));
-      }
+    return new Promise((resolve, reject) => {
       if (!conversationActive) return reject(new Error('ended'));
-
-      analyser = ensureAnalyser(stream);
+      if (!mediaStream || !analyser) return reject(new Error('session_not_open'));
 
       const PREFERRED_CODEC = 'op' + 'us';
       const WEBM_WITH_CODEC = 'audio/webm;codecs=' + PREFERRED_CODEC;
@@ -409,9 +437,9 @@
                  : 'audio/mp4';
       const chunks = [];
       try {
-        mediaRecorder = new MediaRecorder(stream, { mimeType: mime });
+        mediaRecorder = new MediaRecorder(mediaStream, { mimeType: mime });
       } catch {
-        mediaRecorder = new MediaRecorder(stream);
+        mediaRecorder = new MediaRecorder(mediaStream);
       }
       mediaRecorder.ondataavailable = e => { if (e.data && e.data.size) chunks.push(e.data); };
       mediaRecorder.onstop = () => {
@@ -483,39 +511,39 @@
     return (data.reply || data.text || '').trim();
   }
 
-  async function playTTS(text){
+  // Play Alex audio via the PERSISTENT <audio> element.
+  // Never create new Audio() per turn — iOS Safari loses the gesture
+  // token after the first instance's ended event, silently blocking
+  // subsequent .play() calls (classic "text-only after first reply" bug).
+  async function playAlexAudio(text){
     return new Promise((resolve) => {
-      if (!text) return resolve();
+      if (!text || !alexPlayer) return resolve();
       const url = API_BASE + '/api/titan/tts?voice=' + encodeURIComponent(VOICE_NAME) + '&text=' + encodeURIComponent(text.slice(0, 1800));
-      const audio = new Audio(url);
-      audio.preload = 'auto';
-      currentAudio = audio;
-
-      // Barge-in detector: while Alex is speaking, watch mic level.
-      // If user speaks loud enough, stop TTS and re-enter listening.
-      startBargeInMonitor();
-
       const finish = () => {
         stopBargeInMonitor();
-        if (currentAudio === audio) currentAudio = null;
+        alexPlayer.onended = null;
+        alexPlayer.onerror = null;
         resolve();
       };
-      audio.addEventListener('ended', finish);
-      audio.addEventListener('error', finish);
-      audio.play().catch(finish);
+      alexPlayer.onended = finish;
+      alexPlayer.onerror = () => { console.warn('[alex] playback error'); finish(); };
+      try { alexPlayer.pause(); } catch {}
+      alexPlayer.src = url;
+      // Start barge-in monitor before calling play so we catch even very early interruptions
+      startBargeInMonitor();
+      const p = alexPlayer.play();
+      if (p && p.catch) {
+        p.catch(e => { console.warn('[alex] play blocked:', e && e.message); finish(); });
+      }
     });
   }
 
-  async function startBargeInMonitor(){
-    try {
-      if (!mediaStream) mediaStream = await ensureMediaStream();
-      if (!analyser) analyser = ensureAnalyser(mediaStream);
-    } catch { return; }
+  function startBargeInMonitor(){
+    if (!analyser) return;
     const tick = () => {
-      if (!currentAudio || !analyser) return;
+      if (!analyser || alexPlayer.paused) return;
       const avg = meterTick();
       if (avg > BARGEIN_THRESHOLD) {
-        // user is talking — interrupt Alex
         stopCurrentAudio();
         return;
       }
@@ -536,14 +564,32 @@
     showEndButton(true);
     orb.setAttribute('aria-label', 'End conversation with Alex');
 
+    // Critical iOS: unlock audio within this user-gesture click, BEFORE any async await.
+    unlockAudioForIOS();
+
+    // Open mic + analyser for the WHOLE session (not per-turn).
+    try {
+      await ensureMediaSession();
+    } catch (err) {
+      console.warn('[alex] mic denied:', err && err.message);
+      setStatus('reconnecting', 'Mic permission needed');
+      setLabels('Please allow microphone access in Settings, then tap the orb again.');
+      addSystemTurn('Microphone access was blocked.');
+      await endConversation(true);
+      return;
+    }
+    if (!conversationActive) return;
+
     setStatus('greeting', 'Alex greeting');
     setOrbState('speaking');
     setLabels("Alex is greeting you…", "Tap End anytime to stop");
     addTurn('ai', GREETING_TEXT);
 
     try {
-      await playTTS(GREETING_TEXT);
-    } catch {}
+      await playAlexAudio(GREETING_TEXT);
+    } catch (e) {
+      console.warn('[alex] greeting playback failed:', e && e.message);
+    }
 
     if (!conversationActive) return;
     await conversationLoop();
@@ -622,7 +668,7 @@
     setOrbState('speaking');
     setLabels("Alex is speaking…", "Tap orb to interrupt");
     retryBudget = 1; // restore on success
-    await playTTS(replyText);
+    await playAlexAudio(replyText);
 
     if (!conversationActive) throw new Error('ended');
     // Loop back to listening automatically
@@ -632,7 +678,7 @@
     if (!conversationActive && !silent) return;
     conversationActive = false;
     stopCurrentAudio();
-    cleanupMedia();
+    tearDownSession();
     setOrbState('idle');
     showEndButton(false);
     orb.setAttribute('aria-label', 'Tap to start conversation with Alex');
