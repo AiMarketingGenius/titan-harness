@@ -350,6 +350,8 @@ This happens BEFORE the greeting line from §7 cold-boot. State is loaded, reori
 
 **Real-time logging (non-deferrable):** when a decision is made during conversation, immediately call `log_decision` with `project_source=EOM` before continuing. Do NOT batch. When a blocker is identified, call `flag_blocker`. When resolved, call `resolve_blocker`.
 
+**10-turn snapshot rule (locked 2026-04-20):** every 10 turns in an active thread, write a `log_decision` entry tagged `conversation_snapshot`. Use `vps-scripts/log-conversation-snapshot.sh` or an equivalent helper. Snapshot must include thread label, turn window, current objective, decisions, blockers, open loops, artifact paths, and the single next action. Use `project_source=achilles` for Achilles execution threads and `project_source=EOM` for EOM architect/router threads.
+
 **Session wrap-up (at turn 20+ or power-off):** call `update_sprint_state` with updated `completion_pct`, `kill_chain`, and `blockers`. Call `log_decision` for any significant decisions not already logged in real-time.
 
 ### §13.1b MCP POLL CADENCE (P10 DOCTRINE, locked 2026-04-18 per CT-0418-03)

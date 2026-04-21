@@ -5,6 +5,7 @@
 # Provides:
 #   mcp_env_load                — loads SUPABASE_URL + SUPABASE_SERVICE_ROLE_KEY + SLACK_WEBHOOK_URL
 #   mcp_log_decision TEXT TAGS  — POST op_decisions row (space-separated tags)
+#   mcp_log_conversation_snapshot BODY PROJECT THREAD TURN_WINDOW ACTOR EXTRA_TAGS
 #   mcp_flag_blocker TEXT SEV   — POST op_blockers row (sev: critical/high/medium/low)
 #   mcp_slack_or_log MSG        — Slack webhook if defined, else mcp_log_decision fallback
 #   mcp_search_nonce NONCE      — GET op_decisions LIKE heartbeat:NONCE, return matching count
@@ -94,6 +95,44 @@ except Exception as e:
     print(f"log_decision_fail: {e}", file=sys.stderr)
     sys.exit(2)
 PY
+}
+
+mcp_format_conversation_snapshot() {
+  local snapshot_text="$1"
+  local thread_ref="${2:-unlabeled-thread}"
+  local turn_window="${3:-unspecified-turn-window}"
+  local actor="${4:-Achilles}"
+
+  if [ -z "${snapshot_text//[[:space:]]/}" ]; then
+    echo "FATAL: snapshot_text is empty" >&2
+    return 1
+  fi
+
+  cat <<EOF
+CONVERSATION SNAPSHOT
+Actor: $actor
+Thread: $thread_ref
+Turn window: $turn_window
+
+$snapshot_text
+EOF
+}
+
+mcp_log_conversation_snapshot() {
+  local snapshot_text="$1"
+  local project="${2:-EOM}"
+  local thread_ref="${3:-unlabeled-thread}"
+  local turn_window="${4:-unspecified-turn-window}"
+  local actor="${5:-Achilles}"
+  local extra_tags_csv="${6:-}"
+  local formatted tags_csv
+
+  formatted="$(mcp_format_conversation_snapshot "$snapshot_text" "$thread_ref" "$turn_window" "$actor")" || return 1
+  tags_csv="conversation_snapshot"
+  if [ -n "$extra_tags_csv" ]; then
+    tags_csv="$tags_csv,$extra_tags_csv"
+  fi
+  mcp_log_decision "$formatted" "$tags_csv" "10-turn conversation snapshot" "$project"
 }
 
 # Search for decisions matching a nonce substring — returns count via stdout
