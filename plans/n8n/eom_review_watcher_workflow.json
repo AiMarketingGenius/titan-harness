@@ -1,0 +1,162 @@
+{
+  "name": "EOM Review Watcher — CT-0421-06",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": { "interval": [{ "field": "seconds", "secondsInterval": 60 }] }
+      },
+      "id": "n1-schedule",
+      "name": "Every 60s",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1,
+      "position": [0, 0]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $vars.SUPABASE_URL }}/rest/v1/op_decisions",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            { "name": "select",   "value": "id,tags,decision_text,created_at,project_source" },
+            { "name": "tags",     "value": "cs.{eom_review_needed}" },
+            { "name": "order",    "value": "created_at.desc" },
+            { "name": "limit",    "value": "5" }
+          ]
+        },
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "apikey",        "value": "={{ $vars.SUPABASE_SERVICE_ROLE_KEY }}" },
+            { "name": "Authorization", "value": "=Bearer {{ $vars.SUPABASE_SERVICE_ROLE_KEY }}" }
+          ]
+        },
+        "options": { "timeout": 8000 }
+      },
+      "id": "n2-fetch-pending",
+      "name": "Fetch eom_review_needed",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [220, 0]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $vars.SUPABASE_URL }}/rest/v1/op_decisions",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            { "name": "select", "value": "id,tags,created_at" },
+            { "name": "tags",   "value": "cs.{eom_acked}" },
+            { "name": "order",  "value": "created_at.desc" },
+            { "name": "limit",  "value": "30" }
+          ]
+        },
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "apikey",        "value": "={{ $vars.SUPABASE_SERVICE_ROLE_KEY }}" },
+            { "name": "Authorization", "value": "=Bearer {{ $vars.SUPABASE_SERVICE_ROLE_KEY }}" }
+          ]
+        },
+        "options": { "timeout": 8000 }
+      },
+      "id": "n3-fetch-acked",
+      "name": "Fetch eom_acked",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [440, 0]
+    },
+    {
+      "parameters": {
+        "jsCode": "// n8n Code node — filter + format review packet\n// Inputs: n2 (pending rows), n3 (acked rows)\n\nconst pendingItems = $('Fetch eom_review_needed').all();\nconst ackedItems   = $('Fetch eom_acked').all();\n\nconst pending = Array.isArray(pendingItems[0]?.json) ? pendingItems[0].json : [];\nconst acked   = Array.isArray(ackedItems[0]?.json)   ? ackedItems[0].json   : [];\n\n// Collect acked packet_ids\nconst ackedIds = new Set();\nfor (const r of acked) {\n  for (const t of (r.tags || [])) {\n    const m = t.match(/^eom_packet_id-(.+)$/);\n    if (m) ackedIds.add(m[1]);\n  }\n}\n\nconst TTL_MS = 4 * 60 * 60 * 1000; // 4 hours\nconst now = Date.now();\n\nfor (const row of pending) {\n  const tags = row.tags || [];\n  let packetId = null, taskId = null, owner = 'unknown';\n  for (const t of tags) {\n    const mp = t.match(/^eom_packet_id-(.+)$/);\n    if (mp) packetId = mp[1];\n    const mt = t.match(/^task-(.+)$/);\n    if (mt) taskId = mt[1];\n    const mo = t.match(/^owner-(.+)$/);\n    if (mo) owner = mo[1];\n  }\n  if (!packetId) continue;\n  if (ackedIds.has(packetId)) continue;\n\n  const created = new Date(row.created_at).getTime();\n  if (now - created > TTL_MS) continue; // expired\n\n  // Extract fields from decision_text for compact packet\n  const body = row.decision_text || '';\n  const objMatch  = body.match(/objective:\\s*(.+?)(?:\\s*\\||$)/i);\n  const decMatch  = body.match(/decision:\\s*(.+?)(?:\\s*\\||$)/i);\n  const objective = objMatch  ? objMatch[1].trim()  : '(see task)';\n  const decision  = decMatch  ? decMatch[1].trim()  : 'review and approve or add constraints';\n\n  const expiresAt = new Date(created + TTL_MS).toISOString().replace('.000', '');\n  const ageMin = Math.round((now - created) / 60000);\n\n  const packetText = [\n    `EOM REVIEW REQUEST — routed by n8n ${new Date().toISOString()}`,\n    `owner=${owner}  task_id=${taskId || 'unknown'}  packet_id=${packetId}`,\n    `expires_at=${expiresAt}  age=${ageMin}m`,\n    '',\n    'OBJECTIVE',\n    objective,\n    '',\n    'REQUIRED DECISION',\n    decision,\n    '',\n    '---',\n    'Full context: query MCP for eom_packet_id-' + packetId,\n  ].join('\\n');\n\n  return [{ json: {\n    found: true,\n    packetId,\n    taskId:     taskId || 'unknown',\n    owner,\n    expiresAt,\n    ageMin,\n    packetText,\n    mcpRowId: row.id,\n  }}];\n}\n\nreturn [{ json: { found: false, reason: 'no_unacked_pending_within_ttl' } }];\n"
+      },
+      "id": "n4-filter-format",
+      "name": "Filter + Format",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [660, 0]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "boolean": [{ "value1": "={{ $json.found }}", "value2": true }]
+        }
+      },
+      "id": "n5-if-found",
+      "name": "Review needed?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [880, 0]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $vars.SUPABASE_URL }}/rest/v1/op_decisions",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "apikey",        "value": "={{ $vars.SUPABASE_SERVICE_ROLE_KEY }}" },
+            { "name": "Authorization", "value": "=Bearer {{ $vars.SUPABASE_SERVICE_ROLE_KEY }}" },
+            { "name": "Content-Type",  "value": "application/json" },
+            { "name": "Prefer",        "value": "return=minimal" }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "decision_text",
+              "value": "=EOM NUDGE QUEUED owner={{ $json.owner }} task_id={{ $json.taskId }} packet_id={{ $json.packetId }} expires_at={{ $json.expiresAt }} | packet_text={{ $json.packetText }} |owner={{ $json.owner }} |task_id={{ $json.taskId }} |expires={{ $json.expiresAt }}"
+            },
+            {
+              "name": "tags",
+              "value": "=[\"eom_nudge_queued\", \"eom_packet_id-{{ $json.packetId }}\", \"task-{{ $json.taskId }}\", \"owner-{{ $json.owner }}\"]"
+            },
+            { "name": "project_source",  "value": "n8n-eom-watcher" },
+            { "name": "decision_type",   "value": "routing_event" }
+          ]
+        },
+        "options": { "timeout": 8000 }
+      },
+      "id": "n6-write-queued",
+      "name": "Write eom_nudge_queued",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [1100, -80]
+    },
+    {
+      "parameters": {
+        "jsCode": "// No-op: log skip for debug visibility\nconsole.log('EOM watcher: no pending review this cycle');\nreturn [{ json: { skipped: true } }];"
+      },
+      "id": "n7-noop",
+      "name": "No review (skip)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1100, 80]
+    }
+  ],
+  "connections": {
+    "Every 60s":              { "main": [[{ "node": "Fetch eom_review_needed", "type": "main", "index": 0 }]] },
+    "Fetch eom_review_needed":{ "main": [[{ "node": "Fetch eom_acked",          "type": "main", "index": 0 }]] },
+    "Fetch eom_acked":        { "main": [[{ "node": "Filter + Format",          "type": "main", "index": 0 }]] },
+    "Filter + Format":        { "main": [[{ "node": "Review needed?",           "type": "main", "index": 0 }]] },
+    "Review needed?": {
+      "main": [
+        [{ "node": "Write eom_nudge_queued", "type": "main", "index": 0 }],
+        [{ "node": "No review (skip)",       "type": "main", "index": 0 }]
+      ]
+    }
+  },
+  "settings": {
+    "saveManualExecutions": true,
+    "saveDataErrorExecution": "all",
+    "saveDataSuccessExecution": "last",
+    "executionTimeout": 30
+  },
+  "staticData": null,
+  "meta": {
+    "description": "CT-0421-06: polls Supabase op_decisions every 60s for eom_review_needed events, deduplicates against eom_acked, applies 4h TTL, formats compact review packet, writes eom_nudge_queued for Hammerspoon pickup.",
+    "notes": "Requires n8n variables: SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY. Set via n8n Settings > Variables. Hammerspoon poll_eom_queue.sh picks up eom_nudge_queued events and injects into claude.ai browser tab."
+  }
+}
