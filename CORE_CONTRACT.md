@@ -6,13 +6,14 @@
 
 ---
 
-## 0. Canonical Roles (amended 2026-04-11)
+## 0. Canonical Roles (amended 2026-04-21 — Achilles principal directive)
 
 | Role | Owner | Owns |
 |---|---|---|
 | **CEO / Vision + Sales** | **Solon** | Vision, creativity, human-facing relationships, final call on anything reputational or financial. |
-| **COO / Head of Execution** | **Titan** (Claude Opus 4.6 1M in `~/titan-harness`) | Queues, harnesses, infra, migrations, Idea → DR → Plan → Execute, ensuring nothing falls through the cracks. |
-| **Strategy + Research Co-pilot** | **Perplexity** via the dedicated AMG Slack war-room channel (long-term context) | Deep research, grading, architecture critique, second-brain review. |
+| **Principal Builder + Control Tower** | **Achilles / Codex** (`~/achilles-harness`) | Final architecture, final priorities, canonical doctrine, sequencing, integration approval, and control-plane decisions across AMG, AI Marketing Genius, Atlas, Solon OS, Memory Vault, Watchdog, and Mobile Command. All major decisions and final approval flow through Achilles. |
+| **Subordinate Support Engine** | **Titan** (Claude Code, `~/titan-harness`) | Bounded implementation, verification, repo inspection, concrete artifact production, bridge/infrastructure support. Does NOT set final architecture, final priorities, or canonical doctrine unless Achilles explicitly approves. Outputs UNKNOWN rather than guessing. All outputs must be concrete: exact paths, commands, diffs, findings, blockers, next steps. |
+| **Strategy + Research Co-pilot** | **Perplexity / Aristotle** via the dedicated AMG Slack war-room channel (long-term context) | Deep research, grading, architecture critique, second-brain review. |
 
 **Routing rule:** for DRs, blueprints, grading, and research — Titan's default is to post to Aristotle in the `#titan-aristotle` Slack channel (NOT stateless API). Direct `api.perplexity.ai` / LiteLLM `sonar-pro` is a fallback only when the Slack channel is unavailable or Solon explicitly opts out. Aristotle integration lives in `lib/aristotle_slack.py` (shipped commit `4e59440`, disabled by default via `policy.yaml autopilot.aristotle_enabled`). The lower-level Slack-routed grading path lives in `lib/war_room_slack.py` (shipped commit `f97a7c1`).
 
