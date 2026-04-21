@@ -769,6 +769,145 @@ def _titan_system_prompt() -> str:
     )
 
 
+def _titan_supabase_env() -> tuple[str, str]:
+    url = os.environ.get("SUPABASE_URL", "").strip()
+    key = os.environ.get("SUPABASE_SERVICE_ROLE_KEY", "").strip()
+    if httpx is None or not url or not key:
+        raise HTTPException(503, "task queue unavailable on this host")
+    return url, key
+
+
+def _titan_supabase_headers(key: str) -> dict[str, str]:
+    return {
+        "apikey": key,
+        "Authorization": f"Bearer {key}",
+        "Content-Type": "application/json",
+    }
+
+
+def _titan_objective_from_text(text: str, *, limit: int = 160) -> str:
+    one_line = re.sub(r"\s+", " ", text).strip()
+    if len(one_line) <= limit:
+        return one_line
+    return one_line[: limit - 3].rstrip() + "..."
+
+
+def _titan_short_ts(value: str | None) -> str:
+    if not value:
+        return ""
+    cleaned = value.replace("T", " ").replace("Z", "")
+    return cleaned[:16] + " UTC"
+
+
+def _titan_queue_payload(text: str, priority: str, project_id: str) -> dict[str, Any]:
+    clean_text = re.sub(r"\s+", " ", text).strip()
+    objective = _titan_objective_from_text(clean_text)
+    instructions = (
+        "1. Read the raw mobile command request captured in notes.\n"
+        "2. Execute the requested work or delegate the correct next action.\n"
+        "3. Update the queue status with the deliverable or exact blocker before closing."
+    )
+    acceptance = (
+        "The requested outcome is complete, or the exact blocker and next action are logged in the operator queue."
+    )
+    return {
+        "priority": priority,
+        "agent": "ops",
+        "objective": objective,
+        "context": "Queued from ops.aimarketinggenius.io/titan mobile command pane.",
+        "instructions": instructions,
+        "acceptance_criteria": acceptance,
+        "assigned_to": "titan",
+        "project_id": project_id,
+        "output_target": "Titan mobile command follow-up",
+        "status": "approved",
+        "approval": "pre_approved",
+        "queued_by": "achilles",
+        "tags": ["titan-pane", "mobile-command", "ops-dashboard"],
+        "notes": f"Mobile command request: {clean_text}",
+        "task_risk_tier": "exempt",
+    }
+
+
+def _titan_recent_scope(rows: list[dict[str, Any]]) -> tuple[list[dict[str, Any]], str]:
+    pane_rows = [
+        row for row in rows
+        if "titan-pane" in (row.get("tags") or [])
+        or (row.get("notes") or "").startswith("Mobile command request:")
+    ]
+    if pane_rows:
+        return pane_rows, "titan-pane"
+    return rows, "global"
+
+
+def _serialize_titan_task(row: dict[str, Any]) -> dict[str, Any]:
+    stamp = row.get("completed_at") or row.get("started_at") or row.get("created_at")
+    return {
+        "task_id": row.get("task_id"),
+        "objective": row.get("objective") or "Untitled task",
+        "status": row.get("status") or "unknown",
+        "priority": row.get("priority") or "normal",
+        "approval": row.get("approval") or "pending",
+        "created_at": row.get("created_at"),
+        "timestamp_label": _titan_short_ts(stamp),
+        "origin": "titan-pane" if "titan-pane" in (row.get("tags") or []) else "queue",
+    }
+
+
+async def _fetch_recent_titan_tasks(limit: int = 5) -> tuple[list[dict[str, Any]], str]:
+    url, key = _titan_supabase_env()
+    capped_limit = max(1, min(int(limit or 5), 5))
+    async with httpx.AsyncClient(timeout=5.0) as client:
+        response = await client.get(
+            f"{url}/rest/v1/op_task_queue",
+            params={
+                "assigned_to": "eq.titan",
+                "select": "task_id,objective,status,priority,approval,created_at,started_at,completed_at,tags,notes",
+                "order": "created_at.desc",
+                "limit": "25",
+            },
+            headers=_titan_supabase_headers(key),
+        )
+    if response.status_code != 200:
+        raise HTTPException(502, f"recent task fetch failed ({response.status_code})")
+    rows = response.json() or []
+    scoped_rows, scope = _titan_recent_scope(rows)
+    return ([_serialize_titan_task(row) for row in scoped_rows[:capped_limit]], scope)
+
+
+async def _queue_titan_task(text: str, priority: str = "normal", project_id: str = "EOM") -> dict[str, Any]:
+    if priority not in {"urgent", "normal", "low"}:
+        raise HTTPException(400, "priority must be urgent, normal, or low")
+    url, key = _titan_supabase_env()
+    payload = _titan_queue_payload(text, priority, project_id)
+    headers = _titan_supabase_headers(key)
+    headers["Prefer"] = "return=representation"
+    async with httpx.AsyncClient(timeout=8.0) as client:
+        response = await client.post(
+            f"{url}/rest/v1/op_task_queue",
+            json=payload,
+            headers=headers,
+        )
+    if response.status_code not in (200, 201):
+        detail = response.text[:300]
+        raise HTTPException(502, f"task queue insert failed ({response.status_code}): {detail}")
+    rows = response.json() or []
+    if not rows:
+        raise HTTPException(502, "task queue insert returned no row")
+    row = rows[0]
+    return {
+        "task_id": row.get("task_id"),
+        "status": row.get("status"),
+        "priority": row.get("priority"),
+        "approval": row.get("approval"),
+        "objective": row.get("objective"),
+        "reply": (
+            f"Queued {row.get('task_id')} as {row.get('priority')} priority. "
+            f"Status is {row.get('status')} and ready for Titan."
+        ),
+    }
+
+
 @app.get("/titan")
 async def titan_serve() -> Response:
     """Serve the mobile command UI."""
@@ -776,6 +915,27 @@ async def titan_serve() -> Response:
     if not path.exists():
         raise HTTPException(404, "titan.html missing — deploy pending")
     return FileResponse(path, media_type="text/html")
+
+
+@app.get("/api/titan/tasks/recent")
+async def api_titan_tasks_recent(limit: int = 5) -> JSONResponse:
+    tasks, scope = await _fetch_recent_titan_tasks(limit)
+    return JSONResponse({"tasks": tasks, "scope": scope})
+
+
+@app.post("/api/titan/tasks/queue")
+async def api_titan_tasks_queue(request: Request) -> JSONResponse:
+    body = await request.json()
+    text = (body.get("text") or "").strip()
+    priority = (body.get("priority") or "normal").strip().lower()
+    project_id = (body.get("project_id") or "EOM").strip() or "EOM"
+    if not text:
+        raise HTTPException(400, "text required")
+    if len(text) > 2000:
+        raise HTTPException(400, "text too long (max 2000)")
+    task = await _queue_titan_task(text, priority=priority, project_id=project_id)
+    tasks, scope = await _fetch_recent_titan_tasks(5)
+    return JSONResponse({"task": task, "tasks": tasks, "scope": scope})
 
 
 @app.post("/api/titan/message")
