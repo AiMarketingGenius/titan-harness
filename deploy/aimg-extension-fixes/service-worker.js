@@ -967,7 +967,18 @@ async function runEinsteinFactCheck(msg, originTabId) {
       });
       return;
     }
-    if (!res.ok) return;
+    if (!res.ok) {
+      await chrome.storage.local.set({
+        einstein_last_status: {
+          ok: false,
+          reason: 'api_error',
+          status: res.status,
+          at: new Date().toISOString()
+        }
+      });
+      console.warn('[SW] Einstein fact check non-200:', res.status);
+      return;
+    }
 
     const body = await res.json();
     trackQEMetric('einstein_checks_run', 1);

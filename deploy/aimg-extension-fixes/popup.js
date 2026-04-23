@@ -304,7 +304,19 @@ async function loadStats() {
     const { user } = await chrome.storage.local.get('user');
     if (user) {
       const limit = user.weekly_limit || 50;
-      const used = user.memories_this_week || 0;
+      // Live query — user.memories_this_week is set at login and never updated.
+      const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
+      const weeklyRes = await fetch(
+        `${API_URL}/rest/v1/consumer_memories?select=id&limit=1&created_at=gte.${sevenDaysAgo}`,
+        {
+          headers: {
+            'apikey': API_KEY,
+            'Authorization': `Bearer ${token}`,
+            'Prefer': 'count=exact'
+          }
+        }
+      );
+      const used = parseInt(weeklyRes.headers.get('content-range')?.split('/')[1] || '0', 10);
       document.getElementById('stat-weekly').textContent = `${used}/${limit}`;
     }
 
