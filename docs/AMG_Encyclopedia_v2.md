@@ -272,8 +272,19 @@ because they're never rendered to a subscriber.
       provisioning gap — must be created via openrouter.ai dashboard
       under `aimarketing@drseo.io` and dropped into
       `/etc/amg/openrouter.env`.
-- [ ] Einstein Supabase Edge Function auth-header wiring (404 still
-      returns until service-role key is included in the curl)
+- [x] **Einstein auth wired** — signin → JWT → fact-check flow proven
+      end-to-end via `scripts/einstein_call.py`. The Edge Function
+      rejects both `anon` and `service_role` JWTs (`UNAUTHORIZED_LEGACY_JWT`)
+      and requires a real authenticated user JWT. Helper signs in with
+      a stable smoke user (`einstein-amg-smoke@drseo.io`), credentials
+      filed at `/etc/amg/einstein-staging.env` (mode 0600 root:root)
+      and documented at `/opt/amg-docs/credentials/einstein-staging-2026-04-26.md`.
+      `quality_gate.yml einstein_check` now wraps the helper.
+- [ ] Einstein **memory-backed** path — returns
+      `{"ok":false,"error":"response_text_too_short"}` for both
+      no-memory and memory requests. Per CT-0416-07 MCP decision,
+      `MOONSHOT_API_KEY` is unset on the Edge Function — Solon-side
+      action via Supabase secrets to unblock Kimi K2.6 model calls.
 - [ ] Subscriber-facing surface (portal/) integration — Phase 2
 - [ ] RLS migration for `mem_embeddings` table — gated on Solon-side
       Supabase schema review
