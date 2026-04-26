@@ -347,6 +347,17 @@ def claim_task(task_id: str) -> bool:
 
 
 def update_task(task_id: str, status: str, summary: str | None = None, error: str | None = None) -> None:
+    """The MCP server FSM:
+      locked → active|approved|dead_letter
+      active → completed|failed|blocked|pending_qc|dead_letter
+    Direct locked → completed is rejected — must hop through active first.
+    The terminal-success state is 'completed' (not 'done')."""
+    if status == "done":
+        status = "completed"  # MCP terminology
+    if status in {"completed", "failed", "blocked"}:
+        # Hop to 'active' first to satisfy the FSM
+        mcp_update_task(task_id=task_id, status="active",
+                        notes="mercury_executor: transitioning to terminal")
     mcp_update_task(
         task_id=task_id, status=status,
         result_summary=summary, failure_reason=error,

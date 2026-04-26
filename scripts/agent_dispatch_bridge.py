@@ -60,7 +60,9 @@ import urllib.request
 from datetime import datetime, timezone
 
 HOME = pathlib.Path.home()
-MCP_BASE = os.environ.get("MCP_BASE", "https://memory.aimarketinggenius.io/mcp")
+MCP_BASE = os.environ.get("MCP_BASE", "https://memory.aimarketinggenius.io").rstrip("/")
+# Routes migrated to /api/* (2026-04-26 — REST wrappers added to MCP server).
+# The bare names (queue_operator_task etc) were JSON-RPC-only and returned 404.
 ALIASES_FILE = HOME / ".openclaw" / "models" / "aliases.json"
 FLEET_SCRIPT = HOME / "titan-harness" / "scripts" / "amg_fleet_orchestrator.py"
 ETC_AMG = pathlib.Path("/etc/amg")  # only readable on VPS; on Mac read via SSH
@@ -119,43 +121,74 @@ def _load_aliases() -> dict:
         return {"aliases": {}}
 
 
-# ─── MCP helpers ─────────────────────────────────────────────────────────────
+# ─── MCP helpers (migrated to /api/* REST routes 2026-04-26) ────────────────
+# Path migration table — old MCP-tool name → new /api/* REST path
+_PATH_MAP = {
+    "get_task_queue": ("GET",  "/api/task-queue"),
+    "queue_operator_task": ("POST", "/api/queue-task"),
+    "update_task": ("POST", "/api/update-task"),
+    "claim_task": ("POST", "/api/claim-task"),
+    "log_decision": ("POST", "/api/decisions"),
+    "get_recent_decisions": ("GET", "/api/recent-decisions-json"),
+}
+
+
 def _mcp_post(path: str, body: dict, timeout: int = 15) -> tuple[int, dict]:
-    url = f"{MCP_BASE}/{path.lstrip('/')}"
-    data = json.dumps(body).encode()
-    req = urllib.request.Request(
-        url, data=data, headers={"Content-Type": "application/json"},
-    )
+    """Backward-compat shim. Old call sites used path names like
+    'get_task_queue'. Map to new /api/* REST routes; some are GET with query
+    strings instead of POST."""
+    method, route = _PATH_MAP.get(path, ("POST", "/" + path.lstrip("/")))
+    if method == "GET":
+        # Convert body to query params
+        from urllib.parse import urlencode
+        clean = {k: v for k, v in body.items() if v is not None}
+        url = f"{MCP_BASE}{route}"
+        if clean:
+            url += "?" + urlencode(clean)
+        req = urllib.request.Request(url, headers={"Accept": "application/json"})
+    else:
+        url = f"{MCP_BASE}{route}"
+        data = json.dumps(body).encode()
+        req = urllib.request.Request(
+            url, data=data, headers={"Content-Type": "application/json"},
+        )
     try:
         with urllib.request.urlopen(req, timeout=timeout) as r:
             return r.status, json.loads(r.read() or b"{}")
     except urllib.error.HTTPError as e:
-        return e.code, json.loads(e.read() or b"{}")
+        try:
+            return e.code, json.loads(e.read() or b"{}")
+        except Exception:
+            return e.code, {"error": str(e)}
     except Exception as e:
         return -1, {"error": repr(e)}
 
 
 def fetch_pending_tasks(limit: int = 10) -> list[dict]:
     code, body = _mcp_post(
-        "get_task_queue", {"status": "pending", "limit": limit},
+        "get_task_queue", {"status": "approved", "limit": limit},
     )
-    if code != 200 or not body.get("success"):
+    if code != 200:
         return []
-    return body.get("tasks", [])
+    return body.get("tasks") or []
 
 
 def mark_in_progress(task_id: str, dispatcher_id: str) -> None:
     _mcp_post("update_task", {
         "task_id": task_id,
-        "status": "in_progress",
+        "status": "active",
         "notes": f"dispatched by {dispatcher_id} at {datetime.now(tz=timezone.utc).isoformat()}",
     })
 
 
 def mark_done(task_id: str, summary: str, link: str | None = None) -> None:
+    # FSM hops through 'active' first if currently locked.
+    # Terminal-success state in MCP is 'completed' (not 'done').
+    _mcp_post("update_task", {"task_id": task_id, "status": "active",
+                              "notes": "dispatch_bridge: pre-completed hop"})
     body = {
         "task_id": task_id,
-        "status": "done",
+        "status": "completed",
         "result_summary": summary[:1000],
     }
     if link:
@@ -164,6 +197,8 @@ def mark_done(task_id: str, summary: str, link: str | None = None) -> None:
 
 
 def mark_failed(task_id: str, reason: str) -> None:
+    _mcp_post("update_task", {"task_id": task_id, "status": "active",
+                              "notes": "dispatch_bridge: pre-fail hop"})
     _mcp_post("update_task", {
         "task_id": task_id,
         "status": "failed",
