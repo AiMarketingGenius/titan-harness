@@ -1,0 +1,212 @@
+{
+  "schema_version": "1.0",
+  "created_at": "2026-04-26T18:25:00+00:00",
+  "updated_at": "2026-04-26T18:25:00+00:00",
+  "purpose": "Declarative routing registry. The bridge (agent_dispatch_bridge.py) consults this manifest BEFORE dispatching any task. If agent_assigned is not in this manifest's agents map, dispatch is REJECTED at queue-time with explicit error — not 25 minutes later when nobody claims it. Closes the CT-0426-36 phantom-agent stall (atlas_hercules had no server-side executor; task sat unclaimed; Solon waited).",
+  "policy": {
+    "unregistered_agent_action": "reject_with_error",
+    "deprecated_agent_action": "reject_with_explanation",
+    "no_executor_action": "reject_with_redirect_suggestion"
+  },
+  "agents": {
+    "atlas_hercules": {
+      "executor_type": "kimi_api_daemon",
+      "claim_filter": "n/a (daemon hydrates from MCP, does not claim queue tasks)",
+      "is_daemon": true,
+      "daemon_label": "com.amg.hercules-daemon",
+      "llm_lane": "kimi_k2_6_api",
+      "current_status": "active",
+      "notes": "Hercules brain runs as scripts/hercules_daemon.py via launchd (PID owner). Polls MCP every 30s, decides autonomously, calls Kimi K2.6 API on triggers. Web tab (Hercules.app) is now optional debug interface, not the production path. Dispatching tasks WITH agent_assigned=atlas_hercules is INVALID — Hercules makes decisions, he doesn't execute them. Re-route to mercury or specific specialist."
+    },
+    "mercury": {
+      "executor_type": "mercury_executor",
+      "claim_filter": "tag:agent:mercury OR notes contains 'dispatch: mercury' OR agent_assigned=mercury",
+      "is_daemon": true,
+      "daemon_label": "com.amg.mercury-executor",
+      "llm_lane": "deepseek_v4_pro_then_flash_then_qwen32b",
+      "current_status": "active",
+      "notes": "Server-side hands. Primitive mode (ssh_run, file_write, browser_navigate, browser_screenshot, infisical_get, delegate) is preferred and bypasses LLM hallucination risk. LLM mode auto-routes via DEEPSEEK_DIRECT_AGENTS to V4 Pro for orchestration (multi-agent-coordinated/final-debug/phase-N tags) and V4 Flash for routine. qwen2.5:32b is fallback."
+    },
+    "atlas_titan": {
+      "executor_type": "claude_code_cli_interactive OR amg_fleet",
+      "claim_filter": "tag:agent:atlas_titan OR tag:agent:titan",
+      "is_daemon": false,
+      "llm_lane": "deepseek_v4_pro_via_amg_fleet OR claude_opus_4_7_interactive",
+      "current_status": "active",
+      "notes": "Subordinate builder/coder. Interactive sessions run on Mac in Claude Code CLI — those are human-supervised. Non-interactive bridge dispatches route via amg_fleet but with primary_model=api_premium so they hit DeepSeek V4 Pro (Fix 1 2026-04-26 + V4 upgrade 2026-04-26)."
+    },
+    "atlas_judge_deepseek": {
+      "executor_type": "bridge_lane",
+      "claim_filter": "tag:agent:atlas_judge_deepseek OR tag:agent:daedalus",
+      "is_daemon": false,
+      "llm_lane": "deepseek_v4_pro",
+      "current_status": "active",
+      "notes": "Daedalus = code auditor. In DEEPSEEK_DIRECT_AGENTS pre-existing. Always V4 Pro for premium reasoning."
+    },
+    "daedalus": {
+      "executor_type": "bridge_lane",
+      "claim_filter": "tag:agent:daedalus (alias of atlas_judge_deepseek)",
+      "is_daemon": false,
+      "llm_lane": "deepseek_v4_pro",
+      "current_status": "active",
+      "notes": "Alias for atlas_judge_deepseek. Both names route to same lane."
+    },
+    "atlas_einstein": {
+      "executor_type": "bridge_lane",
+      "claim_filter": "tag:agent:atlas_einstein",
+      "is_daemon": false,
+      "llm_lane": "deepseek_v4_pro",
+      "current_status": "active",
+      "notes": "Tiebreaker / judgment agent for 3-way deadlocks per CLAUDE.md §21.1. Upgraded to V4 Pro 2026-04-26 per Solon 'higher intelligence on roster' directive."
+    },
+    "atlas_hallucinometer": {
+      "executor_type": "bridge_lane",
+      "claim_filter": "tag:agent:atlas_hallucinometer",
+      "is_daemon": false,
+      "llm_lane": "deepseek_v4_pro",
+      "current_status": "active",
+      "notes": "Verification agent. Upgraded to V4 Pro 2026-04-26 — verification accuracy worth premium."
+    },
+    "atlas_judge_perplexity": {
+      "executor_type": "bridge_lane",
+      "claim_filter": "tag:agent:atlas_judge_perplexity",
+      "is_daemon": false,
+      "llm_lane": "perplexity_sonar_pro",
+      "current_status": "active",
+      "notes": "Perplexity-backed judge. Native API (not DeepSeek) because Perplexity has live web grounding."
+    },
+    "atlas_research_perplexity": {
+      "executor_type": "bridge_lane",
+      "claim_filter": "tag:agent:atlas_research_perplexity",
+      "is_daemon": false,
+      "llm_lane": "perplexity_sonar_pro",
+      "current_status": "active",
+      "notes": "Live-web research agent. Perplexity native lane."
+    },
+    "atlas_research_gemini": {
+      "executor_type": "bridge_lane",
+      "claim_filter": "tag:agent:atlas_research_gemini",
+      "is_daemon": false,
+      "llm_lane": "gemini_2_5_pro",
+      "current_status": "active",
+      "notes": "Gemini-backed research agent."
+    },
+    "atlas_eom": {
+      "executor_type": "bridge_lane",
+      "claim_filter": "tag:agent:atlas_eom",
+      "is_daemon": false,
+      "llm_lane": "amg_fleet_qwen32b",
+      "current_status": "active",
+      "notes": "EOM (End-Of-Meeting) summarizer / sprint state aggregator. qwen32b sufficient for structured summarization."
+    },
+    "atlas_odysseus": {
+      "executor_type": "bridge_lane",
+      "claim_filter": "tag:agent:atlas_odysseus",
+      "is_daemon": false,
+      "llm_lane": "amg_fleet_qwen32b",
+      "current_status": "active",
+      "notes": "Long-horizon strategy agent. qwen32b for now; consider V4 Pro if quality issues."
+    },
+    "atlas_hector": {
+      "executor_type": "bridge_lane",
+      "claim_filter": "tag:agent:atlas_hector",
+      "is_daemon": false,
+      "llm_lane": "amg_fleet_qwen32b",
+      "current_status": "active",
+      "notes": "Defensive / security agent."
+    },
+    "atlas_achilles": {
+      "executor_type": "n/a",
+      "claim_filter": "n/a",
+      "is_daemon": false,
+      "llm_lane": "n/a",
+      "current_status": "decommissioned_2026-04-26",
+      "notes": "Codex-backed Achilles ran out of credits 2026-04-26. Pinned canonical CT- tasks transferred to Hercules per CLAUDE.md amendment. Do NOT dispatch to atlas_achilles."
+    },
+    "warden": {
+      "executor_type": "warden_enforcer_daemon",
+      "claim_filter": "n/a (daemon scans queue independently)",
+      "is_daemon": true,
+      "daemon_label": "com.amg.warden-enforcer",
+      "llm_lane": "n/a (rule-based, no LLM)",
+      "current_status": "active",
+      "notes": "Lifecycle enforcer. Kills stale agent locks, prevents queue starvation. No LLM call — pure rules."
+    },
+    "aletheia": {
+      "executor_type": "aletheia_verify_daemon",
+      "claim_filter": "n/a (daemon polls op_decisions)",
+      "is_daemon": true,
+      "daemon_label": "com.amg.aletheia-verify",
+      "llm_lane": "n/a (rule-based + filesystem checks; can escalate to V4 Pro for fuzzy cases later)",
+      "current_status": "active",
+      "notes": "Anti-hallucination verifier. Fix 2 (2026-04-26) added artifact-existence checks beyond status flags. Future: tool-receipts + Pydantic schemas per Perplexity P1."
+    },
+    "cerberus": {
+      "executor_type": "cerberus_security_daemon",
+      "claim_filter": "n/a (daemon watches logs)",
+      "is_daemon": true,
+      "daemon_label": "com.amg.cerberus-security",
+      "llm_lane": "n/a (rule-based)",
+      "current_status": "active",
+      "notes": "Security incident watcher. Dual-signal floor to prevent false alerts."
+    },
+    "artisan": {
+      "executor_type": "bridge_lane",
+      "claim_filter": "tag:agent:artisan",
+      "is_daemon": false,
+      "llm_lane": "deepseek_r1_32b_local",
+      "current_status": "active",
+      "notes": "UI / visual QA against Apple polish floor 9.3. Local R1 32B sufficient for screenshot QA (no premium API needed)."
+    },
+    "archimedes": {
+      "executor_type": "bridge_lane",
+      "claim_filter": "tag:agent:archimedes",
+      "is_daemon": false,
+      "llm_lane": "perplexity_sonar_pro",
+      "current_status": "active",
+      "notes": "Deep-research agent. Perplexity for live web grounding."
+    },
+    "nestor": {
+      "executor_type": "bridge_lane",
+      "claim_filter": "tag:agent:nestor",
+      "is_daemon": false,
+      "llm_lane": "kimi_k2_6_api",
+      "current_status": "active",
+      "notes": "Product/UX/mockup agent. Kimi K2.6 for design judgment quality."
+    },
+    "alexander": {
+      "executor_type": "bridge_lane",
+      "claim_filter": "tag:agent:alexander",
+      "is_daemon": false,
+      "llm_lane": "kimi_k2_6_api",
+      "current_status": "active",
+      "notes": "Brand/copy/voice agent. Kimi K2.6."
+    }
+  },
+  "amg_subscriber_pool": {
+    "executor_type": "bridge_lane (amg_fleet)",
+    "claim_filter": "tag:agent:amg_<avatar>_<role> OR agent_assigned=<name>",
+    "is_daemon": false,
+    "llm_lane": "amg_fleet_qwen32b",
+    "current_status": "active",
+    "agents": [
+      "amg_alex", "amg_alex_builder", "amg_alex_researcher",
+      "amg_maya", "amg_maya_builder", "amg_maya_researcher",
+      "amg_jordan", "amg_jordan_builder", "amg_jordan_researcher",
+      "amg_sam", "amg_sam_builder", "amg_sam_researcher",
+      "amg_riley", "amg_riley_builder", "amg_riley_researcher",
+      "amg_nadia", "amg_nadia_builder", "amg_nadia_researcher",
+      "amg_lumina", "amg_lumina_builder", "amg_lumina_researcher"
+    ],
+    "notes": "21 client-facing avatars (7 × 3). All on free local Qwen 32B for cost. Customer pays subscription; per-agent inference cost should be near zero. Premium escalation only for documented quality issues."
+  },
+  "deprecated_no_dispatch": {
+    "agents": ["achilles", "titan", "hector", "odysseus", "main"],
+    "reason": "Bare-name duplicates of atlas_* slots. Per army manifest naming_rule. Dispatching to these stalls forever. Bridge MUST reject."
+  },
+  "decommissioned": {
+    "agents": ["atlas_achilles"],
+    "decommissioned_at": "2026-04-26",
+    "reason": "Codex out of credits. Tasks transferred to atlas_hercules + re-routed via Mercury/Titan."
+  }
+}

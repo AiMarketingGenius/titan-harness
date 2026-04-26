@@ -63,6 +63,12 @@
 
 ---
 
+## Binding architecture doctrine
+
+- [`plans/DOCTRINE_AMG_FACTORY_ARCHITECTURE_v1_0.md`](../plans/DOCTRINE_AMG_FACTORY_ARCHITECTURE_v1_0.md) — **AMG AI Factory Architecture Review (Perplexity 2026-04-26)** — Source-of-truth doctrine for multi-agent orchestration patterns, Mercury LLM tier ladder (V4 Pro → V4 Flash → Qwen 32B → 7B banned), Aletheia tool-receipt verification, Hercules daemon Kimi K2.6 API direct, VPS systemd migration plan, Redis Streams inter-agent coordination, ADHD-optimized factory design, 6-tier cost control. Mirrored at `/opt/amg-docs/doctrines/AMG_AI_FACTORY_ARCHITECTURE_REVIEW_2026-04-26.md` on VPS. MCP-registered with `doc-filed` tag.
+
+---
+
 ## Aristotle integration
 
 Aristotle (Perplexity in `#titan-aristotle` Slack channel) is the strategy + research co-agent. Whenever Titan promotes anything to canon (new DR, MP-1/MP-2 doctrine, curated Perplexity thread), Titan:
@@ -87,4 +93,4 @@ This way Aristotle, Titan, and Solon always see the same Library state.
   - claude threads: 0 (pending Solon sessionKey)
   - Gmail: 0 (pending OAuth + harvester)
   - Loom: 0 (pending creds)
-- **Last index refresh:** 2026-04-23 12:44 UTC
+- **Last index refresh:** 2026-04-26 14:30 UTC

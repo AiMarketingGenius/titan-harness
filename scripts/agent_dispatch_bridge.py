@@ -82,8 +82,13 @@ GOOGLE_AGENTS = {"atlas_research_gemini", "amg_nadia_researcher"}
 # Direct DeepSeek API (skip OpenRouter markup — Solon has $50 topped at api.deepseek.com)
 # Mercury added 2026-04-26 per CT-0426 Fix 1 — qwen2.5-coder:7b was hallucinating
 # orchestration completions. V4 Pro for multi-phase/premium, V4 Flash routine.
+# atlas_titan, atlas_einstein, atlas_hallucinometer added 2026-04-26 per Solon
+# 'higher intelligence on roster' directive (post-Perplexity architecture review).
 # Local Qwen 32B is the no-API-key fallback in lane_deepseek_direct itself.
-DEEPSEEK_DIRECT_AGENTS = {"daedalus", "atlas_judge_deepseek", "mercury"}
+DEEPSEEK_DIRECT_AGENTS = {
+    "daedalus", "atlas_judge_deepseek", "mercury",
+    "atlas_titan", "atlas_einstein", "atlas_hallucinometer",
+}
 # FREE fleet-wide browser-takeover via browser-use + local R1 32B (zero $ cost)
 BROWSER_TAKEOVER_AGENTS = {"mercury", "daedalus", "archimedes", "atlas_titan", "atlas_odysseus"}
 # Premium fallback via OpenRouter (only when DeepSeek direct unavailable)
@@ -127,6 +132,64 @@ def _load_aliases() -> dict:
         return json.loads(ALIASES_FILE.read_text())
     except Exception:
         return {"aliases": {}}
+
+
+# ─── Agent Capability Manifest (Perplexity P0 — 2026-04-26) ─────────────────
+# Declarative routing registry. Bridge consults manifest BEFORE dispatch.
+# If agent_assigned is not registered, reject at queue-time. Closes the
+# CT-0426-36 phantom-agent stall gap structurally.
+AGENT_MANIFEST_FILE = HOME / ".openclaw" / "agents" / "_AGENT_CAPABILITY_MANIFEST.json"
+
+
+def _load_agent_manifest() -> dict:
+    try:
+        return json.loads(AGENT_MANIFEST_FILE.read_text())
+    except Exception:
+        return {"agents": {}, "amg_subscriber_pool": {"agents": []},
+                "deprecated_no_dispatch": {"agents": []},
+                "decommissioned": {"agents": []}}
+
+
+def validate_agent_against_manifest(agent_name: str) -> tuple[bool, str]:
+    """Return (is_valid, reason). Called before dispatching a task.
+
+    A valid agent is:
+      - Listed in agents{} map with executor_type != 'n/a' and
+        current_status != 'decommissioned_*'
+      - OR listed in amg_subscriber_pool.agents
+    Invalid:
+      - Listed in deprecated_no_dispatch.agents
+      - Listed in decommissioned.agents
+      - Has executor_type=='n/a'
+      - Not in manifest at all (phantom agent)
+    """
+    name = (agent_name or "").lower()
+    if not name:
+        return False, "no agent_assigned provided"
+    m = _load_agent_manifest()
+    # Deprecated bare-name agents
+    if name in {a.lower() for a in (m.get("deprecated_no_dispatch") or {}).get("agents", [])}:
+        return False, f"agent '{name}' is DEPRECATED (bare-name duplicate). Use atlas_<name> instead."
+    # Decommissioned agents
+    if name in {a.lower() for a in (m.get("decommissioned") or {}).get("agents", [])}:
+        return False, f"agent '{name}' is DECOMMISSIONED ({(m.get('decommissioned') or {}).get('decommissioned_at', '?')}). Re-route to atlas_hercules orchestration or another active agent."
+    # AMG subscriber pool — accept all listed
+    if name in {a.lower() for a in (m.get("amg_subscriber_pool") or {}).get("agents", [])}:
+        return True, "ok (amg_subscriber_pool)"
+    # Main agents map
+    spec = (m.get("agents") or {}).get(name) or (m.get("agents") or {}).get(agent_name)
+    if spec:
+        if spec.get("executor_type") == "n/a":
+            return False, f"agent '{name}' has no executor (executor_type=n/a). {spec.get('notes', '')[:200]}"
+        status = spec.get("current_status", "active")
+        if status.startswith("decommissioned"):
+            return False, f"agent '{name}' status={status}. Notes: {spec.get('notes', '')[:200]}"
+        # Special case: atlas_hercules has executor_type=kimi_api_daemon but
+        # the daemon makes decisions, doesn't claim queue tasks.
+        if spec.get("executor_type") == "kimi_api_daemon":
+            return False, f"agent '{name}' is the orchestration brain (kimi_api_daemon, runs as launchd com.amg.{name.replace('atlas_','')}-daemon). Hercules makes dispatch decisions, he doesn't claim queue tasks. Re-route to mercury or specific specialist (e.g., daedalus for code audit, atlas_einstein for tiebreaker, artisan for UI QA)."
+        return True, f"ok ({spec.get('executor_type')}, lane={spec.get('llm_lane')})"
+    return False, f"agent '{name}' not in capability manifest. Add to ~/.openclaw/agents/_AGENT_CAPABILITY_MANIFEST.json before dispatching."
 
 
 # ─── MCP helpers (migrated to /api/* REST routes 2026-04-26) ────────────────
@@ -568,6 +631,24 @@ def dispatch_task(task: dict, dry: bool = False) -> dict:
         or task.get("text")
         or "(no instructions provided)"
     )
+    # Capability manifest gate (Perplexity P0 2026-04-26).
+    # Reject phantom-agent dispatches AT EXECUTION TIME so the failure is
+    # explicit + immediate, not a 25-min silent stall.
+    is_valid, reason = validate_agent_against_manifest(agent)
+    if not is_valid:
+        result = {
+            "ok": False,
+            "agent": agent,
+            "lane": "REJECTED_BY_MANIFEST",
+            "error": f"PHANTOM_AGENT_REJECT: {reason}",
+            "task_id": task.get("task_id") or task.get("id"),
+        }
+        # Mark task failed so it doesn't re-cycle
+        try:
+            mark_failed(task.get("task_id") or task.get("id") or "", result["error"])
+        except Exception:
+            pass
+        return result
     lane = pick_lane(agent, task)
     if dry:
         return {"agent": agent, "lane": lane, "dry_run": True, "ok": True, "text": "(skipped)"}
