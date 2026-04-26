@@ -628,6 +628,18 @@ def dispatch_task(task: dict, dry: bool = False) -> dict:
         if line.strip().lower().startswith("dispatch:"):
             agent = line.split(":", 1)[1].strip()
             break
+    # Fix 2026-04-26: when MCP API drops agent_assigned (only enum accepted)
+    # and assigned_to defaults to "titan" (deprecated bare-name), recover the
+    # real executor from agent:X tag. Hercules's REST POSTs hit this path.
+    if (agent or "").lower() in {"titan", "atlas_eom"}:
+        for t in (task.get("tags") or []):
+            ts = str(t).lower()
+            if ts.startswith("agent:"):
+                tag_agent = ts.split(":", 1)[1].strip()
+                # Prefer tag-derived agent unless it's the same deprecated name
+                if tag_agent and tag_agent not in {"titan", "atlas_eom"}:
+                    agent = tag_agent
+                    break
     prompt = (
         task.get("instructions")
         or task.get("objective")
