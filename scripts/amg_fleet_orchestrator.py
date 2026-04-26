@@ -21,6 +21,7 @@ from __future__ import annotations
 import argparse
 import asyncio
 import json
+import os
 import pathlib
 import re
 import shlex
@@ -41,7 +42,7 @@ HANDS_FILE = SKILLS_DIR / "digital_hands.json"
 OLLAMA_BASE_DEFAULT = "http://localhost:11434"
 MCP_LOG_URL = "https://memory.aimarketinggenius.io/mcp/log_decision"
 MAX_TOOL_ITERATIONS = 8  # cap loop so a runaway model can't pin Ollama forever
-PER_AGENT_TIMEOUT_S = 60
+PER_AGENT_TIMEOUT_S = int(os.environ.get("AMG_FLEET_TIMEOUT_S", "180"))  # 32B models need >60s
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Digital hands — per-agent skill→tool allowlists
@@ -343,6 +344,7 @@ def load_agent_config(name: str) -> dict[str, Any]:
 TOOL_CAPABLE_OLLAMA_MODELS = {
     "qwen2.5-coder:7b",
     "qwen2.5-coder:14b",
+    "qwen2.5:32b",
     "qwen3:14b",
     "llama3.3:70b",
     "llama3.1:8b",
@@ -350,16 +352,36 @@ TOOL_CAPABLE_OLLAMA_MODELS = {
 }
 DEFAULT_TOOL_MODEL = "qwen2.5-coder:7b"
 
+# Logical aliases (Hercules CT-0426 doctrine) → concrete Ollama tags.
+# When a config.toml lists primary_model="vps_smart" etc., resolve to the
+# actual model tag the orchestrator will hand to Ollama.
+MODEL_ALIASES = {
+    "mac_fast":      "qwen2.5-coder:7b",
+    "vps_smart":     "qwen2.5:32b",
+    "vps_reasoning": "deepseek-r1:32b",
+    # api_* aliases are NOT Ollama; agents using them go through a different
+    # dispatch path (not implemented here yet — falls through to default
+    # tool-capable model so the local runtime still works for testing).
+    "api_premium":       "qwen2.5-coder:7b",
+    "api_premium_flash": "qwen2.5-coder:7b",
+    "api_research":      "qwen2.5-coder:7b",
+    "api_google":        "qwen2.5-coder:7b",
+}
+
+
+def _resolve_alias(name: str) -> str:
+    return MODEL_ALIASES.get(name, name) if name else name
+
+
 def resolve_model(cfg: dict, prefer_fallback: bool = True, need_tools: bool = True) -> str:
-    """Return the Ollama model tag. The TOML lists deepseek-v4-flash as primary
-    (cloud, gated on OPENROUTER_API_KEY). For local, we prefer the fallback
-    which is always an Ollama-pulled model. If `need_tools` and the chosen
-    model doesn't support Ollama tools (e.g., deepseek-coder-v2, deepseek-r1),
-    fall through to DEFAULT_TOOL_MODEL so the run doesn't 400.
+    """Return the Ollama model tag. Resolves Hercules-doctrine aliases
+    (vps_smart, mac_fast, etc.) to concrete tags. If chosen tag isn't in the
+    tool-capable set, substitute DEFAULT_TOOL_MODEL so Ollama doesn't 400.
     """
     a = cfg.get("agent", {})
-    chosen = a.get("fallback_model") if prefer_fallback else a.get("primary_model")
-    chosen = chosen or "qwen2.5-coder:7b"
+    primary  = _resolve_alias(a.get("primary_model"))
+    fallback = _resolve_alias(a.get("fallback_model"))
+    chosen = (fallback if prefer_fallback else primary) or primary or "qwen2.5-coder:7b"
     if need_tools and chosen not in TOOL_CAPABLE_OLLAMA_MODELS:
         return DEFAULT_TOOL_MODEL
     return chosen

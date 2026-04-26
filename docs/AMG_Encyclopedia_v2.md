@@ -236,28 +236,44 @@ because they're never rendered to a subscriber.
 
 ## 4. Ship checklist
 
-- [x] OpenClaw 2026.4.24 installed clean (corruption from prior session
-      resolved via `npm install -g openclaw@latest`)
-- [x] VPS Ollama has qwen2.5:32b + deepseek-r1:32b pulled (19 GB each,
-      verified via `ollama list`)
-- [x] 33 agent directories scaffolded with config.toml + system_prompt.md
-      + knowledge_base/ + workspace/
-- [x] 57 skill files in `~/.openclaw/skills/amg/` (3 explicit + 54 stubs)
-- [x] Multi-model registry via `~/.openclaw/models/*.yml` (8 model defs)
-- [x] Aliases registry at `~/.openclaw/models/aliases.json` (mac_fast,
-      vps_smart, vps_reasoning, api_premium, api_research, api_google)
-- [x] `amg-fleet` digital-hands wiring (per-agent tool allowlist enforced
-      with deny-by-default for non-allowlisted tools)
+- [x] OpenClaw 2026.4.24 installed clean
+- [x] VPS Ollama has qwen2.5:32b + deepseek-r1:32b pulled
+- [x] 33 agent directories scaffolded
+- [x] 57 skill files
+- [x] Multi-model registry + aliases (mac_fast, vps_smart, vps_reasoning,
+      api_premium, api_research, api_google)
+- [x] Alias resolver in `amg_fleet_orchestrator.py` — `primary_model =
+      "vps_smart"` now resolves to `qwen2.5:32b` automatically
+- [x] `amg-fleet` digital-hands wiring (deny-by-default per-agent
+      tool allowlist)
 - [x] `monitor_and_scale.py` queue-depth poller (60s cadence)
-- [x] `spinup_ollama_instance.sh` placeholder for multi-node scaling
 - [x] `~/Applications/AMG-Agent-Army.app` dock control
-- [x] Pressure tests 1+2 ran (parallel dispatch, file artifacts, hands
-      filtering all verified)
-- [ ] Pressure tests 3+5: gated on Supabase auth header + Perplexity /
-      DeepSeek / OpenRouter API keys
-- [ ] Pressure test 4: gated on n8n queue-depth webhook registration
-- [ ] VPS Ollama 11434 reachable from Mac (currently localhost-only;
-      requires Tailscale OR SSH tunnel OR firewall opening + auth)
+- [x] **Mac↔VPS Ollama tunnel live** — `launchd/com.amg.ollama-tunnel.plist`
+      maintains `ssh -L 21434:127.0.0.1:11434 amg-staging` across reboots +
+      network changes. Mac dispatches to VPS via
+      `--ollama-base http://localhost:21434`.
+- [x] **`/webhook/queue-depth` shim live** — `scripts/amg_queue_depth_server.py`
+      deployed at `/opt/amg-monitor/queue_depth.py` on VPS as systemd unit
+      `amg-queue-depth.service`. Caddy stanza on `n8n.aimarketinggenius.io`
+      routes `/webhook/queue-depth` → host `172.18.0.1:5679`. Returns
+      `{depth, waiting, active, delayed, completed_recent}` from the n8n
+      Bull queue in Redis. ufw allow rule 25 admits docker bridge
+      `172.18.0.0/16` to host port 5679.
+- [x] **Perplexity API key wired** — `/etc/amg/perplexity.env` on VPS,
+      smoke test returns 200 + live citations. Unblocks
+      `atlas_judge_perplexity`, `atlas_research_perplexity`, all
+      `amg_*_researcher` except Nadia (Gemini).
+- [x] **Real VPS-routed agent run validated** — `atlas_odysseus` on
+      `qwen2.5:32b` via tunnel created `/tmp/vps_proof.txt` in 103s with
+      digital hands enforced (5 tools allowed, 1 tool call). Per-agent
+      timeout is now env-controllable (`AMG_FLEET_TIMEOUT_S=180` default).
+- [ ] OpenRouter / DeepSeek API keys — verified absent from Master Login
+      Sheet, Drive (3 search variants), local env, VPS env. Genuine
+      provisioning gap — must be created via openrouter.ai dashboard
+      under `aimarketing@drseo.io` and dropped into
+      `/etc/amg/openrouter.env`.
+- [ ] Einstein Supabase Edge Function auth-header wiring (404 still
+      returns until service-role key is included in the curl)
 - [ ] Subscriber-facing surface (portal/) integration — Phase 2
 - [ ] RLS migration for `mem_embeddings` table — gated on Solon-side
       Supabase schema review
