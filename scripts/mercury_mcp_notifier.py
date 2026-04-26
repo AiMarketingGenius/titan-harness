@@ -157,9 +157,21 @@ def osascript_notify(title: str, subtitle: str, message: str) -> None:
         _log(f"osascript notify failed: {e!r}")
 
 
-def telenix_send(_priority: str, _summary: str) -> None:
-    """Stub. Telenix SMS bridge wires here when scripts/telenix_bridge.py lands."""
-    return
+def telenix_send(priority: str, summary: str) -> None:
+    """Telnyx SMS via scripts/telnyx_send.py (added 2026-04-26).
+    Honors quiet hours upstream — only invoked for P0 always, P1 batched, P2 not at all.
+    Best-effort + non-blocking — failure to SMS does not stop the notifier loop."""
+    sender = HOME / "titan-harness" / "scripts" / "telnyx_send.py"
+    if not sender.exists():
+        return
+    try:
+        subprocess.Popen(
+            ["python3", str(sender), summary, "--priority", priority],
+            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+            start_new_session=True,
+        )
+    except Exception as e:
+        _log(f"telnyx_send spawn failed: {e!r}")
 
 
 def fetch_recent(count: int = 25) -> list[dict]:
