@@ -142,3 +142,10 @@ def get_recent_decisions(count: int = 10, project_filter: str | None = None) -> 
 
 def health() -> tuple[int, dict]:
     return _get("/health")
+
+
+def get_sprint_state(project_id: str = "EOM") -> tuple[int, dict]:
+    """Wrapper for MCP sprint-state read. Used by hercules_daemon.py to
+    hydrate context every poll cycle. Endpoint accepts either a JSON body
+    or query string; we use query string for GET semantics."""
+    return _get("/api/sprint-state", {"project_id": project_id})
