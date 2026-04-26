@@ -50,6 +50,30 @@ CLAIM_TASK_DISPATCHED = re.compile(r"task_id[=:]\s*(CT-\d{4}-\d{2,3})", re.IGNOR
 CLAIM_FILE_WROTE = re.compile(r'(?:wrote|written to|created)[: ]+["\']?(/[A-Za-z0-9_./~-]+)["\']?', re.IGNORECASE)
 CLAIM_COMMIT = re.compile(r"\bcommit[: ]+([0-9a-f]{7,40})\b", re.IGNORECASE)
 
+# Fix 2 (2026-04-26 CT-0426): catch fake-completion patterns where the proof
+# is a /tmp file with a notification stub instead of real work artifacts.
+# When Mercury logs "executed task CT-XXXX-XX ok=True" we must verify the
+# task's acceptance_criteria artifacts ACTUALLY exist on disk / in git.
+CLAIM_TASK_EXECUTED = re.compile(
+    r"(?:Mercury|mercury|agent)\s+executed\s+task[: ]+(CT-\d{4}-\d{2,3})", re.IGNORECASE
+)
+# Suspicious "fake completion" file patterns — written to /tmp/ AND filename
+# suggests notification/completion stub. Real work doesn't live in /tmp/.
+SUSPICIOUS_FAKE_PATHS = re.compile(
+    r"(/tmp/[^\s\"']*(?:notifier|complete|done|fake|stub|test)[^\s\"']*\.(?:txt|md|json))",
+    re.IGNORECASE,
+)
+# Phrases that signal a Mercury hallucinated completion — agent claims to have
+# done the work but only wrote a single notification text file.
+HALLUCINATION_PHRASES = (
+    "notification sent to hercules",
+    "notification sent via macos",
+    "notified hercules via",
+    "notified solon via macos notification",
+)
+# Minimum bytes a "completion proof" file should have to NOT be a stub.
+MIN_PROOF_BYTES = 200
+
 VERIFICATION_WINDOW_S = 60
 
 
@@ -108,6 +132,86 @@ def verify_file_exists(path: str, claim_ts: float | None) -> tuple[bool, str]:
     return True, f"file {path} exists (size={p.stat().st_size}B)"
 
 
+def verify_real_artifacts(task_id: str, decision: dict) -> tuple[bool, str]:
+    """Fix 2 (2026-04-26): when a 'mercury-proof' decision claims a multi-phase
+    task is complete, confirm the acceptance_criteria artifacts actually exist
+    on disk / in git. A stub /tmp/notifier.txt is NOT a completion proof.
+
+    Returns (True, evidence) when at least one real artifact exists OR the task
+    is single-primitive and the claim text references a real ssh_run/file_write
+    proof. Returns (False, evidence) for fake completions.
+    """
+    code, body = mcp_get_task_queue(task_id=task_id)
+    if code != 200:
+        return True, f"could not fetch task {task_id} for verification (MCP code={code}); skipped"
+    tasks = body.get("tasks") or []
+    if not tasks:
+        return True, f"task {task_id} not in queue; skipped artifact check"
+    task = tasks[0]
+    accept = (task.get("acceptance_criteria") or "")
+    instr = (task.get("instructions") or "")
+    proof_text = ((decision.get("text") or "") + "\n" + (decision.get("rationale") or ""))
+
+    # Hard fail: the proof contains hallucination phrases AND no real artifact paths
+    proof_lower = proof_text.lower()
+    has_hallucination = any(p in proof_lower for p in HALLUCINATION_PHRASES)
+    suspicious_paths = SUSPICIOUS_FAKE_PATHS.findall(proof_text)
+    real_paths_in_proof = re.findall(r'(/(?:Users|opt|root|home)/[A-Za-z0-9_./-]+)', proof_text)
+    real_paths_in_proof = [p for p in real_paths_in_proof if not p.startswith("/tmp/")]
+    commits_in_proof = CLAIM_COMMIT.findall(proof_text)
+
+    # If Mercury wrote ONLY a /tmp/notifier-style stub and nothing else, fail
+    if has_hallucination and not real_paths_in_proof and not commits_in_proof:
+        return False, (
+            f"FALSE_COMPLETION: proof contains hallucination phrase ({[p for p in HALLUCINATION_PHRASES if p in proof_lower]}) "
+            f"and only suspicious /tmp/ paths ({suspicious_paths}). No real artifact paths or git commits in proof. "
+            f"Task {task_id} acceptance_criteria expected real artifacts."
+        )
+
+    # Check expected paths from acceptance_criteria — if AC mentions `reports/X` etc.,
+    # verify at least one such file exists with mtime within last 24h.
+    expected_path_patterns = re.findall(
+        r'(?:reports?/|deploy/|scripts/|plans/|/opt/amg-|achilles-harness/)[A-Za-z0-9_./*-]+',
+        accept + "\n" + instr,
+    )
+    if expected_path_patterns:
+        found = []
+        for pattern in expected_path_patterns[:10]:  # cap at 10 patterns
+            base = HOME / "titan-harness"
+            achilles = HOME / "achilles-harness"
+            for root in (base, achilles):
+                candidate = root / pattern
+                if candidate.exists():
+                    found.append(str(candidate))
+                    break
+        if not found:
+            return False, (
+                f"FALSE_COMPLETION: task {task_id} acceptance_criteria mentions paths "
+                f"{expected_path_patterns[:5]} but NONE of them exist in titan-harness or "
+                f"achilles-harness. Proof text: {proof_text[:200]}"
+            )
+        return True, f"task {task_id}: found {len(found)}/{len(expected_path_patterns)} expected artifacts: {found[:3]}"
+
+    # If acceptance criteria mentions a git tag, verify it exists
+    tag_match = re.search(r"tag[s]?\s+(v\d+\.\d+\.\d+)", accept + "\n" + instr, re.IGNORECASE)
+    if tag_match:
+        tag = tag_match.group(1)
+        for repo in [HOME / "achilles-harness", HOME / "titan-harness"]:
+            try:
+                out = subprocess.run(
+                    ["git", "-C", str(repo), "tag", "-l", tag],
+                    capture_output=True, text=True, timeout=5,
+                )
+                if out.returncode == 0 and tag in out.stdout:
+                    return True, f"task {task_id}: git tag {tag} exists in {repo.name}"
+            except Exception:
+                continue
+        return False, f"FALSE_COMPLETION: task {task_id} expects git tag {tag} but tag does not exist in any repo"
+
+    # Acceptance criteria didn't reference verifiable artifacts — pass-through
+    return True, f"task {task_id}: no verifiable artifact patterns in acceptance_criteria (skipped)"
+
+
 def verify_commit_exists(commit_hash: str) -> tuple[bool, str]:
     repos = [HOME / "titan-harness", HOME / "achilles-harness"]
     for repo in repos:
@@ -130,6 +234,7 @@ def extract_claims(decision: dict) -> list[dict]:
     """From a decision row, pull every checkable claim."""
     text = (decision.get("text") or "") + "\n" + (decision.get("rationale") or "")
     claim_ts = parse_iso(decision.get("created_at") or "")
+    tags = [str(t).lower() for t in (decision.get("tags") or [])]
     claims: list[dict] = []
     for m in CLAIM_TASK_DISPATCHED.finditer(text):
         claims.append({"kind": "task_exists", "value": m.group(1), "claim_ts": claim_ts})
@@ -140,6 +245,26 @@ def extract_claims(decision: dict) -> list[dict]:
         claims.append({"kind": "file_exists", "value": path, "claim_ts": claim_ts})
     for m in CLAIM_COMMIT.finditer(text):
         claims.append({"kind": "commit_exists", "value": m.group(1), "claim_ts": claim_ts})
+    # Fix 2 (CT-0426 2026-04-26): Mercury-proof / mercury-executor "executed task X"
+    # claims must verify the task's acceptance_criteria artifacts actually exist.
+    if "mercury-proof" in tags or "mercury-executor" in tags:
+        for m in CLAIM_TASK_EXECUTED.finditer(text):
+            claims.append({
+                "kind": "real_artifacts",
+                "value": m.group(1),
+                "claim_ts": claim_ts,
+                "decision": decision,
+            })
+        # Even if the regex doesn't catch a CT-####-## reference, look in tags
+        for tag in tags:
+            if tag.startswith("task:ct-"):
+                tid = tag.split(":", 1)[1].upper()
+                claims.append({
+                    "kind": "real_artifacts",
+                    "value": tid,
+                    "claim_ts": claim_ts,
+                    "decision": decision,
+                })
     return claims
 
 
@@ -150,6 +275,8 @@ def verify_claim(claim: dict) -> tuple[bool, str]:
         return verify_file_exists(claim["value"], claim.get("claim_ts"))
     if claim["kind"] == "commit_exists":
         return verify_commit_exists(claim["value"])
+    if claim["kind"] == "real_artifacts":
+        return verify_real_artifacts(claim["value"], claim.get("decision") or {})
     return True, "unknown claim kind, skipped"
 
 

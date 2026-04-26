@@ -355,17 +355,23 @@ DEFAULT_TOOL_MODEL = "qwen2.5-coder:7b"
 # Logical aliases (Hercules CT-0426 doctrine) → concrete Ollama tags.
 # When a config.toml lists primary_model="vps_smart" etc., resolve to the
 # actual model tag the orchestrator will hand to Ollama.
+#
+# IMPORTANT (Fix 1, 2026-04-26): api_* aliases used to silently fall back to
+# qwen2.5-coder:7b, which hallucinated multi-phase completions. Now they
+# resolve to the strongest LOCAL fallback (qwen2.5:32b VPS Smart) so amg_fleet
+# orchestration is at least competent if the bridge skips DeepSeek API. The
+# real DeepSeek V4 Pro/Flash routing happens in agent_dispatch_bridge.py via
+# lane_deepseek_direct() — agents in DEEPSEEK_DIRECT_AGENTS bypass amg_fleet
+# entirely. amg_fleet should NEVER select 7B for orchestration; it logs a
+# warning if forced to.
 MODEL_ALIASES = {
-    "mac_fast":      "qwen2.5-coder:7b",
-    "vps_smart":     "qwen2.5:32b",
-    "vps_reasoning": "deepseek-r1:32b",
-    # api_* aliases are NOT Ollama; agents using them go through a different
-    # dispatch path (not implemented here yet — falls through to default
-    # tool-capable model so the local runtime still works for testing).
-    "api_premium":       "qwen2.5-coder:7b",
-    "api_premium_flash": "qwen2.5-coder:7b",
-    "api_research":      "qwen2.5-coder:7b",
-    "api_google":        "qwen2.5-coder:7b",
+    "mac_fast":          "qwen2.5-coder:7b",   # local Mac, single-shot edits only
+    "vps_smart":         "qwen2.5:32b",        # VPS Ollama, real orchestration
+    "vps_reasoning":     "deepseek-r1:32b",    # VPS Ollama, complex reasoning
+    "api_premium":       "qwen2.5:32b",        # bridge handles V4 Pro; this is the fallback
+    "api_premium_flash": "qwen2.5:32b",        # bridge handles V4 Flash; this is the fallback
+    "api_research":      "qwen2.5:32b",        # bridge handles Perplexity; this is the fallback
+    "api_google":        "qwen2.5:32b",        # bridge handles Gemini; this is the fallback
 }
 
 
@@ -376,14 +382,26 @@ def _resolve_alias(name: str) -> str:
 def resolve_model(cfg: dict, prefer_fallback: bool = True, need_tools: bool = True) -> str:
     """Return the Ollama model tag. Resolves Hercules-doctrine aliases
     (vps_smart, mac_fast, etc.) to concrete tags. If chosen tag isn't in the
-    tool-capable set, substitute DEFAULT_TOOL_MODEL so Ollama doesn't 400.
+    tool-capable set, substitute the strongest tool-capable model available.
+
+    Fix 1 (2026-04-26): never silently default to 7B for orchestration agents.
+    Anything role!=trivial gets at minimum qwen2.5:32b. Logs warning if forced
+    to 7B so we can audit.
     """
     a = cfg.get("agent", {})
+    name = (a.get("name") or "unknown").lower()
+    role = (a.get("role") or "generic").lower()
     primary  = _resolve_alias(a.get("primary_model"))
     fallback = _resolve_alias(a.get("fallback_model"))
-    chosen = (fallback if prefer_fallback else primary) or primary or "qwen2.5-coder:7b"
+    chosen = (fallback if prefer_fallback else primary) or primary or "qwen2.5:32b"
     if need_tools and chosen not in TOOL_CAPABLE_OLLAMA_MODELS:
-        return DEFAULT_TOOL_MODEL
+        chosen = "qwen2.5:32b"  # strongest tool-capable VPS Ollama option
+    # Audit: if we fell back to 7B for an orchestration role, log it loudly
+    if chosen == "qwen2.5-coder:7b" and role not in {"trivial_edits", "single_shot"}:
+        sys.stderr.write(
+            f"[amg_fleet WARNING] resolved {name} (role={role}) to qwen2.5-coder:7b — "
+            f"too weak for orchestration. Check config.toml primary_model.\n"
+        )
     return chosen
 
 def system_prompt_for(cfg: dict) -> str:

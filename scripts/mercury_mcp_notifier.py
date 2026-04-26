@@ -27,9 +27,11 @@ Run modes:
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import os
 import pathlib
+import re
 import shutil
 import subprocess
 import sys
@@ -48,6 +50,18 @@ LOGFILE = HOME / ".openclaw" / "logs" / "mercury_mcp_notifier.log"
 
 QUIET_HOURS_START = 23   # 11pm
 QUIET_HOURS_END = 7      # 7am
+
+# Fix 3 (CT-0426 2026-04-26): notifier was flooding inbox with 12 copies of the
+# same Mercury fake-completion in 5 min. Cursor seen_ids worked at decision_id
+# level but Mercury was emitting the same TEXT under fresh decision_ids each
+# poll. New dedupe layer:
+#   1. content_hash dedupe (sha256 of text+first-3-tags) — same content = drop
+#   2. per-(agent, task_id) cooldown — only one notification per pair per 5 min
+#   3. global rate limit — max 6 notifications per 60s across all sources
+COOLDOWN_SECONDS = 5 * 60  # 5 min per (agent, task_id)
+GLOBAL_RATE_WINDOW_S = 60
+GLOBAL_RATE_MAX = 6
+TASK_ID_RE = re.compile(r"\bCT-\d{4}-\d{2,3}\b")
 
 INTERESTING_TAGS = {
     "hercules", "mercury-proof",
@@ -99,17 +113,116 @@ def _log(msg: str) -> None:
 
 def _load_cursor() -> dict:
     if not CURSOR_FILE.exists():
-        return {"last_seen_ts": None, "last_seen_id": None, "seen_ids": []}
+        return {
+            "last_seen_ts": None,
+            "last_seen_id": None,
+            "seen_ids": [],
+            "seen_content_hashes": {},   # {hash: ts_iso} — Fix 3 dedupe layer 1
+            "task_cooldown": {},         # {"agent::task_id": ts_iso} — Fix 3 layer 2
+            "rate_window": [],           # [ts_iso, ...] — Fix 3 layer 3
+        }
     try:
-        return json.loads(CURSOR_FILE.read_text())
+        s = json.loads(CURSOR_FILE.read_text())
+        s.setdefault("seen_content_hashes", {})
+        s.setdefault("task_cooldown", {})
+        s.setdefault("rate_window", [])
+        return s
     except Exception:
-        return {"last_seen_ts": None, "last_seen_id": None, "seen_ids": []}
+        return {
+            "last_seen_ts": None, "last_seen_id": None, "seen_ids": [],
+            "seen_content_hashes": {}, "task_cooldown": {}, "rate_window": [],
+        }
 
 
 def _save_cursor(state: dict) -> None:
     STATE_DIR.mkdir(parents=True, exist_ok=True)
     state["seen_ids"] = (state.get("seen_ids") or [])[-200:]
-    CURSOR_FILE.write_text(json.dumps(state, indent=2))
+    # Prune content hashes older than 1 hour
+    now = datetime.now(tz=timezone.utc)
+    cutoff_iso = (now - timedelta(hours=1)).isoformat()
+    state["seen_content_hashes"] = {
+        h: ts for h, ts in (state.get("seen_content_hashes") or {}).items()
+        if ts > cutoff_iso
+    }
+    # Prune cooldowns older than 1 hour
+    state["task_cooldown"] = {
+        k: ts for k, ts in (state.get("task_cooldown") or {}).items()
+        if ts > cutoff_iso
+    }
+    # Prune rate window to last 60s
+    rate_cutoff_iso = (now - timedelta(seconds=GLOBAL_RATE_WINDOW_S)).isoformat()
+    state["rate_window"] = [ts for ts in (state.get("rate_window") or []) if ts > rate_cutoff_iso]
+    # Atomic write with fsync
+    tmp = CURSOR_FILE.with_suffix(".json.tmp")
+    tmp.write_text(json.dumps(state, indent=2))
+    fd = os.open(str(tmp), os.O_RDONLY)
+    try:
+        os.fsync(fd)
+    finally:
+        os.close(fd)
+    os.replace(tmp, CURSOR_FILE)
+
+
+def _content_hash(decision: dict) -> str:
+    """Stable hash of decision content (text + first 3 tags + project_source).
+    Catches the case where Mercury emits the same fake completion under fresh
+    decision_ids every poll."""
+    text = (decision.get("text") or "").strip()[:500]
+    tags = sorted(str(t) for t in (decision.get("tags") or []))[:3]
+    src = decision.get("project_source") or ""
+    blob = f"{src}::{text}::{'|'.join(tags)}"
+    return hashlib.sha256(blob.encode("utf-8")).hexdigest()[:16]
+
+
+def _extract_task_id(decision: dict) -> str | None:
+    """Pull a CT-XXXX-XX from decision text or tags for cooldown bucketing."""
+    text = (decision.get("text") or "") + " " + (decision.get("rationale") or "")
+    m = TASK_ID_RE.search(text)
+    if m:
+        return m.group(0)
+    for t in (decision.get("tags") or []):
+        ts = str(t)
+        if ts.startswith("task:"):
+            tid = ts.split(":", 1)[1].upper()
+            if TASK_ID_RE.fullmatch(tid):
+                return tid
+    return None
+
+
+def _under_cooldown(state: dict, agent: str, task_id: str) -> bool:
+    if not task_id:
+        return False
+    key = f"{agent}::{task_id}"
+    last_ts = (state.get("task_cooldown") or {}).get(key)
+    if not last_ts:
+        return False
+    try:
+        last = datetime.fromisoformat(last_ts.replace("Z", "+00:00"))
+    except Exception:
+        return False
+    return (datetime.now(tz=timezone.utc) - last).total_seconds() < COOLDOWN_SECONDS
+
+
+def _record_cooldown(state: dict, agent: str, task_id: str) -> None:
+    if not task_id:
+        return
+    state.setdefault("task_cooldown", {})[f"{agent}::{task_id}"] = (
+        datetime.now(tz=timezone.utc).isoformat()
+    )
+
+
+def _rate_limited(state: dict) -> bool:
+    """Global last-line defense: max 6 notifications per 60s window."""
+    now = datetime.now(tz=timezone.utc)
+    cutoff = now - timedelta(seconds=GLOBAL_RATE_WINDOW_S)
+    cutoff_iso = cutoff.isoformat()
+    recent = [ts for ts in (state.get("rate_window") or []) if ts > cutoff_iso]
+    state["rate_window"] = recent
+    return len(recent) >= GLOBAL_RATE_MAX
+
+
+def _record_rate(state: dict) -> None:
+    state.setdefault("rate_window", []).append(datetime.now(tz=timezone.utc).isoformat())
 
 
 def _is_quiet_hours_now_eastern() -> bool:
@@ -223,20 +336,52 @@ def fetch_recent(count: int = 25) -> list[dict]:
 def drain_once() -> dict:
     state = _load_cursor()
     seen_ids = set(state.get("seen_ids") or [])
+    seen_hashes = state.get("seen_content_hashes") or {}
     decisions = fetch_recent(count=20)
     quiet = _is_quiet_hours_now_eastern()
-    out = {"scanned": len(decisions), "notified": 0, "p0": 0, "p1": 0, "p2": 0, "skipped_quiet": 0}
+    out = {
+        "scanned": len(decisions), "notified": 0,
+        "p0": 0, "p1": 0, "p2": 0,
+        "skipped_quiet": 0, "skipped_dup_id": 0, "skipped_dup_content": 0,
+        "skipped_cooldown": 0, "skipped_rate_limit": 0,
+    }
     for d in decisions:
         did = d.get("id") or d.get("decision_id") or (d.get("created_at", "") + d.get("text", "")[:40])
+        # Layer 0: decision_id seen
         if did in seen_ids:
+            out["skipped_dup_id"] += 1
             continue
         if not is_interesting(d):
             seen_ids.add(did)
+            continue
+        # Fix 3 Layer 1: content-hash dedupe (catches Mercury re-emitting same
+        # text under fresh decision_ids every poll)
+        chash = _content_hash(d)
+        if chash in seen_hashes:
+            out["skipped_dup_content"] += 1
+            seen_ids.add(did)
+            _log(f"DEDUPE_CONTENT did={str(did)[:20]} hash={chash} (already notified for same content)")
+            continue
+        # Fix 3 Layer 2: per-(agent, task_id) cooldown
+        agent = d.get("project_source") or "unknown"
+        task_id = _extract_task_id(d) or ""
+        if _under_cooldown(state, agent, task_id):
+            out["skipped_cooldown"] += 1
+            seen_ids.add(did)
+            seen_hashes[chash] = datetime.now(tz=timezone.utc).isoformat()
+            _log(f"COOLDOWN agent={agent} task={task_id} did={str(did)[:20]} (5-min window)")
             continue
         priority = classify_priority(d)
         if quiet and priority != "P0":
             out["skipped_quiet"] += 1
             seen_ids.add(did)
+            seen_hashes[chash] = datetime.now(tz=timezone.utc).isoformat()
+            continue
+        # Fix 3 Layer 3: global rate limit (last-line defense)
+        if _rate_limited(state):
+            out["skipped_rate_limit"] += 1
+            _log(f"RATE_LIMITED did={str(did)[:20]} ({GLOBAL_RATE_MAX}/{GLOBAL_RATE_WINDOW_S}s exceeded)")
+            # Don't mark seen — try again next poll when window clears
             continue
         path = write_inbox_entry(d, priority)
         title = f"{priority}: Hercules"
@@ -248,8 +393,12 @@ def drain_once() -> dict:
         out["notified"] += 1
         out[priority.lower()] = out.get(priority.lower(), 0) + 1
         seen_ids.add(did)
+        seen_hashes[chash] = datetime.now(tz=timezone.utc).isoformat()
+        _record_cooldown(state, agent, task_id)
+        _record_rate(state)
         _log(f"NOTIFIED {priority} → {path.name}")
     state["seen_ids"] = list(seen_ids)
+    state["seen_content_hashes"] = seen_hashes
     state["last_poll_ts"] = datetime.now(tz=timezone.utc).isoformat()
     _save_cursor(state)
     return out

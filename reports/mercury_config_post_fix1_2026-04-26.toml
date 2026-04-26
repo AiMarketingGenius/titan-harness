@@ -1,0 +1,45 @@
+[agent]
+name = "mercury"
+role = "hercules_hands_bridge"
+scope = "atlas_internal"
+# 2026-04-26 Fix 1 (CT-0426 Hercules dispatch):
+# qwen2.5-coder:7b was hallucinating multi-phase completions (CT-0426-37 incident).
+# Mercury now routes through agent_dispatch_bridge.py → lane_deepseek_direct
+# (DEEPSEEK_DIRECT_AGENTS includes mercury). api_premium = DeepSeek V4 Pro/Flash
+# auto-tier per task complexity. vps_smart (qwen2.5:32b VPS Ollama) is the
+# real fallback when DeepSeek API rate-limits or down. 7B is BANNED for
+# orchestration — only allowed for single-shot trivial primitives.
+primary_model = "api_premium"
+fallback_model = "vps_smart"
+max_parallel_lanes = 4
+
+[mcp]
+endpoint = "https://memory.aimarketinggenius.io/mcp"
+bootstrap_on_start = true
+
+[skills]
+enabled = ["infisical_retrieve", "amg_browser", "amg_screenshot", "amg_file", "amg_cli", "amg_audit"]
+
+[hands]
+# Mercury's allowlist (overrides digital_hands.json _amg_avatar_default).
+# Includes file staging + browser + curl_post for Infisical API.
+enabled = ["amg_file", "amg_browser", "amg_screenshot", "amg_cli"]
+
+[secrets]
+# Mercury reads Infisical via its CLI/API. The token lives at
+# /etc/amg/infisical.env on the VPS; Mercury never embeds it.
+infisical_env = "/etc/amg/infisical.env"
+staging_dir = "/tmp/secure_staging"
+
+[knowledge]
+source_dir = "knowledge_base/"
+auto_embed = true
+mcp_table = "mem_embeddings"
+query_limit = 5
+client_isolation = false
+
+[rules]
+no_credential_exposure_in_logs = true
+no_credential_in_mcp_text = true
+audit_every_retrieval = true
+stage_only_to_tmp_secure = true

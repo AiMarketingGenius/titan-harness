@@ -80,7 +80,10 @@ RESEARCH_AGENTS = {
 }
 GOOGLE_AGENTS = {"atlas_research_gemini", "amg_nadia_researcher"}
 # Direct DeepSeek API (skip OpenRouter markup — Solon has $50 topped at api.deepseek.com)
-DEEPSEEK_DIRECT_AGENTS = {"daedalus", "atlas_judge_deepseek"}
+# Mercury added 2026-04-26 per CT-0426 Fix 1 — qwen2.5-coder:7b was hallucinating
+# orchestration completions. V4 Pro for multi-phase/premium, V4 Flash routine.
+# Local Qwen 32B is the no-API-key fallback in lane_deepseek_direct itself.
+DEEPSEEK_DIRECT_AGENTS = {"daedalus", "atlas_judge_deepseek", "mercury"}
 # FREE fleet-wide browser-takeover via browser-use + local R1 32B (zero $ cost)
 BROWSER_TAKEOVER_AGENTS = {"mercury", "daedalus", "archimedes", "atlas_titan", "atlas_odysseus"}
 # Premium fallback via OpenRouter (only when DeepSeek direct unavailable)
@@ -578,12 +581,21 @@ def dispatch_task(task: dict, dry: bool = False) -> dict:
         result = lane_gemini(agent, prompt)
     elif lane == "api_deepseek_direct":
         # DeepSeek direct — V4 Flash default; if task tags include 'premium' or
-        # context length suggests heavy reasoning, escalate to V4 Pro
+        # context length suggests heavy reasoning, escalate to V4 Pro.
+        # Mercury orchestration tasks (multi-phase, multi-agent-coordinated, or
+        # any explicit "phase" instructions) auto-promote to V4 Pro.
         notes = (task.get("notes") or "").lower()
         tags = [str(t).lower() for t in (task.get("tags") or [])]
-        prefer_pro = ("premium" in notes or "premium" in tags
-                      or "architecture" in notes or "v4-pro" in tags
-                      or len(prompt) > 3000)
+        instr = (task.get("instructions") or "").lower()
+        prefer_pro = (
+            "premium" in notes or "premium" in tags
+            or "architecture" in notes or "v4-pro" in tags
+            or len(prompt) > 3000
+            or "multi-agent-coordinated" in tags
+            or "final-debug" in tags
+            or "phase 1" in instr or "phase 2" in instr or "phase 3" in instr
+            or "orchestrat" in instr
+        )
         model = "deepseek-v4-pro" if prefer_pro else "deepseek-v4-flash"
         result = lane_deepseek_direct(agent, prompt, model=model)
     elif lane == "browser_takeover":
