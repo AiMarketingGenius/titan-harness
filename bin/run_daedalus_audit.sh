@@ -1,0 +1,223 @@
+#!/usr/bin/env bash
+# run_daedalus_audit.sh — wrap Daedalus (DeepSeek V4 Pro) with file-read access.
+#
+# DeepSeek V4 Pro API is one-shot chat-completion — no native tool-use loop,
+# no file system access. The bridge's lane_deepseek_direct() just sends a
+# prompt and gets a response. For Daedalus to audit real files, we have to
+# pre-read them and embed the contents in the prompt.
+#
+# This script does that: takes a directory, reads all relevant files,
+# concatenates them with file headers, sends the bundle to V4 Pro with the
+# Daedalus audit instructions, writes the response to a report file.
+#
+# Usage:
+#   run_daedalus_audit.sh \
+#       --target-dir /Users/solonzafiropoulos1/achilles-harness/deploy/aimg-extension-fixes \
+#       --output /Users/solonzafiropoulos1/titan-harness/reports/aimg_daedalus_audit_2026-04-26.md \
+#       --task-context "AIMG Phase 1 audit per CT-0426-44"
+#
+# Exits 0 on clean audit, 1 on API/file errors, 2 on hallucination flag.
+
+set -e
+TARGET_DIR=""
+OUTPUT=""
+TASK_CONTEXT="Generic code audit"
+MAX_FILE_BYTES=15000        # cap each file embed at 15KB
+MAX_TOTAL_BYTES=200000      # cap total prompt at 200KB (~50K tokens)
+
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        --target-dir) TARGET_DIR="$2"; shift 2 ;;
+        --output) OUTPUT="$2"; shift 2 ;;
+        --task-context) TASK_CONTEXT="$2"; shift 2 ;;
+        *) echo "unknown arg: $1" >&2; exit 1 ;;
+    esac
+done
+
+if [[ -z "$TARGET_DIR" || -z "$OUTPUT" ]]; then
+    echo "usage: $0 --target-dir <dir> --output <path> [--task-context '<ctx>']" >&2
+    exit 1
+fi
+
+if [[ ! -d "$TARGET_DIR" ]]; then
+    echo "ERROR: target-dir not found: $TARGET_DIR" >&2
+    exit 1
+fi
+
+# Pull the DeepSeek API key from VPS
+KEY=$(ssh -o ConnectTimeout=5 amg-staging "grep '^DEEPSEEK_API_KEY=' /etc/amg/deepseek.env | cut -d= -f2-" 2>/dev/null)
+if [[ -z "$KEY" ]]; then
+    echo "ERROR: could not retrieve DEEPSEEK_API_KEY from VPS /etc/amg/deepseek.env" >&2
+    exit 1
+fi
+
+# Build the file bundle
+BUNDLE_FILE=$(mktemp /tmp/daedalus_bundle.XXXXXX)
+TOTAL=0
+echo "# Daedalus audit input bundle" > "$BUNDLE_FILE"
+echo "# Target dir: $TARGET_DIR" >> "$BUNDLE_FILE"
+echo "# Generated: $(date -u +%Y-%m-%dT%H:%M:%SZ)" >> "$BUNDLE_FILE"
+echo >> "$BUNDLE_FILE"
+
+# Find code/config files to audit (ignore icons/, test-harness/, ui/css)
+FILES=$(find "$TARGET_DIR" -maxdepth 2 -type f \
+    \( -name '*.js' -o -name '*.json' -o -name '*.html' \) \
+    ! -path '*/icons/*' ! -path '*/test-harness/*' \
+    | sort)
+
+for f in $FILES; do
+    SIZE=$(wc -c <"$f" | tr -d ' ')
+    if [[ $TOTAL -gt $MAX_TOTAL_BYTES ]]; then
+        echo "## SKIPPED (bundle full): $f ($SIZE B)" >> "$BUNDLE_FILE"
+        continue
+    fi
+    REL="${f#$TARGET_DIR/}"
+    echo >> "$BUNDLE_FILE"
+    echo "═══════════════════════════════════════════════════════════" >> "$BUNDLE_FILE"
+    echo "FILE: $REL ($SIZE B)" >> "$BUNDLE_FILE"
+    echo "═══════════════════════════════════════════════════════════" >> "$BUNDLE_FILE"
+    head -c "$MAX_FILE_BYTES" "$f" >> "$BUNDLE_FILE"
+    if [[ $SIZE -gt $MAX_FILE_BYTES ]]; then
+        echo "" >> "$BUNDLE_FILE"
+        echo "[TRUNCATED at $MAX_FILE_BYTES B of $SIZE B]" >> "$BUNDLE_FILE"
+    fi
+    TOTAL=$((TOTAL + SIZE))
+done
+echo >> "$BUNDLE_FILE"
+echo "# Bundle complete. Total bytes embedded: $TOTAL" >> "$BUNDLE_FILE"
+
+BUNDLE_BYTES=$(wc -c <"$BUNDLE_FILE" | tr -d ' ')
+echo "[INFO] Built bundle: $BUNDLE_BYTES B from $(echo "$FILES" | wc -l | tr -d ' ') files" >&2
+
+# Build the prompt
+PROMPT_FILE=$(mktemp /tmp/daedalus_prompt.XXXXXX)
+cat > "$PROMPT_FILE" <<EOF
+ROLE: You are Daedalus, AMG factory's code auditor backed by DeepSeek V4 Pro.
+You have been provided the FULL CONTENTS of every code file in the target
+directory below. You do NOT need to imagine what files might contain — they
+are already embedded.
+
+TASK CONTEXT: $TASK_CONTEXT
+
+INSTRUCTIONS:
+Audit every file in the bundle below for defects. Focus on:
+(a) Manifest V3 + Chrome 147 packaging (manifest_version=3, host_permissions
+    formatted correctly, service_worker registered, no MV2 deprecated APIs).
+(b) Service worker lifecycle (event listeners on chrome.runtime.onInstalled
+    + onStartup, persistent state via chrome.storage.local NOT in-memory,
+    no top-level await, MV3 30s idle timeout handled).
+(c) Cross-LLM DOM injection — for each platform script (chatgpt.js,
+    claude.js, gemini.js, grok.js, perplexity.js), check selectors target
+    the correct input element, MutationObserver is scoped properly, no host
+    page state corruption.
+(d) IndexedDB / chrome.storage persistence + Einstein backend round-trip
+    (https://memory.aimarketinggenius.io/aimg-einstein/*).
+(e) Popup UX (popup.html loads, settings render, errors visible).
+
+OUTPUT FORMAT — produce a SINGLE markdown report with this exact structure
+(use these literal headers):
+
+# AIMG Daedalus Audit $(date -u +%Y-%m-%d)
+
+Generated by: Daedalus (DeepSeek V4 Pro via run_daedalus_audit.sh)
+Target dir: $TARGET_DIR
+Files audited: <count>
+Bundle bytes: $BUNDLE_BYTES
+
+## CRITICAL defects (P0 — extension unshippable until fixed)
+- [filename:line-number] description + recommended fix
+
+## IMPORTANT defects (P1 — degrades user experience)
+- [filename:line-number] description + recommended fix
+
+## MINOR defects (P2 — polish)
+- [filename:line-number] description + recommended fix
+
+## VERIFIED clean
+- <list of files with no defects>
+
+## Recommended Phase 2 dispatch order
+<which fixes Mercury should apply first, why, estimated complexity>
+
+## Executive summary (1 paragraph)
+<honest assessment: is the extension shippable as-is, or does it need
+significant work? What's the single biggest risk?>
+
+═══════════════════════════════════════════════════════════
+BUNDLE — file contents to audit
+═══════════════════════════════════════════════════════════
+
+$(cat "$BUNDLE_FILE")
+EOF
+
+# Build JSON request safely
+PAYLOAD=$(python3 -c "
+import json, sys
+prompt = open('$PROMPT_FILE').read()
+body = {
+    'model': 'deepseek-v4-pro',
+    'messages': [
+        {'role': 'system', 'content': 'You are Daedalus, AMG code auditor. Audit the provided file bundle thoroughly. Be specific about file:line for every defect. Do NOT fabricate file contents — if you do not see something in the bundle, do not claim defects about it.'},
+        {'role': 'user', 'content': prompt},
+    ],
+    'max_tokens': 8192,
+}
+print(json.dumps(body))
+")
+
+echo "[INFO] Calling DeepSeek V4 Pro (~$1-3 spend, ~60-120s latency)..." >&2
+TS_START=$(date +%s)
+RESPONSE=$(curl -sS -X POST "https://api.deepseek.com/v1/chat/completions" \
+    -H "Authorization: Bearer $KEY" \
+    -H "Content-Type: application/json" \
+    --data "$PAYLOAD" \
+    --max-time 300)
+TS_END=$(date +%s)
+LATENCY=$((TS_END - TS_START))
+echo "[INFO] Returned in ${LATENCY}s" >&2
+
+# Extract content + write report
+mkdir -p "$(dirname "$OUTPUT")"
+python3 -c "
+import json, sys, datetime
+r = json.loads('''$RESPONSE'''.replace('\n', '\\\\n'))
+" 2>/dev/null || true
+
+python3 <<PYEOF
+import json, sys
+try:
+    r = json.loads(open('/dev/stdin').read())
+except Exception as e:
+    print(f'JSON parse error: {e!r}', file=sys.stderr)
+    sys.exit(1)
+choices = r.get('choices') or []
+if not choices:
+    print(f'No choices in response: {r}', file=sys.stderr)
+    sys.exit(1)
+content = (choices[0].get('message') or {}).get('content') or ''
+if not content.strip():
+    rc = (choices[0].get('message') or {}).get('reasoning_content') or ''
+    print(f'WARN: empty content, reasoning_content len={len(rc)}', file=sys.stderr)
+usage = r.get('usage') or {}
+header = (
+    f'<!-- daedalus audit via run_daedalus_audit.sh -->\n'
+    f'<!-- model={r.get("model")} latency_s=${LATENCY} -->\n'
+    f'<!-- usage in={usage.get("prompt_tokens")} out={usage.get("completion_tokens")} reasoning={usage.get("completion_tokens_details", {}).get("reasoning_tokens", "n/a")} -->\n\n'
+)
+open('$OUTPUT', 'w').write(header + content)
+print(f'[INFO] Wrote {len(header + content)} bytes to $OUTPUT', file=sys.stderr)
+PYEOF
+<<< "$RESPONSE"
+
+# Cleanup
+rm -f "$BUNDLE_FILE" "$PROMPT_FILE"
+
+if [[ -s "$OUTPUT" ]]; then
+    echo "[OK] Audit written to: $OUTPUT ($(wc -c <"$OUTPUT" | tr -d ' ') B)"
+    echo "[OK] First 30 lines:"
+    head -30 "$OUTPUT"
+    exit 0
+else
+    echo "[FAIL] Empty output file" >&2
+    exit 1
+fi

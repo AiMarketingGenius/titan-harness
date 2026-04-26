@@ -1,0 +1,279 @@
+#!/usr/bin/env python3
+"""
+run_daedalus_audit.py — clean Python wrapper for Daedalus (DeepSeek V4 Pro)
+file-bundle audits.
+
+Replaces the brittle bash version. Reads files, builds bundle, calls
+DeepSeek V4 Pro, parses response, writes report. All-Python so JSON
+escaping is handled correctly.
+
+Usage:
+    run_daedalus_audit.py \
+        --target-dir /Users/solonzafiropoulos1/achilles-harness/deploy/aimg-extension-fixes \
+        --output    /Users/solonzafiropoulos1/titan-harness/reports/aimg_daedalus_audit_2026-04-26.md \
+        --task      "AIMG Phase 1 audit — find defects blocking persistent memory ship"
+"""
+from __future__ import annotations
+
+import argparse
+import json
+import pathlib
+import subprocess
+import sys
+import time
+import urllib.error
+import urllib.request
+from datetime import datetime, timezone
+
+DEEPSEEK_ENDPOINT = "https://api.deepseek.com/v1/chat/completions"
+SSH_HOST = "amg-staging"
+MAX_FILE_BYTES = 15000
+MAX_TOTAL_BYTES = 200000
+INCLUDED_EXTENSIONS = {".js", ".json", ".html"}
+EXCLUDED_PATH_PARTS = {"icons", "test-harness", "node_modules", ".git"}
+
+
+def _resolve_api_key() -> str:
+    """Pull DEEPSEEK_API_KEY from VPS /etc/amg/deepseek.env."""
+    out = subprocess.run(
+        ["ssh", "-o", "ConnectTimeout=8", SSH_HOST,
+         "grep '^DEEPSEEK_API_KEY=' /etc/amg/deepseek.env | cut -d= -f2-"],
+        capture_output=True, text=True, timeout=15,
+    )
+    if out.returncode != 0:
+        raise SystemExit(f"could not read DEEPSEEK_API_KEY from VPS: {out.stderr}")
+    key = out.stdout.strip()
+    if not key:
+        raise SystemExit("DEEPSEEK_API_KEY empty on VPS")
+    return key
+
+
+def _gather_files(target_dir: pathlib.Path) -> list[pathlib.Path]:
+    files: list[pathlib.Path] = []
+    for p in sorted(target_dir.rglob("*")):
+        if not p.is_file():
+            continue
+        if p.suffix not in INCLUDED_EXTENSIONS:
+            continue
+        if any(part in EXCLUDED_PATH_PARTS for part in p.relative_to(target_dir).parts):
+            continue
+        files.append(p)
+    return files
+
+
+def _build_bundle(target_dir: pathlib.Path, files: list[pathlib.Path]) -> tuple[str, int]:
+    chunks = [f"# Daedalus audit input bundle",
+              f"# Target dir: {target_dir}",
+              f"# Generated: {datetime.now(tz=timezone.utc).isoformat()}",
+              f"# Files in bundle: {len(files)}",
+              ""]
+    total = 0
+    skipped = 0
+    for f in files:
+        size = f.stat().st_size
+        if total > MAX_TOTAL_BYTES:
+            skipped += 1
+            chunks.append(f"## SKIPPED (bundle full): {f.relative_to(target_dir)} ({size} B)")
+            continue
+        try:
+            text = f.read_text(encoding="utf-8", errors="replace")[:MAX_FILE_BYTES]
+        except Exception as e:
+            chunks.append(f"## SKIPPED (read error): {f.relative_to(target_dir)} ({e!r})")
+            continue
+        chunks.append("")
+        chunks.append("=" * 60)
+        chunks.append(f"FILE: {f.relative_to(target_dir)} ({size} B)")
+        chunks.append("=" * 60)
+        chunks.append(text)
+        if size > MAX_FILE_BYTES:
+            chunks.append(f"[TRUNCATED at {MAX_FILE_BYTES} B of {size} B]")
+        total += min(size, MAX_FILE_BYTES)
+    chunks.append("")
+    chunks.append(f"# Bundle complete. Total bytes: {total}. Files included: {len(files) - skipped}/{len(files)}.")
+    return "\n".join(chunks), total
+
+
+def _build_prompt(task: str, target_dir: pathlib.Path, bundle: str) -> str:
+    return f"""ROLE: You are Daedalus, AMG factory's code auditor backed by DeepSeek V4 Pro.
+You have been provided the FULL CONTENTS of every code file in the target
+directory below. You do NOT need to imagine what files might contain — they
+are already embedded.
+
+TASK: {task}
+
+TARGET DIRECTORY: {target_dir}
+
+INSTRUCTIONS:
+Audit every file in the bundle below for defects. Focus areas:
+
+(a) Manifest V3 + Chrome 147 packaging — manifest_version=3, host_permissions
+    correct, service_worker registered, no MV2 deprecated APIs (background.scripts,
+    browser_action, persistent=true).
+
+(b) Service worker lifecycle — event listeners on chrome.runtime.onInstalled +
+    onStartup, persistent state via chrome.storage.local NOT in-memory globals,
+    no top-level await, MV3 30s idle timeout handled.
+
+(c) Cross-LLM DOM injection — for each platform script (chatgpt.js, claude.js,
+    gemini.js, grok.js, perplexity.js), check selectors target the correct
+    input element, MutationObserver scoped properly, no host page state corruption.
+
+(d) IndexedDB / chrome.storage persistence + Einstein backend round-trip
+    (memory.aimarketinggenius.io endpoint, auth headers, retry logic).
+
+(e) Popup UX — popup.html loads cleanly, settings render, error states visible.
+
+OUTPUT FORMAT — produce a SINGLE markdown report with this exact structure
+(use these literal headers):
+
+# AIMG Daedalus Audit {datetime.now(tz=timezone.utc).strftime('%Y-%m-%d')}
+
+Generated by: Daedalus (DeepSeek V4 Pro via run_daedalus_audit.py)
+Files audited: <count>
+
+## CRITICAL defects (P0 — extension unshippable until fixed)
+- [filename:line-number] description + recommended fix
+
+## IMPORTANT defects (P1 — degrades UX)
+- [filename:line-number] description + recommended fix
+
+## MINOR defects (P2 — polish)
+- [filename:line-number] description + recommended fix
+
+## VERIFIED clean
+- <list of files with no defects>
+
+## Recommended Phase 2 dispatch order
+<which fixes Mercury should apply first, why, estimated complexity>
+
+## Executive summary (1 paragraph)
+<honest assessment: shippable as-is, or significant work needed? What's
+the single biggest risk?>
+
+==========================================================
+BUNDLE — file contents to audit
+==========================================================
+
+{bundle}
+"""
+
+
+def _call_deepseek(api_key: str, prompt: str) -> dict:
+    body = {
+        "model": "deepseek-v4-pro",
+        "messages": [
+            {"role": "system",
+             "content": (
+                 "You are Daedalus, AMG code auditor. Audit the provided file "
+                 "bundle thoroughly. Be specific about file:line for every defect. "
+                 "Do NOT fabricate file contents — if you don't see something in "
+                 "the bundle, do not claim defects about it. If a defect category "
+                 "has no findings, write 'None found.' under that header. "
+                 "Output ONLY the markdown report, no preamble."
+             )},
+            {"role": "user", "content": prompt},
+        ],
+        "max_tokens": 8192,
+    }
+    req = urllib.request.Request(
+        DEEPSEEK_ENDPOINT,
+        data=json.dumps(body).encode("utf-8"),
+        headers={
+            "Authorization": f"Bearer {api_key}",
+            "Content-Type": "application/json",
+        },
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=300) as r:
+            return json.loads(r.read())
+    except urllib.error.HTTPError as e:
+        raise SystemExit(f"DeepSeek HTTP {e.code}: {e.read()[:500].decode('utf-8', errors='replace')}")
+
+
+def main() -> int:
+    p = argparse.ArgumentParser()
+    p.add_argument("--target-dir", required=True)
+    p.add_argument("--output", required=True)
+    p.add_argument("--task", default="Code audit")
+    args = p.parse_args()
+
+    target = pathlib.Path(args.target_dir).expanduser().resolve()
+    out = pathlib.Path(args.output).expanduser()
+    if not target.is_dir():
+        raise SystemExit(f"target dir not found: {target}")
+    out.parent.mkdir(parents=True, exist_ok=True)
+
+    print(f"[INFO] Gathering files from {target}", file=sys.stderr)
+    files = _gather_files(target)
+    print(f"[INFO] Found {len(files)} files", file=sys.stderr)
+
+    bundle, total = _build_bundle(target, files)
+    print(f"[INFO] Bundle: {len(bundle)} chars, {total} bundled bytes", file=sys.stderr)
+
+    prompt = _build_prompt(args.task, target, bundle)
+    print(f"[INFO] Prompt: {len(prompt)} chars (~{len(prompt)//4} tokens)", file=sys.stderr)
+
+    api_key = _resolve_api_key()
+    print(f"[INFO] Calling DeepSeek V4 Pro (cost ~${(len(prompt)/4 * 0.27 / 1_000_000) + (8000 * 1.10 / 1_000_000):.3f}, ~60-180s latency)...", file=sys.stderr)
+
+    t0 = time.time()
+    response = _call_deepseek(api_key, prompt)
+    latency = time.time() - t0
+    print(f"[INFO] Response in {latency:.1f}s", file=sys.stderr)
+
+    choices = response.get("choices") or []
+    if not choices:
+        raise SystemExit(f"empty choices: {response}")
+    msg = choices[0].get("message") or {}
+    content = msg.get("content") or ""
+    reasoning = msg.get("reasoning_content") or ""
+    usage = response.get("usage") or {}
+
+    if not content.strip():
+        # V4 Pro burned all tokens reasoning, no actual answer
+        print(f"[WARN] empty content, reasoning={len(reasoning)} chars", file=sys.stderr)
+        # Fall back: write the reasoning_content as a partial result
+        content = (
+            "# AIMG Daedalus Audit (PARTIAL)\n\n"
+            "**Status:** V4 Pro consumed all output tokens on internal reasoning; "
+            "no final report produced. Reasoning content below for debugging:\n\n"
+            "```\n" + reasoning[:6000] + "\n```\n"
+        )
+
+    header = (
+        f"<!-- daedalus audit via run_daedalus_audit.py -->\n"
+        f"<!-- model={response.get('model')} latency_s={latency:.1f} -->\n"
+        f"<!-- usage in={usage.get('prompt_tokens')} out={usage.get('completion_tokens')} "
+        f"reasoning={(usage.get('completion_tokens_details') or {}).get('reasoning_tokens', 'n/a')} -->\n"
+        f"<!-- cost_usd_est={(usage.get('prompt_tokens', 0) * 0.27 / 1_000_000) + (usage.get('completion_tokens', 0) * 1.10 / 1_000_000):.4f} -->\n"
+        f"<!-- target={target} -->\n\n"
+    )
+    out.write_text(header + content, encoding="utf-8")
+    print(f"[OK] Wrote {len(header + content)} bytes to {out}", file=sys.stderr)
+
+    # Log to MCP for daemon awareness + Aletheia verification
+    try:
+        sys.path.insert(0, str(pathlib.Path.home() / "titan-harness" / "lib"))
+        from mcp_rest_client import log_decision
+        log_decision(
+            text=f"Daedalus audit complete: {out.name}, {len(content)}B output, {latency:.0f}s, ${(usage.get('prompt_tokens', 0) * 0.27 / 1_000_000) + (usage.get('completion_tokens', 0) * 1.10 / 1_000_000):.4f}",
+            rationale=(
+                f"Audit target: {target}\n"
+                f"Files in bundle: {len(files)} ({total}B)\n"
+                f"Output report: {out}\n"
+                f"Tokens: in={usage.get('prompt_tokens')} out={usage.get('completion_tokens')} "
+                f"reasoning={(usage.get('completion_tokens_details') or {}).get('reasoning_tokens', 'n/a')}\n"
+                f"First 800 chars of report:\n{content[:800]}"
+            ),
+            tags=["aimg-daedalus-audit-complete", "phase-1-of-5", "v4-pro",
+                  "agent:daedalus", f"task:{args.task[:50]}"],
+            project_source="titan",
+        )
+    except Exception as e:
+        print(f"[WARN] MCP log_decision failed: {e!r}", file=sys.stderr)
+
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

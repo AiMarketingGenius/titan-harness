@@ -470,7 +470,10 @@ def lane_deepseek_direct(agent: str, prompt: str, model: str = "deepseek-v4-flas
              "content": f"You are {agent}, an AMG specialist agent. Be concise and proof-oriented."},
             {"role": "user", "content": prompt},
         ],
-        "max_tokens": 2048,
+        # V4 Pro is a reasoner model — burns 1500-3000 tokens on internal
+        # reasoning before producing answer. 8192 leaves ~5000 for actual output.
+        # V4 Flash doesn't reason internally, but generous cap is harmless.
+        "max_tokens": 8192,
     }
     req = urllib.request.Request(
         "https://api.deepseek.com/v1/chat/completions",
