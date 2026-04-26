@@ -132,10 +132,23 @@ def _recent_inbox(n: int = 5) -> list[str]:
     return [f"{p.name} ({p.stat().st_size}B)" for p in files]
 
 
+def _latest_conversation_snapshot(decisions: list[dict]) -> dict | None:
+    """Find the most recent decision tagged hercules-conversation-snapshot.
+    The bootstrap brief surfaces this so a freshly-restarted Hercules tab
+    knows what was being discussed before the previous powerdown."""
+    for d in decisions:
+        tags = {str(t).lower() for t in (d.get("tags") or [])}
+        if "hercules-conversation-snapshot" in tags:
+            return d
+    return None
+
+
 def build_brief() -> str:
     now = datetime.now(tz=timezone.utc).isoformat()
-    # Fetch MCP state (best-effort, ignore failures)
-    code_d, body_d = mcp_get_recent(count=15)
+    # Fetch MCP state (best-effort, ignore failures). Pull more decisions
+    # so we can find the latest hercules-conversation-snapshot even if it's
+    # not in the top-15.
+    code_d, body_d = mcp_get_recent(count=20)
     decisions = body_d.get("decisions") or [] if code_d == 200 else []
     code_s, sprint = mcp_get_sprint(project_id="EOM")
     sprint = sprint if code_s == 200 else {}
@@ -143,6 +156,7 @@ def build_brief() -> str:
     pending = (body_q.get("tasks") or []) if code_q == 200 else []
     code_a, body_a = mcp_get_task_queue(status="approved", limit=10)
     approved = (body_a.get("tasks") or []) if code_a == 200 else []
+    snapshot = _latest_conversation_snapshot(decisions)
 
     # Daemon health
     daemons = _daemon_health()
@@ -185,6 +199,26 @@ def build_brief() -> str:
 
     cost = _cost_today_kimi()
     inbox_recent = _recent_inbox(5)
+
+    # Conversation snapshot block (only if a recent powerdown exists)
+    snapshot_block = ""
+    if snapshot:
+        snap_ts = snapshot.get("created_at") or "?"
+        # Pull the actual snapshot text from rationale (where powerdown puts it)
+        rationale = snapshot.get("rationale") or ""
+        if "--- snapshot ---" in rationale:
+            snap_text = rationale.split("--- snapshot ---", 1)[1].strip()
+        else:
+            snap_text = (snapshot.get("text") or "")
+        snap_text = snap_text[:3000]  # cap so brief stays paste-friendly
+        snapshot_block = (
+            f"\n## Last conversation snapshot (from previous powerdown)\n\n"
+            f"**Logged:** {snap_ts}\n\n"
+            f"```\n{snap_text}\n```\n\n"
+            f"On hydration, acknowledge this snapshot in your one-line greeting "
+            f"(e.g., 'Online. Resuming from snapshot at <ts>.') and continue "
+            f"the conversation from where it left off.\n"
+        )
 
     return f"""# HERCULES BOOTSTRAP BRIEF
 **Generated:** {now}
@@ -319,6 +353,38 @@ rejects phantom agents at queue time — check the agent name before dispatching
 - `~/titan-harness/plans/DOCTRINE_GREEK_CODENAMES.md` — naming
 - `~/titan-harness/plans/DOCTRINE_AMG_PRICING_GUARDRAIL.md` — pricing floors
 - All docs under `/opt/amg-docs/doctrines/` on VPS
+{snapshot_block}
+---
+
+## Powerdown protocol (when Solon says "power down" / "shutdown" / "power off")
+
+When Solon issues any of those phrases, respond with EXACTLY this format —
+nothing before, nothing after:
+
+```
+SNAPSHOT:
+<one-paragraph summary of what we discussed this session>
+
+Decisions made:
+- <decision 1>
+- <decision 2>
+
+Open loops to resume on:
+- <open loop 1>
+- <open loop 2>
+
+What Solon should do first when he restarts:
+<single concrete next action>
+
+Run: pbpaste | python3 ~/titan-harness/scripts/hercules_powerdown.py
+
+Powered down. Snapshot ready to log. Wake anytime by pasting a fresh bootstrap brief.
+```
+
+Solon copies the SNAPSHOT block, runs the command (or clicks the Hammerspoon
+shortcut), and the snapshot logs to MCP. Next time he opens a Kimi tab and
+pastes a fresh bootstrap brief, the "Last conversation snapshot" section will
+contain that snapshot — you (the new Hercules) read it and resume from there.
 
 ---
 
@@ -326,7 +392,7 @@ rejects phantom agents at queue time — check the agent name before dispatching
 
 When Solon pastes this brief, respond with exactly ONE line in this format:
 
-> Hercules online, hydrated as of {datetime.now(tz=timezone.utc).strftime("%H:%M Z")}. Daemon PID alive, queue depth {len(pending) + len(approved)}, today's cost ${cost:.4f}. Ready.
+> Hercules online, hydrated as of {datetime.now(tz=timezone.utc).strftime("%H:%M Z")}. {('Resuming from snapshot at ' + (snapshot.get('created_at', '?')[:19] + 'Z') + '.') if snapshot else 'Fresh session.'} Daemon PID alive, queue depth {len(pending) + len(approved)}, today's cost ${cost:.4f}. Ready.
 
 Then wait for Solon's directive. Do not narrate further.
 """
