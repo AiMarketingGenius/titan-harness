@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.amg.hercules-dispatch-receiver</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>/opt/homebrew/bin/python3</string>
+        <string>/Users/solonzafiropoulos1/titan-harness/scripts/hercules_dispatch_receiver.py</string>
+        <string>--port</string>
+        <string>5680</string>
+        <string>--bind</string>
+        <string>127.0.0.1</string>
+    </array>
+    <key>RunAtLoad</key>
+    <true/>
+    <key>KeepAlive</key>
+    <true/>
+    <key>ThrottleInterval</key>
+    <integer>10</integer>
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>PATH</key>
+        <string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin</string>
+    </dict>
+    <key>StandardOutPath</key>
+    <string>/Users/solonzafiropoulos1/.openclaw/logs/hercules_dispatch_receiver.out.log</string>
+    <key>StandardErrorPath</key>
+    <string>/Users/solonzafiropoulos1/.openclaw/logs/hercules_dispatch_receiver.err.log</string>
+    <key>WorkingDirectory</key>
+    <string>/Users/solonzafiropoulos1/titan-harness</string>
+</dict>
+</plist>
