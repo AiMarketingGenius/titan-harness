@@ -81,6 +81,8 @@ RESEARCH_AGENTS = {
 GOOGLE_AGENTS = {"atlas_research_gemini", "amg_nadia_researcher"}
 # Direct DeepSeek API (skip OpenRouter markup — Solon has $50 topped at api.deepseek.com)
 DEEPSEEK_DIRECT_AGENTS = {"daedalus", "atlas_judge_deepseek"}
+# FREE fleet-wide browser-takeover via browser-use + local R1 32B (zero $ cost)
+BROWSER_TAKEOVER_AGENTS = {"mercury", "daedalus", "archimedes", "atlas_titan", "atlas_odysseus"}
 # Premium fallback via OpenRouter (only when DeepSeek direct unavailable)
 PREMIUM_AGENTS = set()
 
@@ -424,6 +426,76 @@ def lane_deepseek_direct(agent: str, prompt: str, model: str = "deepseek-v4-flas
                 "latency_ms": int((time.time() - t0) * 1000)}
 
 
+# ─── lane: browser-use FREE (open-source LLM-driven Chrome via local R1 32B) ─
+def lane_browser_takeover(agent: str, prompt: str, params: dict | None = None) -> dict:
+    """browser-use + local DeepSeek R1 32B on VPS. $0 cost.
+
+    Spawns a browser-use agent on the VPS via SSH that:
+    - Launches a headless Chromium via Playwright
+    - Uses local Ollama R1 32B as the reasoning brain
+    - Executes the prompt as natural-language browser instructions
+    - Returns final state + screenshot path
+
+    Best for: client portal scrapes when no API, demo recordings, AIMG
+    dogfood automation, deep research crawls (Archimedes Mode 1/2).
+    NOT for tasks that need pixel-perfect screen reading — those still
+    escalate to Anthropic Computer Use via Titan or Daedalus.
+
+    params: {url, max_steps, screenshot_required, viewport_width, viewport_height}
+    """
+    t0 = time.time()
+    params = params or {}
+    url = params.get("url", "")
+    max_steps = int(params.get("max_steps", 12))
+    screenshot_required = params.get("screenshot_required", True)
+    out_path = params.get("out_path", f"/tmp/browser_use_{agent}_{int(time.time())}.png")
+
+    # Build a JSON-encoded task spec the VPS-side runner consumes
+    task_spec = json.dumps({
+        "agent_name": agent,
+        "prompt": prompt[:4000],
+        "url": url,
+        "max_steps": max_steps,
+        "screenshot_path": out_path if screenshot_required else None,
+    })
+
+    # Run via SSH — invokes /opt/amg-tools/run_browser_use.py on VPS
+    # which uses ollama deepseek-r1:32b as the LLM, browser-use lib for Chromium control.
+    try:
+        out = subprocess.run(
+            [
+                "ssh", SSH_HOST,
+                f"python3 /opt/amg-tools/run_browser_use.py --task-json {shlex.quote(task_spec)}",
+            ],
+            capture_output=True, text=True, timeout=600,  # 10 min ceiling per task
+        )
+        if out.returncode != 0:
+            return {
+                "ok": False,
+                "error": f"VPS exit {out.returncode}: {(out.stderr or '')[-300:]}",
+                "latency_ms": int((time.time() - t0) * 1000),
+            }
+        try:
+            payload = json.loads(out.stdout)
+        except Exception:
+            payload = {"raw_stdout": out.stdout[-1000:]}
+        return {
+            "ok": True,
+            "text": payload.get("final_state") or payload.get("raw_stdout", ""),
+            "screenshot_path": payload.get("screenshot_path", out_path),
+            "steps_taken": payload.get("steps_taken"),
+            "raw": payload,
+            "latency_ms": int((time.time() - t0) * 1000),
+            "cost_usd": 0.0,  # local LLM, no API charge
+        }
+    except subprocess.TimeoutExpired:
+        return {"ok": False, "error": "browser-use timeout 600s",
+                "latency_ms": int((time.time() - t0) * 1000)}
+    except Exception as e:
+        return {"ok": False, "error": repr(e),
+                "latency_ms": int((time.time() - t0) * 1000)}
+
+
 # ─── lane: OpenRouter / DeepSeek V4 Pro ─────────────────────────────────────
 def lane_openrouter(agent: str, prompt: str, model: str = "deepseek/deepseek-v4-pro") -> dict:
     t0 = time.time()
@@ -457,6 +529,10 @@ def lane_openrouter(agent: str, prompt: str, model: str = "deepseek/deepseek-v4-
 # ─── routing ────────────────────────────────────────────────────────────────
 def pick_lane(agent: str, task: dict) -> str:
     a = (agent or "").lower()
+    # Browser-takeover wins if explicitly requested via mercury_action.type
+    notes = (task.get("notes") or "").lower()
+    if "mercury_action" in notes and "browser_takeover" in notes and a in BROWSER_TAKEOVER_AGENTS:
+        return "browser_takeover"
     if a in KIMI_AGENTS:
         return "kimi_api"
     if a in DEEPSEEK_DIRECT_AGENTS:
@@ -510,6 +586,18 @@ def dispatch_task(task: dict, dry: bool = False) -> dict:
                       or len(prompt) > 3000)
         model = "deepseek-v4-pro" if prefer_pro else "deepseek-v4-flash"
         result = lane_deepseek_direct(agent, prompt, model=model)
+    elif lane == "browser_takeover":
+        # Free fleet-wide browser-use + local R1 32B
+        action = task.get("notes") or ""
+        # Extract MERCURY_ACTION params if present
+        params: dict = {}
+        for line in action.splitlines():
+            if line.strip().startswith("MERCURY_ACTION:"):
+                try:
+                    params = json.loads(line.split(":", 1)[1].strip()).get("params", {}) or {}
+                except Exception:
+                    pass
+        result = lane_browser_takeover(agent, prompt, params=params)
     elif lane == "api_premium":
         result = lane_openrouter(agent, prompt)
     else:
