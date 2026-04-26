@@ -1,0 +1,230 @@
+#!/usr/bin/env python3
+"""
+hercules-paste — Solon's CLI helper to convert a Hercules-Kimi-web reply into
+a Mercury-ready dispatch JSON in ~/AMG/hercules-outbox/.
+
+Usage:
+    pbpaste | hercules-paste                        # from clipboard
+    hercules-paste < reply.txt                      # from a file
+    cat reply.txt | hercules-paste --tag rotation   # add extra tag(s)
+    hercules-paste --json                           # accept raw JSON (skip parsing)
+    hercules-paste --interactive                    # prompt for fields manually
+
+The script accepts three input shapes:
+
+1) Raw JSON dispatch (hercules-paste --json or auto-detected if input parses).
+   Just validates + drops in the outbox.
+
+2) Hercules-style markdown reply containing one or more 🎖️ DISPATCH ORDER
+   blocks. The script extracts each block, parses headings (Agent:, Task:, ETA:,
+   Proof Required:, Risk:, Priority:, Acceptance Criteria:), and writes one
+   JSON per block.
+
+3) Free-form text (no markers). Falls back to interactive mode and prompts you
+   for the minimum required fields.
+
+Each generated JSON is written to:
+    ~/AMG/hercules-outbox/dispatch_<UTC_TS>__<SLUG>.json
+
+The hercules_mcp_bridge.py daemon picks them up within ~30s (or instantly if
+the bridge happens to be mid-poll) and queues to MCP. If the dispatch is for
+mercury, mercury_executor is spawned immediately for sub-second pickup.
+"""
+from __future__ import annotations
+
+import argparse
+import json
+import os
+import pathlib
+import re
+import sys
+from datetime import datetime, timezone
+
+OUTBOX = pathlib.Path.home() / "AMG" / "hercules-outbox"
+DEFAULT_AGENT = "mercury"
+DEFAULT_PRIORITY = "P2"
+
+ORDER_BLOCK_RE = re.compile(
+    r"(?:🎖️|🛠️|🔧|⚡)?\s*(?:ORDER|DISPATCH ORDER|DISPATCH|MCP DISPATCH)\b[\s:]*(?P<title>[^\n]*)\n(?P<body>(?:(?!\n(?:🎖️|🛠️|🔧|⚡)?\s*(?:ORDER|DISPATCH ORDER|DISPATCH|MCP DISPATCH)\b).)*)",
+    re.IGNORECASE | re.DOTALL,
+)
+FIELD_RE = re.compile(
+    r"^\s*(?:[-*]\s*)?\**(agent|assigned|task|action|eta|proof[_ ]required|priority|risk|acceptance|acceptance[_ ]criteria|tags?|escalation|notes?|context)\**\s*[:\-]\s*(.+?)\s*$",
+    re.IGNORECASE | re.MULTILINE,
+)
+
+
+def slugify(s: str, n: int = 50) -> str:
+    s = re.sub(r"[^A-Za-z0-9_-]+", "-", s).strip("-").lower()
+    return (s or "dispatch")[:n]
+
+
+def parse_blocks(text: str) -> list[dict]:
+    """Parse zero or more dispatch blocks from a Hercules reply."""
+    blocks: list[dict] = []
+    for m in ORDER_BLOCK_RE.finditer(text):
+        title = (m.group("title") or "").strip(" :*")
+        body = m.group("body") or ""
+        d: dict = {}
+        for fm in FIELD_RE.finditer(body):
+            key = fm.group(1).lower().replace(" ", "_").replace("acceptance_criteria", "acceptance_criteria")
+            val = fm.group(2).strip()
+            if key in {"agent", "assigned"}:
+                d["agent_assigned"] = val.split()[0].lower().strip(",.")
+            elif key == "task":
+                d["objective"] = val
+                d.setdefault("instructions", val)
+            elif key == "action":
+                d.setdefault("instructions", val)
+            elif key == "proof_required":
+                d["proof_required"] = val
+            elif key == "priority":
+                d["priority"] = val.upper().split()[0].strip(",.").rstrip(":")
+            elif key == "acceptance":
+                d["acceptance_criteria"] = val
+            elif key in {"tag", "tags"}:
+                d.setdefault("tags", []).extend([t.strip() for t in val.split(",") if t.strip()])
+            elif key == "escalation":
+                d["escalation_on_failure"] = val
+            elif key in {"note", "notes"}:
+                d["notes_extra"] = val
+            elif key == "context":
+                d["context"] = val
+            elif key == "eta":
+                d.setdefault("notes_extra", "")
+                d["notes_extra"] += f" | ETA: {val}"
+            elif key == "risk":
+                d.setdefault("notes_extra", "")
+                d["notes_extra"] += f" | RISK: {val}"
+        if title and "objective" not in d:
+            d["objective"] = title
+        if d.get("objective") or d.get("instructions"):
+            d.setdefault("agent_assigned", DEFAULT_AGENT)
+            d.setdefault("priority", DEFAULT_PRIORITY)
+            d.setdefault("instructions", d.get("objective", title))
+            d.setdefault("acceptance_criteria", d.get("proof_required") or "Mercury reports proof packet to Hercules MCP inbox.")
+            d.setdefault("tags", []).extend(["hercules-paste"])
+            blocks.append(d)
+    return blocks
+
+
+def interactive_prompt() -> dict:
+    print("hercules-paste interactive — minimum 3 fields required.\n", file=sys.stderr)
+    obj = input("Objective (one sentence): ").strip()
+    if not obj:
+        sys.exit("aborted: objective required")
+    instr = input("Instructions (numbered steps): ").strip() or obj
+    accept = input("Acceptance criteria: ").strip() or "Mercury reports proof packet."
+    agent = input(f"Agent assigned [{DEFAULT_AGENT}]: ").strip() or DEFAULT_AGENT
+    pri = input(f"Priority P0/P1/P2/P3 [{DEFAULT_PRIORITY}]: ").strip() or DEFAULT_PRIORITY
+    proof = input("Proof required: ").strip() or "Logs + status update."
+    return {
+        "objective": obj,
+        "instructions": instr,
+        "acceptance_criteria": accept,
+        "agent_assigned": agent.lower(),
+        "priority": pri.upper(),
+        "proof_required": proof,
+        "tags": ["hercules-paste", "hercules-interactive"],
+    }
+
+
+def write_dispatch(d: dict, extra_tags: list[str]) -> pathlib.Path:
+    OUTBOX.mkdir(parents=True, exist_ok=True)
+    if extra_tags:
+        d.setdefault("tags", []).extend(extra_tags)
+    if "notes_extra" in d:
+        notes_extra = d.pop("notes_extra")
+        d["context"] = ((d.get("context") or "") + " | " + notes_extra).strip(" |")
+    stamp = datetime.now(tz=timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+    slug = slugify(d.get("objective") or "dispatch")
+    path = OUTBOX / f"dispatch_{stamp}__{slug}.json"
+    path.write_text(json.dumps(d, indent=2))
+    return path
+
+
+def main() -> int:
+    p = argparse.ArgumentParser(description="Convert Hercules chat reply → Mercury dispatch JSON in outbox")
+    p.add_argument("--json", action="store_true", help="treat input as already-formed JSON dispatch")
+    p.add_argument("--interactive", action="store_true", help="prompt for fields manually")
+    p.add_argument("--tag", action="append", default=[], help="extra tag (repeatable)")
+    p.add_argument("--agent", help="override agent_assigned for all extracted blocks")
+    p.add_argument("--priority", help="override priority for all extracted blocks (P0|P1|P2|P3)")
+    p.add_argument("path", nargs="?", help="optional file path (else stdin)")
+    args = p.parse_args()
+
+    if args.interactive:
+        d = interactive_prompt()
+        if args.agent:
+            d["agent_assigned"] = args.agent.lower()
+        if args.priority:
+            d["priority"] = args.priority.upper()
+        path = write_dispatch(d, args.tag)
+        print(f"WROTE {path}")
+        return 0
+
+    if args.path:
+        text = pathlib.Path(args.path).read_text(encoding="utf-8")
+    else:
+        if sys.stdin.isatty():
+            sys.exit("no input on stdin; pass --interactive or pipe text")
+        text = sys.stdin.read()
+
+    if not text.strip():
+        sys.exit("empty input")
+
+    if args.json:
+        try:
+            d = json.loads(text)
+        except Exception as e:
+            sys.exit(f"--json parse error: {e}")
+        if args.agent:
+            d["agent_assigned"] = args.agent.lower()
+        if args.priority:
+            d["priority"] = args.priority.upper()
+        path = write_dispatch(d, args.tag)
+        print(f"WROTE {path}")
+        return 0
+
+    # auto-detect JSON
+    stripped = text.strip()
+    if stripped.startswith("{") and stripped.endswith("}"):
+        try:
+            d = json.loads(stripped)
+            if args.agent:
+                d["agent_assigned"] = args.agent.lower()
+            if args.priority:
+                d["priority"] = args.priority.upper()
+            path = write_dispatch(d, args.tag)
+            print(f"WROTE {path} (auto-detected JSON)")
+            return 0
+        except Exception:
+            pass  # fall through to block parser
+
+    blocks = parse_blocks(text)
+    if not blocks:
+        print("No dispatch blocks found. Re-running in interactive mode.\n", file=sys.stderr)
+        d = interactive_prompt()
+        if args.agent:
+            d["agent_assigned"] = args.agent.lower()
+        if args.priority:
+            d["priority"] = args.priority.upper()
+        path = write_dispatch(d, args.tag)
+        print(f"WROTE {path}")
+        return 0
+
+    paths: list[pathlib.Path] = []
+    for b in blocks:
+        if args.agent:
+            b["agent_assigned"] = args.agent.lower()
+        if args.priority:
+            b["priority"] = args.priority.upper()
+        paths.append(write_dispatch(b, args.tag))
+    print(f"WROTE {len(paths)} dispatch JSON(s):")
+    for p in paths:
+        print(f"  - {p}")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

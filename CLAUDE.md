@@ -12,14 +12,37 @@ On every new session: if these rules are not present in the active system prompt
 
 ## 1. Roles (canonical)
 
-**Amended 2026-04-21 — Achilles/Codex is now principal builder and control tower. Titan is a subordinate support engine.**
+**Amended 2026-04-26 — Hercules (Kimi K2.6) is now Chief Executive Operations Manager and head of all execution. Achilles/Codex is decommissioned (out of credits, no further use). Titan reverts to subordinate builder + personal-assistant role under Hercules. The 2026-04-21 amendment naming Achilles principal builder is SUPERSEDED.**
 
 | Role | Owner | Owns |
 |---|---|---|
 | **CEO / Vision + Sales** | **Solon** | Vision, creativity, human-facing relationships, final call on anything reputational or financial. |
-| **Principal Builder + Control Tower** | **Achilles / Codex** (`~/achilles-harness`) | Final architecture, final priorities, canonical doctrine, sequencing, integration approval, and control-plane decisions across AMG, AI Marketing Genius, Atlas, Solon OS, Memory Vault, Watchdog, and Mobile Command. |
-| **Subordinate Support Engine** | **Titan** (Claude Code, `~/titan-harness`) | Bounded implementation, verification, repo inspection, concrete artifact production, bridge/infrastructure support. Does NOT set final architecture, final priorities, or canonical doctrine unless Achilles explicitly approves. Outputs UNKNOWN rather than guessing. All outputs must be concrete: exact paths, commands, diffs, findings, blockers, next steps. |
-| **Strategy + Research Co-agent** | **Aristotle** (Perplexity in the `#titan-aristotle` Slack channel, long-term context) | Deep research, grading, architecture critique, doctrine reviews, second-brain reasoning. |
+| **Chief Executive Operations Manager** | **Hercules** (Kimi K2.6, `~/Applications/Hercules.app` + Kimi web tab; OpenClaw slot `atlas_hercules`) | Top of execution stack. Owns final architecture, final priorities, canonical doctrine, sequencing, audit gates, and dispatch authority across the entire 33-agent factory + Mercury + Titan + Nestor + Alexander. Hercules audits — does not write code himself. Routes all work through Mercury. |
+| **Hercules's Hands** | **Mercury** (OpenClaw `mercury`, runs via `amg_fleet_orchestrator.py` on VPS-routed Ollama qwen2.5:32b) | Hercules's permanent server-side delegate. Runs SSH, file ops, browser automation, Infisical retrievals, smoke tests, screenshots. Persists across Hercules's web-chat sessions. Read-only on the secret store. |
+| **Subordinate Builder + Personal Assistant** | **Titan** (Claude Code, `~/titan-harness`) | Bounded implementation, verification, repo inspection, concrete artifact production, bridge/infrastructure support, occasional personal-assistant tasks for Solon. Subordinate to Hercules. Does NOT set final architecture or canonical doctrine. Outputs UNKNOWN rather than guessing. All outputs must be concrete: exact paths, commands, diffs, findings, blockers, next steps. |
+| **Kimi CLI Builders** | **Nestor + Alexander** (OpenClaw slots `nestor`, `alexander`; Kimi K2.6 via `kimi_api` lane in `agent_dispatch_bridge.py`) | Nestor = product/UX/mockups (Apple-quality polish floor). Alexander = brand/copy/voice. Both subordinate to Hercules; both routed through Mercury for any non-LLM action (file reads, browser, shell). Communicate with Hercules via MCP queue + the Hercules outbox bridge — never direct chat. |
+| **Strategy + Research Co-agent** | **Aristotle** (Perplexity in the `#titan-aristotle` Slack channel, long-term context) | Deep research, grading, architecture critique, doctrine reviews, second-brain reasoning. Available to Hercules and Titan. |
+| **Decommissioned 2026-04-26** | ~~Achilles / Codex~~ | Out of credits. No further dispatches. Ownership of pinned canonical CT- tasks (CT-0416-07, CT-0419-07, CT-0421-06, CT-0422-15, CT-0424-01, CT-0424-02) transfers to Hercules; Hercules re-routes execution to Mercury / Titan / amg-fleet as he sees fit. Extraction of Codex contexts/cookies/history scheduled (Phase II of the 2026-04-26 Hercules dispatch) before final shutdown. |
+
+**Communication topology (locked 2026-04-26):**
+
+```
+Solon ─┬─ Hercules (Kimi web tab) ──► ~/AMG/hercules-outbox/*.json
+       │                                       │
+       │                                       ▼  (hercules_mcp_bridge.py poll 30s)
+       │                              MCP op_task_queue
+       │                                       │
+       │                                       ▼  (agent_dispatch_bridge.py --once cron */5)
+       │                              ┌────────┼─────────────────────────────┐
+       │                              │        │                             │
+       │                          Mercury    Titan                  Nestor / Alexander
+       │                          (amg_fleet) (kimi_api or local)   (kimi_api lane)
+       │                              │
+       │                              └──► 33-agent factory (Atlas + AMG avatars/builders/researchers)
+       │
+       └◄── Telenix SMS ◄── mercury_mcp_notifier.py poll 30s ◄── MCP op_decisions tagged hercules
+       └◄── ~/AMG/hercules-inbox/*.md (macOS notifications + summaries)
+```
 
 **Aristotle routing rules (amended 2026-04-11 Part 2):**
 - Aristotle is a **first-class co-agent**, not a stateless API. Titan and Aristotle keep the `#titan-aristotle` Slack channel stocked as a shared brain; Solon does not route messages between them.
@@ -894,3 +917,134 @@ When Claude Code updates and dialogs start leaking to Solon again, re-check in t
 Four-layer autonomy applies ONLY to the file paths and commands encoded in the allowlist + to TCC grants for Titan-adjacent apps. Sensitive categories (Camera / Mic / Screen Recording / Contacts / Calendar / Reminders / Photos / Location / HomeKit / Health) remain human-gated by design. If Titan needs one of those, Titan escalates to Solon rather than working around it.
 
 The flag `--dangerously-skip-permissions` is named what it is on purpose. Autonomy is won by narrowing the allowlist, not by widening it. New paths need a specific `Edit(/path/**)` rule, not a new wildcard.
+
+---
+
+## 21. AUTONOMOUS DECISION CHAIN — Hercules → Judge_DeepSeek → Tiebreaker → Solon (added 2026-04-26)
+
+**Hard rule, non-bypassable.** Solon is the CEO and is NOT the operational tiebreaker. The factory must run autonomously day-to-day. Solon checks in occasionally, sells, runs webinars, manages accounts. The agents resolve disagreements without him.
+
+### 21.1 The decision flow
+
+```
+Hercules issues dispatch (JSON in ~/AMG/hercules-outbox/)
+        │
+        ▼
+hercules_mcp_bridge.py ingests + queues to MCP op_task_queue
+        │
+        ▼
+[GATE A — Judge_DeepSeek auto-grade]
+For P0 + P1 dispatches: Judge_DeepSeek (local DeepSeek R1 32B, $0)
+auto-grades within 30s on 5 dimensions:
+  - intent coherence
+  - agent assignment correctness
+  - acceptance criteria clarity
+  - risk envelope
+  - Hard-Limit conflict check
+Score ≥ 9.3 on all 5 → PASS → proceed to Mercury execution.
+Any below 9.3 → NEEDS_PATCH or REJECT.
+        │
+        ▼ (if NEEDS_PATCH)
+Bounces back to Hercules outbox as `judge-needs-patch_<TS>.json`
+with the defect list. Hercules reads + revises + re-dispatches.
+        │
+        ▼ (if REJECT — Judge says fundamentally wrong)
+[GATE B — atlas_einstein TIEBREAKER]
+atlas_einstein (local R1 32B, $0) reviews both the dispatch AND
+Judge's rejection. Two outcomes:
+  - "Judge was right, REJECT stands" → archive dispatch + log
+    aletheia-confirmed-reject + send Hercules a corrective note.
+  - "Judge over-rejected, OVERRIDE" → proceed to Mercury execution
+    with einstein-override tag + notify Solon (P2 daily digest only).
+        │
+        ▼ (if einstein ALSO rejects)
+[GATE C — SOLON ONLY for genuinely contested decisions]
+Mercury notifier sends P0 SMS to Solon: "3-way deadlock on dispatch
+<obj>. Judge + Einstein both rejected. Your call."
+This should happen RARELY — once a week max under normal ops.
+        │
+        ▼ (Mercury executes after Gate A/B clear)
+Mercury runs the action (primitive or LLM-driven via amg_fleet).
+        │
+        ▼
+[POST-EXECUTION VERIFICATION — Aletheia]
+Aletheia auto-verifies Mercury's claimed completion against MCP
+op_decisions + filesystem + git. If false claim, files SHAME
+report to inbox + queues hercules-correction-required dispatch.
+        │
+        ▼
+[POST-EXECUTION QUALITY GATE — Artisan (for client-facing only)]
+Artisan QAs the deliverable against CRO Lumina + Apple polish floor 9.3.
+If REJECT → bounces back to builder agent.
+        │
+        ▼
+mercury_mcp_notifier.py surfaces proof to Solon (P1 batched, P2 daily,
+P0 immediate via Telenix once wired). Inbox file + macOS notif.
+```
+
+### 21.2 What escalates to Solon vs what stays in the loop
+
+| Event | Escalation |
+|---|---|
+| Routine dispatch passes Gate A | Silent. Mercury executes. P2 daily digest mentions it. |
+| Judge says NEEDS_PATCH | Stays in loop. Hercules revises. No Solon involvement. |
+| Judge says REJECT, einstein agrees | Archived. Logged. P2 digest. No Solon involvement. |
+| Judge + einstein both reject | **Solon SMS (P0)** — true 3-way deadlock |
+| Aletheia catches false claim | Stays in loop. Hercules corrects via outbox. P1 batch digest mentions. |
+| Cerberus P0 incident (real attack OR credential leak) | **Solon SMS (P0)** — true security event |
+| Warden auto-restarts an idle agent | Silent. Daily digest notes count. |
+| Hard Limit dispatch attempted (credential creation, financial > $50/mo, destructive prod, public publish, new SaaS purchase) | **Solon SMS (P0) — Hercules cannot proceed without Solon's OK** |
+| AMG subscriber traffic spike → V4 Flash overflow firing | Silent. Daily digest notes overflow $ spent. |
+| Quiet hours (11pm–7am EST) | All P1/P2 batch — only P0 breaks quiet. |
+
+### 21.3 Hard Limits — the ONE escalation Solon cares about
+
+These ALWAYS escalate to Solon, no matter how confident Hercules + Judge + einstein are:
+
+1. New credential creation (any new API key, OAuth client, SSH key)
+2. Financial commitment > $50/mo recurring
+3. Destructive production ops (DROP, DELETE FROM, force push, rm -rf production)
+4. Public publishes under Solon's name (sales emails, Loom demos, social posts, client-facing demos)
+5. New SaaS purchase or subscription change
+6. Legal / compliance sign-off (contracts, MSAs, NDAs)
+7. Brand naming locks (Greek codenames per §14)
+8. Any action with > 30-min rollback time
+
+Hard Limits encoded in `lib/hard_limits_check.py` (to be built — for now, agent system prompts enforce). Mercury and Hercules both check before any action.
+
+### 21.4 Why this works (and isn't fantasy)
+
+- **Judge_DeepSeek runs free** (local R1 32B on VPS) — 30s per dispatch grade, ~10s for simple ones, $0 cost
+- **atlas_einstein already exists** in the roster — just needs wiring as the tiebreaker
+- **Aletheia is built** (this commit) and catches vapor claims
+- **Cerberus is built** (this commit) and catches real attacks with dual-signal floor (no false alerts)
+- **Mercury notifier is built** (this commit) with P0/P1/P2 + quiet hours
+- **Telenix SMS bridge is queued for build** (CT-0426-1X dispatch)
+
+The chain is mostly built today. The wiring (Judge auto-grade hook in `hercules_mcp_bridge.py`, Telenix bridge for SMS) is queued in MCP for Mercury to execute.
+
+### 21.5 Daily digest — what Solon actually sees
+
+Once Telenix is live, Solon's iPhone gets ONE SMS per day at 8 AM EST with the digest:
+
+```
+HERCULES DAILY 2026-04-27 08:00
+- 47 dispatches: 44 PASS, 2 PATCH, 1 REJECT (no escalation needed)
+- 21 Mercury executions: 21 OK
+- 0 Cerberus incidents
+- 1 Aletheia violation (Hercules corrected within 5min)
+- API spend so far this month: $43 / $250 budget
+- Open Solon-side: 0 (you're clear)
+Reply "DETAIL" for full breakdown or "PAUSE" to halt all dispatches.
+```
+
+P0 alerts during the day are immediate SMS. P1 batches into the next 15-min window. Quiet hours respected.
+
+### 21.6 What "I want to be the only escalation when truly needed" means
+
+Solon should average **0–1 SMS per week from this system** under normal ops. If he's getting more, either:
+- Real fires happened (Cerberus P0, Hard Limit, deadlock) — appropriate
+- The chain is failing — Aletheia or Warden flag the failure as a meta-violation
+
+If the SMS rate exceeds 3/week without real fires, Hercules opens an audit task to tighten Judge thresholds or revise the routing.
+

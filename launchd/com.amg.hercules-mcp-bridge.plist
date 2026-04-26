@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>EnvironmentVariables</key>
+	<dict>
+		<key>MCP_BASE</key>
+		<string>https://memory.aimarketinggenius.io</string>
+		<key>PATH</key>
+		<string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin</string>
+	</dict>
+	<key>KeepAlive</key>
+	<true/>
+	<key>Label</key>
+	<string>com.amg.hercules-mcp-bridge</string>
+	<key>ProgramArguments</key>
+	<array>
+		<string>/opt/homebrew/bin/python3</string>
+		<string>/Users/solonzafiropoulos1/titan-harness/scripts/hercules_mcp_bridge.py</string>
+		<string>--watch</string>
+		<string>--interval</string>
+		<string>30</string>
+	</array>
+	<key>RunAtLoad</key>
+	<true/>
+	<key>StandardErrorPath</key>
+	<string>/Users/solonzafiropoulos1/.openclaw/logs/hercules_mcp_bridge.err.log</string>
+	<key>StandardOutPath</key>
+	<string>/Users/solonzafiropoulos1/.openclaw/logs/hercules_mcp_bridge.out.log</string>
+	<key>ThrottleInterval</key>
+	<integer>10</integer>
+	<key>WorkingDirectory</key>
+	<string>/Users/solonzafiropoulos1/titan-harness</string>
+</dict>
+</plist>
