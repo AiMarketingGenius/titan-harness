@@ -165,12 +165,39 @@ def _mcp_post(path: str, body: dict, timeout: int = 15) -> tuple[int, dict]:
 
 
 def fetch_pending_tasks(limit: int = 10) -> list[dict]:
+    """Pull approved tasks but filter out stale pre-Hercules-takeover work
+    (>7 days old, not in CT-0426 batch). Stale tasks need Hercules audit
+    to re-validate before re-execution. Stops the cron firehose on the
+    50+ Apr 5/16/17/18/19 backlog."""
+    from datetime import timedelta
     code, body = _mcp_post(
-        "get_task_queue", {"status": "approved", "limit": limit},
+        "get_task_queue", {"status": "approved", "limit": max(limit, 50)},
     )
     if code != 200:
         return []
-    return body.get("tasks") or []
+    tasks = body.get("tasks") or []
+    cutoff = datetime.now(tz=timezone.utc) - timedelta(days=7)
+    fresh: list[dict] = []
+    for t in tasks:
+        tid = t.get("task_id", "")
+        # Always include CT-0426 batch (Hercules-as-chief era)
+        if tid.startswith("CT-0426"):
+            fresh.append(t)
+            continue
+        # Otherwise skip if older than 7 days
+        ts_str = t.get("created_at", "")
+        if not ts_str:
+            fresh.append(t)
+            continue
+        try:
+            ts = datetime.fromisoformat(ts_str.replace("Z", "+00:00"))
+            if ts >= cutoff:
+                fresh.append(t)
+        except Exception:
+            fresh.append(t)
+        if len(fresh) >= limit:
+            break
+    return fresh
 
 
 def mark_in_progress(task_id: str, dispatcher_id: str) -> None:

@@ -50,17 +50,42 @@ QUIET_HOURS_START = 23   # 11pm
 QUIET_HOURS_END = 7      # 7am
 
 INTERESTING_TAGS = {
-    "hercules", "mercury-proof", "mercury-delegated",
-    "hercules-dispatch", "hercules-mcp-bridge",
+    "hercules", "mercury-proof",
+    "hercules-mcp-bridge",
     "polling-doctrine-violation",
-    "factory-stall", "agent-idle", "false-completion",
+    "factory-stall", "false-completion",
+    "aletheia-violation", "cerberus-incident",
+    "ploutos-signoff", "hephaestus-signoff",
+    "rotation-failure", "secret-rotation-slack",
+    "secret-rotation-supabase", "telnyx-bridge-live",
+    "aimg-track-a-complete", "aimg-track-b-complete",
+    "aimg-track-c-complete", "aimg-track-d-complete",
+    "aimg-track-e-complete", "aimg-track-f-complete",
+    "aimg-finalization-2026-04-26-complete",
+}
+# Operational telemetry — never notify, just log
+NOISE_TAGS = {
+    "agent-dispatch-bridge",  # routine cron dispatches
+    "warden-violation",        # warden runs every 10min on 100+ stale tasks
+    "mercury-delegated",       # internal Mercury sub-task spawn
+    "hercules-dispatch",       # bridge ingest log (firehose when many dispatches)
+    "heartbeat",               # hourly heartbeat from Dr SEO
+    "hercules-shared-file",    # folder sync indexing
+    "auto-approve",
+    "tcc-auto-approve",
 }
 P0_TAGS = {
     "factory-stall", "agent-down", "security-breach",
     "rotation-failure", "polling-doctrine-violation",
+    "cerberus-incident", "aletheia-violation",
     "p0", "urgent",
 }
-P1_TAGS = {"mercury-proof", "hercules-dispatch", "task-complete", "p1"}
+P1_TAGS = {"mercury-proof", "task-complete", "p1",
+           "secret-rotation-slack", "secret-rotation-supabase",
+           "telnyx-bridge-live", "aimg-track-a-complete",
+           "aimg-track-b-complete", "aimg-track-c-complete",
+           "aimg-track-d-complete", "aimg-track-e-complete",
+           "aimg-track-f-complete"}
 
 
 def _log(msg: str) -> None:
@@ -111,10 +136,21 @@ def classify_priority(decision: dict) -> str:
 
 def is_interesting(decision: dict) -> bool:
     tags = {str(t).lower() for t in (decision.get("tags") or [])}
+    # NOISE filter wins — never notify on operational telemetry even if the
+    # text contains common keywords. This stops the cron firehose from
+    # flooding Solon's iPhone with agent-dispatch-bridge entries.
+    if tags & NOISE_TAGS:
+        return False
     if tags & INTERESTING_TAGS:
         return True
+    # Conservative text fallback — only fire if text mentions a HUMAN-action
+    # keyword (alert, escalate, blocked, decision needed, hard limit), NOT
+    # routine ops like "dispatch:" or "proof packet" which fire too often.
     text = (decision.get("text") or "").lower()
-    if any(k in text for k in ("hercules", "mercury", "dispatch:", "proof packet")):
+    if any(k in text for k in (
+        "alert:", "escalat", "hard limit", "decision needed",
+        "p0:", "urgent:", "blocked on solon",
+    )):
         return True
     return False
 
