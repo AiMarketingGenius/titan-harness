@@ -79,7 +79,10 @@ RESEARCH_AGENTS = {
     "atlas_judge_perplexity", "atlas_research_perplexity",
 }
 GOOGLE_AGENTS = {"atlas_research_gemini", "amg_nadia_researcher"}
-PREMIUM_AGENTS = {"atlas_judge_deepseek"}
+# Direct DeepSeek API (skip OpenRouter markup — Solon has $50 topped at api.deepseek.com)
+DEEPSEEK_DIRECT_AGENTS = {"daedalus", "atlas_judge_deepseek"}
+# Premium fallback via OpenRouter (only when DeepSeek direct unavailable)
+PREMIUM_AGENTS = set()
 
 
 # ─── env loading ─────────────────────────────────────────────────────────────
@@ -382,6 +385,45 @@ def lane_gemini(agent: str, prompt: str) -> dict:
                 "latency_ms": int((time.time() - t0) * 1000)}
 
 
+# ─── lane: DeepSeek DIRECT (api.deepseek.com — cheaper than OpenRouter) ─────
+def lane_deepseek_direct(agent: str, prompt: str, model: str = "deepseek-v4-flash") -> dict:
+    """Solon's DeepSeek account: $50 topped, key in /etc/amg/deepseek.env on VPS.
+    V4 Flash for routine code/audit (~$0.40/1M out). V4 Pro for premium reasoning.
+    Direct API skips OpenRouter's 5-10% markup."""
+    t0 = time.time()
+    key = _key("DEEPSEEK_API_KEY", ["deepseek"])
+    if not key:
+        return {"ok": False, "error": "no DEEPSEEK_API_KEY in /etc/amg/deepseek.env",
+                "latency_ms": 0}
+    body = {
+        "model": model,
+        "messages": [
+            {"role": "system",
+             "content": f"You are {agent}, an AMG specialist agent. Be concise and proof-oriented."},
+            {"role": "user", "content": prompt},
+        ],
+        "max_tokens": 2048,
+    }
+    req = urllib.request.Request(
+        "https://api.deepseek.com/v1/chat/completions",
+        data=json.dumps(body).encode(),
+        headers={"Authorization": f"Bearer {key}", "Content-Type": "application/json"},
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=120) as r:
+            data = json.loads(r.read())
+        text = (data.get("choices") or [{}])[0].get("message", {}).get("content") or ""
+        return {"ok": True, "text": text, "raw": data,
+                "model": model,
+                "latency_ms": int((time.time() - t0) * 1000)}
+    except urllib.error.HTTPError as e:
+        return {"ok": False, "error": f"HTTP {e.code}: {e.read()[:200]}",
+                "latency_ms": int((time.time() - t0) * 1000)}
+    except Exception as e:
+        return {"ok": False, "error": repr(e),
+                "latency_ms": int((time.time() - t0) * 1000)}
+
+
 # ─── lane: OpenRouter / DeepSeek V4 Pro ─────────────────────────────────────
 def lane_openrouter(agent: str, prompt: str, model: str = "deepseek/deepseek-v4-pro") -> dict:
     t0 = time.time()
@@ -417,6 +459,8 @@ def pick_lane(agent: str, task: dict) -> str:
     a = (agent or "").lower()
     if a in KIMI_AGENTS:
         return "kimi_api"
+    if a in DEEPSEEK_DIRECT_AGENTS:
+        return "api_deepseek_direct"
     if a in OPENCLAW_AGENTS or a.startswith("amg_") and a.endswith("_builder"):
         return "amg_fleet"
     if a in RESEARCH_AGENTS or a.startswith("amg_") and a.endswith("_researcher") and a != "amg_nadia_researcher":
@@ -456,6 +500,16 @@ def dispatch_task(task: dict, dry: bool = False) -> dict:
         result = lane_perplexity(agent, prompt)
     elif lane == "api_google":
         result = lane_gemini(agent, prompt)
+    elif lane == "api_deepseek_direct":
+        # DeepSeek direct — V4 Flash default; if task tags include 'premium' or
+        # context length suggests heavy reasoning, escalate to V4 Pro
+        notes = (task.get("notes") or "").lower()
+        tags = [str(t).lower() for t in (task.get("tags") or [])]
+        prefer_pro = ("premium" in notes or "premium" in tags
+                      or "architecture" in notes or "v4-pro" in tags
+                      or len(prompt) > 3000)
+        model = "deepseek-v4-pro" if prefer_pro else "deepseek-v4-flash"
+        result = lane_deepseek_direct(agent, prompt, model=model)
     elif lane == "api_premium":
         result = lane_openrouter(agent, prompt)
     else:
