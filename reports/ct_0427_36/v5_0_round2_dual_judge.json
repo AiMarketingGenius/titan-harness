@@ -1,0 +1,90 @@
+=== CT-0427-36 v5.0 dual-judge ===
+draft: /var/folders/q9/lsylqm311yg5ftw0h27knqqc0000gp/T/v5_0_1.XXXXXX.md.GKhR1uCnMa  (15,681 chars)
+
+[1/2] Calling Kimi K2.6...
+  Kimi score: 8.2/10  (tech=8.3, complete=8.0)  cost=$0.0170
+[2/2] Calling Gemini (retry chain)...
+  attempt 1: gemini-2.5-flash
+    err: HTTP 503: {
+  "error": {
+    "code": 503,
+    "message": "This model is currently experiencing high demand. Spikes in demand are usually temporary. Please try again later.",
+    "status": "UNAVAILABLE
+  attempt 2: gemini-2.5-flash-lite
+  Gemini (gemini-2.5-flash-lite) score: 7.5/10  (edge=7.0, risk=8.0)
+{
+  "task": "CT-0427-36",
+  "artifact": "/var/folders/q9/lsylqm311yg5ftw0h27knqqc0000gp/T/v5_0_1.XXXXXX.md.GKhR1uCnMa",
+  "floor": 9.0,
+  "decision": "revise",
+  "kimi_k2_6": {
+    "ok": true,
+    "score": 8.2,
+    "passes_floor": false,
+    "details": {
+      "decision": "revise",
+      "overall_score_10": 8.2,
+      "technical_soundness": 8.3,
+      "completeness": 8.0,
+      "flagged_sections": [
+        "\u00a77 \u2014 P0 bypass class is referenced as a hard-gate exception but never defined, leaving atomic enforcement operationally indeterminate.",
+        "\u00a75/\u00a712 \u2014 6-dim rubric required for >=9.0 cutover is cited in round-1 closure but absent from operative sections.",
+        "\u00a712 \u2014 Solon override rule (UUID, reason, ceiling, 24h expiry) is resolved in changelog only and never merged into operative governance body.",
+        "\u00a78 \u2014 Cost gate rollback instructs 'replay cost ledger from MCP receipts' without specifying receipt schema, replay mechanics, or reconciliation logic.",
+        "\u00a77 \u2014 Per-agent warning thresholds are referenced in post-reservation logic but nowhere defined or mapped."
+      ],
+      "required_revisions": [
+        "Add an operative P0 definition and escalation rule to \u00a77: specify who can classify P0, whether pre-approval is required, and how post-hoc audit trails are logged.",
+        "Insert the Haiku/Reasoning Judge 6-dim rubric into \u00a75 or \u00a713 so the >=9.0 acceptance threshold is reproducible.",
+        "Promote the Solon override rule from \u00a712 into \u00a77 (or a new governance subsection) so it is binding in the operational spec, not only the changelog.",
+        "Define MCP receipt schema and exact Redis ledger replay procedure in \u00a78 to close the rollback hand-wave.",
+        "Either provide a per-agent warning threshold table in \u00a77 or explicitly cite the canonical SI path where those thresholds live."
+      ],
+      "reasoning": "The architecture and sequencing are coherent, but the hard cost gate relies on an undefined P0 bypass that hollows out atomic enforcement, while key operational rules (Solon override, 6-dim rubric, per-agent thresholds) remain trapped in the changelog or missing entirely. These gaps prevent production-grade dispatch."
+    },
+    "cost_usd_est": 0.017022,
+    "latency_ms": 107937,
+    "error": null
+  },
+  "gemini_2_5_flash": {
+    "ok": true,
+    "score": 7.5,
+    "passes_floor": false,
+    "details": {
+      "decision": "revise",
+      "overall_score_10": 7.5,
+      "edge_case_coverage": 7.0,
+      "risk_identification": 8.0,
+      "flagged_sections": [
+        "\u00a75 \u2014 Migration sequence does not explicitly detail handling of partial migration states for individual agents.",
+        "\u00a75 \u2014 Rollback path validation is mentioned but not detailed for the 7-day monitoring period.",
+        "\u00a77 \u2014 The atomic Redis Lua gate does not explicitly detail how race conditions between concurrent agent runs attempting to reserve cost are handled.",
+        "\u00a77 \u2014 The reconciliation of actual cost against estimated cost does not detail the retry mechanism or potential for cascading failures if reconciliation itself fails.",
+        "\u00a78 \u2014 Judge Stack Rollback does not detail the process for restoring the AMG Reasoning Judge if it fails, only how to operate in a degraded state.",
+        "\u00a711 \u2014 Phase 4 (7 Agent Migration) does not detail the process for handling a failure during the migration of a single agent, specifically if it leaves the system in a partial migration state.",
+        "\u00a711 \u2014 Phase 7 (Judge Pipeline Switch) does not detail the rollback procedure if the switch to the new judge pipeline fails.",
+        "\u00a712 \u2014 The resolution for 'DeepSeek retry/fallback frequency unclear' states escalation goes through Themis, but does not detail what happens if Themis is unavailable or also fails.",
+        "\u00a713 \u2014 Acceptance criterion 1 mentions blocking spend above $35/day, but does not explicitly state the behavior if the atomic reservation script itself fails."
+      ],
+      "required_revisions": [
+        "Detail the handling of partial migration states for individual agents during the 7-agent migration, including specific rollback or recovery procedures.",
+        "Elaborate on the rollback path validation during the 7-day monitoring period, including what constitutes a 'quality drop' beyond the 0.5 threshold and the exact steps for rollback.",
+        "Clarify how race conditions are handled by the atomic Redis Lua cost reservation script, potentially by adding checks for concurrent access or a locking mechanism.",
+        "Detail the retry mechanism and failure handling for the actual cost reconciliation process, including potential cascading failures and their mitigations.",
+        "Provide a detailed procedure for restoring the AMG Reasoning Judge after a failure, not just operating in a degraded state.",
+        "Specify the process for handling failures during the migration of individual agents in Phase 4, including recovery or rollback steps to avoid partial migration states.",
+        "Outline the rollback procedure for the judge pipeline switch in Phase 7, including what happens if the switch itself fails.",
+        "Clarify the fallback mechanism for the 'DeepSeek retry/fallback frequency unclear' resolution, detailing what happens if Themis is unavailable or also fails.",
+        "Explicitly state the behavior and fallback mechanism if the atomic Redis reservation script itself fails, as per acceptance criterion 1.",
+        "Add a section or revise existing ones to address potential API outages for critical dependencies like Redis or the AMG Reasoning Judge, and define fail-closed/fail-open behaviors.",
+        "Include a specific mitigation for potential key rotation breakage if any of the external or internal services rely on rotating keys that are not explicitly managed within this prompt's scope.",
+        "Address the risk of quality regressions during migration more explicitly, beyond the 7-day monitoring period, perhaps with pre-migration golden set validation for each agent.",
+        "Clarify the risk of single-vendor SPOF for the 'AMG Reasoning Judge' if it's a new, internally developed service, and detail its resilience and redundancy plans."
+      ],
+      "reasoning": "The megaprompt addresses many risks and edge cases, particularly around cost control and judge stack changes. However, it lacks sufficient detail on handling partial migration states, race conditions in cost reservation, and robust rollback procedures for critical infrastructure failures like the reasoning judge or Redis."
+    },
+    "latency_ms": 2739,
+    "error": null
+  },
+  "ts_utc": "2026-04-27T20:33:25Z"
+}

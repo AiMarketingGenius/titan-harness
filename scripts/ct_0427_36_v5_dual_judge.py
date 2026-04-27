@@ -194,6 +194,7 @@ def main(argv: list[str]) -> int:
         user_message=user_msg,
         max_tokens=8000,
         temperature=1.0,
+        timeout_s=300,
     )
     if not kimi_resp.get("ok"):
         print(f"  KIMI ERROR: {kimi_resp.get('error')}", file=sys.stderr)
@@ -224,7 +225,7 @@ def main(argv: list[str]) -> int:
             model=model,
             system_prompt=GEMINI_RUBRIC,
             user_message=user_msg,
-            max_tokens=2000,
+            max_tokens=4000,
             temperature=0.2,
         )
         if not gem_resp.get("ok"):
