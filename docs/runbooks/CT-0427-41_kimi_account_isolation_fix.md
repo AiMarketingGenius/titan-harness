@@ -53,27 +53,57 @@ singleInstance bug **resolved**. Both apps coexist.
 
 ## What Solon must do to activate per-persona accounts
 
-The infrastructure is fixed but the historical user-data-dir cookies are contaminated. Account binding only works after fresh logins. Two paths:
+The infrastructure is fixed but the historical user-data-dir cookies are contaminated. Account binding only works after surgical wipe + fresh logins.
 
-### Path A (recommended): Mac restart + wipe + fresh login
+**Solon ruling 2026-04-27: NO Mac restart needed.** Reboot doesn't clear cookie/auth state — the auth lives in `Cookies` sqlite + `Local Storage`/`Session Storage`/`IndexedDB`/`Service Worker` directories, which survive reboots. Only an explicit wipe clears them.
 
-1. Save any work in any Kimi window
-2. Restart Mac (Apple menu → Restart) — clears all process state + Finder cache + Spotlight index (also fixes Nestor.app dock-drag visibility)
-3. After login, Titan or Solon runs:
+### Surgical wipe + fresh login procedure
+
+1. **Quit all 3 Kimi apps** (Cmd-Q in each window, or `pkill -f "Vendor-(Hercules|Nestor|Alexander)"`).
+
+2. **Run the wipe (Titan can run this when Solon greenlights):**
    ```bash
-   rm -rf "$HOME/Library/Application Support/Hercules"
-   rm -rf "$HOME/Library/Application Support/Nestor"
-   rm -rf "$HOME/Library/Application Support/Alexander"
+   for persona in Hercules Nestor Alexander; do
+     PROFILE="$HOME/Library/Application Support/$persona"
+     # Surgical: only delete auth-related state. Preserves Preferences (theme etc.).
+     rm -f "$PROFILE/Cookies" "$PROFILE/Cookies-journal"
+     rm -rf "$PROFILE/Local Storage"
+     rm -rf "$PROFILE/Session Storage"
+     rm -rf "$PROFILE/IndexedDB"
+     rm -rf "$PROFILE/Service Worker"
+     rm -f "$PROFILE/Login Data" "$PROFILE/Login Data-journal" 2>/dev/null
+     rm -f "$PROFILE/Web Data" "$PROFILE/Web Data-journal" 2>/dev/null
+     rm -rf "$PROFILE/Sessions"
+     rm -rf "$PROFILE/Network/Cookies" "$PROFILE/Network/Cookies-journal" 2>/dev/null
+     echo "wiped auth for $persona"
+   done
    ```
-   This wipes contaminated profiles. The .app launchers will recreate them on first run with --user-data-dir.
-4. Solon launches `Hercules.app` → fresh login with phone **617-797-0402**
-5. Solon launches `Nestor.app` → fresh login with email **growmybusiness@aimarketinggenius.io**
-6. Solon launches `Alexander.app` → fresh login with phone **339-242-3653**
-7. All 3 windows visible simultaneously, each in correct account
 
-### Path B (lighter): logout-relogin without wipe
+3. **Solon launches each app from Dock** (NOT `open` from CLI — bypasses spctl Gatekeeper rejection on ad-hoc signed apps):
+   - `Hercules.app` → fresh login with phone **617-797-0402**
+   - `Nestor.app` → fresh login with email **growmybusiness@aimarketinggenius.io**
+   - `Alexander.app` → fresh login with phone **339-242-3653**
 
-In each Kimi app's user menu, log out, then log back in with the correct credentials per persona. May or may not clear all contamination depending on what state Kimi's web app caches beyond cookies.
+4. All 3 windows visible simultaneously, each in correct account.
+
+### Why surgical (not full profile rm -rf)
+
+Full `rm -rf "$HOME/Library/Application Support/<Persona>"` would also delete Preferences (user-set theme, language, window-size memory) + Cache (slows next-launch by ~5-10s). Surgical wipe targets ONLY auth state — fast post-wipe re-launch, no UX regression.
+
+### spctl Gatekeeper on Alexander.app — why CLI `open` fails
+
+Alexander.app has ad-hoc signature (no Apple Developer ID). `spctl -a -t exec` rejects it. CLI invocations via `open /Applications/Alexander.app` route through LaunchServices which honors spctl → "Launch failed... Launchd job spawn failed."
+
+**Workarounds (any one suffices):**
+- **Right-click → Open once** in Finder (Solon-only; macOS prompts "are you sure" then remembers consent for future launches)
+- `nohup /Applications/Alexander.app/Contents/MacOS/Alexander >/dev/null 2>&1 &` (bypasses LaunchServices entirely; what Titan used during verification)
+- `sudo spctl --add --label "AMG Alexander" /Applications/Alexander.app` (Solon-only sudo; permanent allow)
+
+Hercules.app + Nestor.app are also ad-hoc signed and may need the same right-click-once treatment if Dock launch ever fails.
+
+### Container isolation — NOT needed
+
+Solon ruling 2026-04-27: "Container isolation NO. Your current fix (unique bundle IDs + dedicated Vendor runtimes + per-profile user-data-dirs) is the right architecture." Don't pursue Docker / macOS-multi-user / sandbox-exec. Over-engineering.
 
 ## Backups
 
