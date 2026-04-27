@@ -1,0 +1,33 @@
+{
+  "thresholds": {
+    "disk_used_pct":  {"warn": 80, "action": 85, "critical": 92},
+    "free_gib":       {"warn": 25, "action": 15, "critical": 8},
+    "inode_used_pct": {"warn": 80, "action": 85, "critical": 92},
+    "ram_used_pct":   {"warn": 85, "action": 90, "critical": 95},
+    "swap_used_pct":  {"warn": 50, "action": 75, "critical": 90}
+  },
+  "protected_paths": [
+    "/home/amg/kb",
+    "/etc",
+    "/usr/share/ollama/.ollama/models",
+    "/var/lib/postgresql",
+    "/var/lib/redis",
+    "/var/lib/docker/volumes",
+    "/opt/amg-docs",
+    "/opt/amg-governance",
+    "/var/ossec/queue/vd"
+  ],
+  "safe_remediation": {
+    "journal_vacuum_size": "200M",
+    "playwright_cache_path": "/root/.cache/ms-playwright",
+    "trivy_cache_path": "/root/.cache/trivy",
+    "rotated_log_retention_days": 14,
+    "docker_dangling_prune_enabled": true
+  },
+  "required_services": [
+    "wazuh-manager",
+    "ollama",
+    "docker",
+    "redis-server"
+  ]
+}
