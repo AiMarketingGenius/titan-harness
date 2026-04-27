@@ -209,6 +209,44 @@ def _save_msg(persona: str, session_id: str, msg: dict) -> None:
     conn.close()
 
 
+def _load_recent_messages_across_sessions(persona: str, limit: int = 20) -> list[dict]:
+    """Pull the last N messages for this persona across ALL sessions, newest
+    first. Used by cold-start hydration so a fresh session can still see the
+    most recent operational state. Returns the messages in reverse-chrono
+    order with ts attached for human readability."""
+    _init_convo_db(persona)
+    conn = sqlite3.connect(_convo_db(persona))
+    rows = conn.execute(
+        "SELECT ts, session_id, role, content FROM messages "
+        "WHERE role IN ('user','assistant') AND content IS NOT NULL "
+        "ORDER BY id DESC LIMIT ?",
+        (limit,),
+    ).fetchall()
+    conn.close()
+    return [
+        {"ts": ts, "session_id": sid, "role": role,
+         "content_preview": (content or "")[:600]}
+        for ts, sid, role, content in rows
+    ]
+
+
+def _count_assistant_turns(persona: str, session_id: str) -> int:
+    """Count assistant messages in this session — used by the every-10-turn
+    auto-snapshot trigger. Tool-call rounds DON'T count (those have role=
+    'assistant' too but content=None or tool_calls set), only final
+    assistant text replies do."""
+    _init_convo_db(persona)
+    conn = sqlite3.connect(_convo_db(persona))
+    row = conn.execute(
+        "SELECT COUNT(*) FROM messages "
+        "WHERE session_id=? AND role='assistant' AND content IS NOT NULL "
+        "AND content != '' AND tool_calls_json IS NULL",
+        (session_id,),
+    ).fetchone()
+    conn.close()
+    return int(row[0] if row else 0)
+
+
 # ─── MCP tool schema (OpenAI-compatible function-calling format) ────────────
 def _mcp_post(path: str, body: dict, timeout: int = 20) -> dict:
     url = f"{MCP_BASE.rstrip('/')}/{path.lstrip('/')}"
@@ -506,8 +544,161 @@ def _call_kimi(api_key: str, messages: list[dict], tools: list[dict], temp: floa
         raise RuntimeError(f"Kimi API HTTP {e.code}: {err_body}") from e
 
 
+# ─── cold-start hydration + rolling memory hooks ────────────────────────────
+HYDRATION_USER_PROMPT = (
+    "[HYDRATION_BRIEF] You are resuming after a runner restart. Above is your "
+    "operational state at the moment of resume — recent factory decisions, the "
+    "last few RESTART_HANDOFFs, your most recent persona snapshot, your rolling "
+    "24h summary (if any), and the last 20 messages across your past sessions. "
+    "Briefly (3-6 sentences) summarize: where we are, what was open at last "
+    "checkpoint, and what the next concrete action is. Do NOT call any tools — "
+    "just synthesize from the context. After you reply, I'll send the real "
+    "next message."
+)
+
+
+def _build_hydration_context(persona: str) -> str:
+    """Assemble the cold-start system addendum: bootstrap_context + recent
+    handoffs + persona-specific snapshots + rolling 24h summary + last 20
+    cross-session messages. All four MCP calls are best-effort — if any fails
+    we still return what we have so the runner doesn't block on a transient
+    MCP outage."""
+    parts: list[str] = [
+        "===== HYDRATION CONTEXT =====",
+        f"Persona: {persona}",
+        f"Resume time (UTC): {datetime.now(timezone.utc).isoformat()}",
+        "",
+    ]
+    # 1. Bootstrap context — overall factory + project state.
+    try:
+        boot = tool_get_bootstrap_context({"scope": "eom", "project_id": "EOM",
+                                           "max_decisions": 10, "max_rules": 15})
+        parts.append("--- bootstrap_context (EOM) ---")
+        parts.append(json.dumps(boot, default=str)[:3000])
+        parts.append("")
+    except Exception as e:
+        parts.append(f"--- bootstrap_context FAILED: {e!r} ---\n")
+    # 2. Last 3 restart_handoff entries.
+    try:
+        hand = tool_search_memory({"query": "restart_handoff", "count": 3})
+        parts.append("--- search_memory(restart_handoff, n=3) ---")
+        parts.append(json.dumps(hand, default=str)[:3000])
+        parts.append("")
+    except Exception as e:
+        parts.append(f"--- restart_handoff search FAILED: {e!r} ---\n")
+    # 3. Most recent snapshot for THIS persona (auto + manual + powerdown).
+    try:
+        snap = tool_search_memory({"query": f"snapshot:{persona}", "count": 1})
+        parts.append(f"--- search_memory(snapshot:{persona}, n=1) ---")
+        parts.append(json.dumps(snap, default=str)[:3000])
+        parts.append("")
+    except Exception as e:
+        parts.append(f"--- snapshot search FAILED: {e!r} ---\n")
+    # 4. Rolling 24h summary (written by scripts/persona_summary_daemon.py).
+    try:
+        rolling = tool_search_memory({"query": f"summary:{persona}:rolling_24h", "count": 1})
+        parts.append(f"--- search_memory(summary:{persona}:rolling_24h, n=1) ---")
+        parts.append(json.dumps(rolling, default=str)[:3000])
+        parts.append("")
+    except Exception as e:
+        parts.append(f"--- rolling 24h summary FAILED: {e!r} ---\n")
+    # 5. Last 20 cross-session messages from sqlite.
+    try:
+        recent = _load_recent_messages_across_sessions(persona, limit=20)
+        parts.append(f"--- last 20 sqlite messages (cross-session, newest first) ---")
+        for m in recent:
+            parts.append(f"[{m['ts'][:19]} {m['role']}] {m['content_preview']}")
+        parts.append("")
+    except Exception as e:
+        parts.append(f"--- sqlite recent messages FAILED: {e!r} ---\n")
+    parts.append("===== END HYDRATION CONTEXT =====")
+    return "\n".join(parts)
+
+
+def cold_start_hydrate(persona: str, session_id: str, verbose: bool = False) -> dict:
+    """Run cold-start hydration once on persona launch. Builds a context bundle,
+    saves it as a synthetic system addendum + user prompt in the convo db,
+    runs ONE Kimi turn so the persona briefs themselves, returns the result.
+
+    Idempotent within a session — re-running on the same session is a no-op
+    after the first hydration (we mark the session row with hydrated=1)."""
+    _init_convo_db(persona)
+    conn = sqlite3.connect(_convo_db(persona))
+    cols = [r[1] for r in conn.execute("PRAGMA table_info(sessions)").fetchall()]
+    if "hydrated" not in cols:
+        try:
+            conn.execute("ALTER TABLE sessions ADD COLUMN hydrated INTEGER DEFAULT 0")
+            conn.commit()
+        except Exception:
+            pass
+    row = conn.execute(
+        "SELECT hydrated FROM sessions WHERE session_id=?", (session_id,)
+    ).fetchone()
+    if row and row[0]:
+        conn.close()
+        if verbose:
+            print(f"[hydrate] session {session_id} already hydrated, skipping", file=sys.stderr)
+        return {"skipped": True, "reason": "already_hydrated", "session_id": session_id}
+    conn.close()
+
+    if verbose:
+        print(f"[hydrate] gathering context for persona={persona}...", file=sys.stderr)
+    ctx = _build_hydration_context(persona)
+    # Save the context as a system message so subsequent turns see it.
+    sys_msg = {"role": "system", "content": ctx}
+    _save_msg(persona, session_id, sys_msg)
+    if verbose:
+        print(f"[hydrate] context block: {len(ctx)} chars; running brief turn...", file=sys.stderr)
+
+    result = run_turn(persona, HYDRATION_USER_PROMPT, session_id=session_id,
+                      temp=0.5, verbose=verbose, _from_hydration=True)
+
+    # Mark session as hydrated.
+    conn = sqlite3.connect(_convo_db(persona))
+    conn.execute("UPDATE sessions SET hydrated=1 WHERE session_id=?", (session_id,))
+    conn.commit()
+    conn.close()
+    return {
+        "skipped": False,
+        "session_id": session_id,
+        "brief": result.get("text", ""),
+        "cost_usd": result.get("cost_usd", 0),
+    }
+
+
+def _generate_auto_snapshot(persona: str, session_id: str, turn_count: int,
+                            recent_messages: list[dict]) -> None:
+    """Every-10-turn auto-snapshot. Calls log_decision with a brief summary
+    of where the conversation thread is, so a tab-close / context-overflow /
+    crash mid-session doesn't lose state. Cheaper than a Kimi summary call —
+    just dumps the last few message previews and tags them snapshot:<persona>:auto."""
+    bullets = []
+    for m in recent_messages[-8:]:
+        role = m.get("role", "?")
+        content = (m.get("content") or "")
+        if not content:
+            continue
+        bullets.append(f"[{role}] {content[:240]}")
+    snapshot_text = (
+        f"AUTO-SNAPSHOT persona={persona} session={session_id} "
+        f"turn_count={turn_count} ts={datetime.now(timezone.utc).isoformat()}\n\n"
+        + "\n".join(bullets)
+    )[:2500]
+    try:
+        mcp_log_decision_fn(
+            text=snapshot_text,
+            rationale=f"Auto-snapshot every 10th turn — preserves thread state mid-session.",
+            tags=[f"snapshot:{persona}:auto", f"session:{session_id}",
+                  f"turn:{turn_count}", "rolling-memory"],
+            project_source=persona,
+        )
+        _log(persona, f"auto-snapshot session={session_id} turn={turn_count} OK")
+    except Exception as e:
+        _log(persona, f"auto-snapshot FAILED session={session_id} turn={turn_count}: {e!r}")
+
+
 def run_turn(persona: str, user_message: str, session_id: str | None = None,
-             temp: float = 0.7, verbose: bool = False) -> dict:
+             temp: float = 0.7, verbose: bool = False, _from_hydration: bool = False) -> dict:
     """One full conversation turn — user message in, final assistant text out.
     Resolves all tool calls along the way. Returns dict with `text`, `tool_calls`,
     `usage`, `cost_usd`, `session_id`."""
@@ -541,6 +732,17 @@ def run_turn(persona: str, user_message: str, session_id: str | None = None,
             _save_msg(persona, session_id, asst_msg)
             cost = (total_tokens_in * 0.55 + total_tokens_out * 2.20) / 1_000_000
             _log(persona, f"turn ok session={session_id} tokens_in={total_tokens_in} tokens_out={total_tokens_out} cost=${cost:.4f} tool_calls={len(tool_call_log)}")
+            # Auto-snapshot every 10th completed turn — skip when called from
+            # the hydration path so the very-first hydration brief doesn't
+            # immediately trigger a snapshot of itself.
+            if not _from_hydration:
+                try:
+                    turn_count = _count_assistant_turns(persona, session_id)
+                    if turn_count > 0 and turn_count % 10 == 0:
+                        recent = _load_convo(persona, session_id, max_messages=12)
+                        _generate_auto_snapshot(persona, session_id, turn_count, recent)
+                except Exception as e:
+                    _log(persona, f"auto-snapshot trigger failed (non-fatal): {e!r}")
             return {
                 "text": text,
                 "tool_calls": tool_call_log,
@@ -603,12 +805,25 @@ def main() -> int:
     p.add_argument("--verbose", "-v", action="store_true")
     p.add_argument("--smoke-test", action="store_true",
                    help="run all 5 Hercules smoke tests from Phase 0.D-F")
+    p.add_argument("--no-hydrate", action="store_true",
+                   help="skip cold-start hydration (faster startup, no MCP context lookup)")
     args = p.parse_args()
 
     if args.smoke_test:
         return _smoke_test(args.persona, args.verbose)
 
     sid = _current_session(args.persona, new=args.new_session)
+
+    # Cold-start hydration: persona briefs themselves on the operational state
+    # at resume time before any user input. Idempotent within a session.
+    # Skipped via --no-hydrate or when --smoke-test runs above.
+    if not args.no_hydrate:
+        try:
+            hyd = cold_start_hydrate(args.persona, sid, verbose=args.verbose)
+            if not hyd.get("skipped") and hyd.get("brief"):
+                print(f"\n[{args.persona} resume brief]\n{hyd['brief']}\n", file=sys.stderr)
+        except Exception as e:
+            print(f"[hydrate] failed (non-fatal): {e!r}", file=sys.stderr)
 
     if args.interactive:
         print(f"[hercules-api-runner persona={args.persona} session={sid}] type ':quit' to exit", file=sys.stderr)
