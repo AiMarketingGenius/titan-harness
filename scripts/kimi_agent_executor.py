@@ -58,6 +58,11 @@ try:
 except Exception:
     KillSwitch = None
 
+try:
+    from chief_cost_gate import ChiefCostGate  # noqa: E402
+except Exception:
+    ChiefCostGate = None
+
 KIMI_ENDPOINT = "https://api.moonshot.ai/v1/chat/completions"
 MODEL = "kimi-k2.6"
 SSH_HOST = "amg-staging"
@@ -111,10 +116,15 @@ AGENT_PROFILES = {
 }
 
 
-def _agent_state(agent: str) -> dict:
+def _agent_state(agent: str, owner: str | None = None) -> dict:
+    """Per-agent log + lock paths. If owner is set, the lock file is
+    namespaced as <agent>_kimi_executor.<owner>.lock so the same agent script
+    can run as multiple owner-scoped daemons (e.g. athena+hercules vs the
+    legacy unowned athena instance)."""
+    lock_name = f"{agent}_kimi_executor.{owner}.lock" if owner else f"{agent}_kimi_executor.lock"
     return {
         "log_file": HOME / ".openclaw" / "logs" / f"{agent}_kimi_executor.log",
-        "lock_file": HOME / ".openclaw" / "logs" / f"{agent}_kimi_executor.lock",
+        "lock_file": HOME / ".openclaw" / "logs" / lock_name,
     }
 
 
@@ -126,12 +136,18 @@ def _log(agent: str, msg: str) -> None:
         f.write(f"[{ts}] {msg}\n")
 
 
+_KIMI_KEY_CACHE: str | None = None
+
 def _resolve_kimi_key() -> str:
-    """Pull the Kimi/Moonshot API key. Order: env var → /etc/amg/moonshot.env
-    on staging VPS via SSH. Same pattern as daedalus's deepseek key resolver."""
+    """Cached after first hit. Order: env var → /etc/amg/moonshot.env on
+    staging VPS via SSH → ~/.config/amg/kimi.env."""
+    global _KIMI_KEY_CACHE
+    if _KIMI_KEY_CACHE:
+        return _KIMI_KEY_CACHE
     for env_var in ("MOONSHOT_API_KEY", "KIMI_API_KEY"):
         v = os.environ.get(env_var)
         if v:
+            _KIMI_KEY_CACHE = v
             return v
     out = subprocess.run(
         ["ssh", "-o", "ConnectTimeout=8", SSH_HOST,
@@ -140,27 +156,47 @@ def _resolve_kimi_key() -> str:
     )
     key = out.stdout.strip()
     if not key:
-        # Fallback to local kimi.env
         local = HOME / ".config" / "amg" / "kimi.env"
         if local.exists():
             for line in local.read_text().splitlines():
                 if line.startswith("MOONSHOT_API_KEY=") or line.startswith("KIMI_API_KEY="):
-                    return line.split("=", 1)[1].strip()
+                    _KIMI_KEY_CACHE = line.split("=", 1)[1].strip()
+                    return _KIMI_KEY_CACHE
         raise RuntimeError("Kimi API key not found in env, /etc/amg/moonshot.env, or ~/.config/amg/kimi.env")
+    _KIMI_KEY_CACHE = key
     return key
 
 
-def _matches_agent(task: dict, agent: str) -> bool:
+def _matches_agent(task: dict, agent: str, owner: str | None = None) -> bool:
+    """Match agent tasks. If owner is set, also require an owner tag — used by
+    the 3-EOM-mirror so the same Kimi agent (e.g. athena) can be scoped to a
+    specific chief (athena+hercules) without stealing tasks from other chiefs."""
     tags = [str(t).lower() for t in (task.get("tags") or [])]
     notes = (task.get("notes") or "").lower()
-    return (
+    base_match = (
         f"agent:{agent}" in tags
         or f"dispatch: {agent}" in notes
         or (task.get("agent_assigned") or "").lower() == agent
     )
+    if not base_match:
+        return False
+    if owner is None:
+        # Legacy catch-all — but skip tasks with owner-style tags so the
+        # owner-scoped daemons claim them exclusively (no contention).
+        for tag in tags:
+            if tag.startswith("owner:") or tag.startswith("for:") or tag.startswith("team:"):
+                return False
+        return True
+    owner = owner.lower()
+    return (
+        f"owner:{owner}" in tags
+        or f"agent:{owner}:{agent}" in tags
+        or f"team:{owner}" in tags
+        or f"for:{owner}" in tags
+    )
 
 
-def fetch_pending(agent: str) -> list[dict]:
+def fetch_pending(agent: str, owner: str | None = None) -> list[dict]:
     out: list[dict] = []
     seen: set[str] = set()
     for status in ("approved", "pending"):
@@ -173,7 +209,7 @@ def fetch_pending(agent: str) -> list[dict]:
                 continue
             if t.get("locked_by"):
                 continue
-            if _matches_agent(t, agent):
+            if _matches_agent(t, agent, owner=owner):
                 out.append(t)
                 seen.add(tid)
     return out
@@ -293,10 +329,23 @@ def estimate_cost_usd(prompt: str, max_out_tokens: int = 4096) -> float:
     return (in_tokens * 0.55 + max_out_tokens * 2.20) / 1_000_000
 
 
-def execute_one(agent: str, task: dict, api_key: str, ks: KillSwitch | None) -> dict:
+def execute_one(agent: str, task: dict, api_key: str, ks: KillSwitch | None,
+                owner: str | None = None,
+                chief_gate: "ChiefCostGate | None" = None) -> dict:
     tid = task.get("task_id")
     prompt = _build_prompt(agent, task)
     est = estimate_cost_usd(prompt)
+    # Per-chief + fleet gate fires BEFORE the per-agent vendor gate.
+    if chief_gate is not None:
+        cached = chief_gate.check_cache(prompt)
+        if cached is not None:
+            return cached if isinstance(cached, dict) else {"ok": True, "cached": True}
+        if not chief_gate.allow_call(estimated_cost_usd=est):
+            deny = chief_gate.deny_response()
+            _log(agent, f"task={tid} chief-gate DENIED owner={owner} {deny}")
+            update(agent, tid, "blocked",
+                   failure=f"chief-gate cap hit owner={owner} chief_spend=${deny['chief_spend_usd']:.4f}/${deny['chief_cap_usd']:.2f} fleet=${deny['fleet_spend_usd']:.4f}/${deny['fleet_cap_usd']:.2f}")
+            return {"ok": False, "exit_code": 429, "reasoning": "chief-cost-cap"}
     if ks is not None:
         cached = ks.check_cache(prompt)
         if cached is not None:
@@ -321,6 +370,11 @@ def execute_one(agent: str, task: dict, api_key: str, ks: KillSwitch | None) -> 
             ks.record_call(prompt, cost, msg["content"])
         except Exception as e:
             _log(agent, f"cost record failed (non-fatal): {e!r}")
+    if chief_gate is not None:
+        try:
+            chief_gate.record_call(prompt, cost, msg["content"])
+        except Exception as e:
+            _log(agent, f"chief-gate record failed (non-fatal): {e!r}")
     receipt = parse_receipt(msg["content"])
     if receipt is None:
         _log(agent, f"task={tid} receipt UNPARSEABLE; raw={msg['content'][:200]!r}")
@@ -339,28 +393,43 @@ def execute_one(agent: str, task: dict, api_key: str, ks: KillSwitch | None) -> 
     else:
         update(agent, tid, "failed",
                failure=(receipt.get("reasoning") or "ok=false")[:500])
+    decision_tags = [f"{agent}-receipt", f"task:{tid}", "kimi-k2.6"]
+    if owner:
+        decision_tags.extend([f"owner:{owner}", f"chief:{owner}"])
     mcp_log_decision(
-        text=f"{agent.upper()} executor receipt task={tid} ok={receipt.get('ok')} cost=${cost:.4f}",
+        text=f"{agent.upper()} executor receipt task={tid} ok={receipt.get('ok')} cost=${cost:.4f} owner={owner or 'legacy'}",
         rationale=summary,
-        tags=[f"{agent}-receipt", f"task:{tid}", "kimi-k2.6"],
+        tags=decision_tags,
         project_source=agent,
     )
     return receipt
 
 
-def drain_once(agent: str) -> dict:
+def drain_once(agent: str, owner: str | None = None) -> dict:
     api_key = _resolve_kimi_key()
     ks = KillSwitch(vendor=f"kimi-{agent}", daily_cap_usd=DAILY_CAP_USD_PER_AGENT,
                     scope="executor") if KillSwitch else None
-    pending = fetch_pending(agent)
-    out = {"agent": agent, "scanned": len(pending), "claimed": 0, "ok": 0, "fail": 0, "skipped": 0}
+    chief_gate = None
+    if owner and ChiefCostGate is not None:
+        # Map agent name to ChiefCostGate role. athena has its own role bucket;
+        # nestor/alexander route through the kimi runner natively (not via this
+        # executor) so map to their direct role names if invoked here.
+        role = agent if agent in {"athena", "nestor", "alexander"} else "athena"
+        try:
+            chief_gate = ChiefCostGate(chief=owner, role=role,
+                                       vendor=f"kimi-{agent}")
+        except Exception as e:
+            _log(agent, f"chief-gate construct failed (non-fatal): {e!r}")
+    pending = fetch_pending(agent, owner=owner)
+    out = {"agent": agent, "scanned": len(pending), "claimed": 0, "ok": 0, "fail": 0,
+           "skipped": 0, "owner": owner or "legacy"}
     for t in pending:
         tid = t.get("task_id")
         if not claim(agent, tid):
             out["skipped"] += 1
             continue
         out["claimed"] += 1
-        receipt = execute_one(agent, t, api_key, ks)
+        receipt = execute_one(agent, t, api_key, ks, owner=owner, chief_gate=chief_gate)
         if receipt.get("ok"):
             out["ok"] += 1
         else:
@@ -375,21 +444,31 @@ def main() -> int:
     p.add_argument("--watch", action="store_true")
     p.add_argument("--interval", type=int, default=30)
     p.add_argument("--task-id", type=str, default=None)
+    p.add_argument("--owner", type=str, default=None,
+                   help="restrict to tasks tagged owner:<name>; per-owner lock")
     args = p.parse_args()
 
-    state = _agent_state(args.agent)
+    state = _agent_state(args.agent, owner=args.owner)
     state["lock_file"].parent.mkdir(parents=True, exist_ok=True)
     lock_fp = state["lock_file"].open("a")
     try:
         fcntl.flock(lock_fp.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
     except BlockingIOError:
-        print(f"{args.agent}_kimi_executor: another instance holds the lock", file=sys.stderr)
+        print(f"{args.agent}_kimi_executor (owner={args.owner or 'legacy'}): another instance holds the lock", file=sys.stderr)
         return 1
 
     if args.task_id:
         api_key = _resolve_kimi_key()
         ks = KillSwitch(vendor=f"kimi-{args.agent}", daily_cap_usd=DAILY_CAP_USD_PER_AGENT,
                         scope="executor") if KillSwitch else None
+        chief_gate = None
+        if args.owner and ChiefCostGate is not None:
+            role = args.agent if args.agent in {"athena", "nestor", "alexander"} else "athena"
+            try:
+                chief_gate = ChiefCostGate(chief=args.owner, role=role,
+                                           vendor=f"kimi-{args.agent}")
+            except Exception as e:
+                _log(args.agent, f"chief-gate construct failed (non-fatal): {e!r}")
         code, body = mcp_get_task_queue(task_id=args.task_id)
         tasks = (body or {}).get("tasks") or []
         if not tasks:
@@ -398,19 +477,20 @@ def main() -> int:
         if not claim(args.agent, args.task_id):
             print(f"could not claim {args.task_id}")
             return 1
-        receipt = execute_one(args.agent, tasks[0], api_key, ks)
+        receipt = execute_one(args.agent, tasks[0], api_key, ks,
+                              owner=args.owner, chief_gate=chief_gate)
         print(json.dumps(receipt, indent=2))
         return 0 if receipt.get("ok") else 1
 
     if args.once or not args.watch:
-        result = drain_once(args.agent)
+        result = drain_once(args.agent, owner=args.owner)
         print(json.dumps(result, indent=2))
         return 0
 
-    _log(args.agent, f"{args.agent}_kimi starting watch interval={args.interval}s")
+    _log(args.agent, f"{args.agent}_kimi starting watch interval={args.interval}s owner={args.owner or 'legacy'}")
     while True:
         try:
-            r = drain_once(args.agent)
+            r = drain_once(args.agent, owner=args.owner)
             if r["scanned"] > 0:
                 _log(args.agent, f"watch drain: {r}")
         except Exception as e:

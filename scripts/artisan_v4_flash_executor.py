@@ -1,41 +1,31 @@
 #!/usr/bin/env python3
-"""daedalus_v4_pro_executor.py — Daedalus poll-execute daemon backed by
-DeepSeek V4 Pro (api.deepseek.com).
+"""artisan_v4_flash_executor.py — Artisan poll-execute daemon backed by
+DeepSeek V4 Flash (api.deepseek.com).
 
-Polls MCP `op_task_queue` every 30s for tasks where ANY of the following
-are true (no AND-ing):
-  - tag `agent:daedalus`
-  - tag `tier:v4_pro`
-  - notes contains `DISPATCH: daedalus`
+Same shape as daedalus_v4_pro_executor.py with two differences:
+  1. Cheaper model (V4 Flash) at lower per-task cost
+  2. Auto-rejects tasks with >3 distinct steps (counted by numbered list
+     in `instructions`); requeues them for Daedalus by appending an
+     agent:daedalus tag via update_task notes.
 
-For each match: claim_task → call DeepSeek → validate structured JSON →
-save artifact → mark completed/failed via locked→active→terminal hop.
+Cost gate: $10/day via lib/cost_kill_switch.py (sqlite, NOT Redis).
 
-Hercules dispatch 2026-04-26: forced structured JSON output. The model
-must produce {ok, artifact_path, artifact_hash, stdout_tail, exit_code,
-reasoning}. If the response can't be parsed as that shape, the task is
-marked failed (NEVER saved as a fake completion — Aletheia would catch
-it on the next pass anyway).
+Polls MCP for tasks tagged:
+  - agent:artisan
+  - tier:v4_flash
+  - or notes contains DISPATCH: artisan
 
-Cost gate: lib/cost_kill_switch.py at $20/day. Sqlite, NOT Redis. If cap
-hit, task gets requeued to artisan (cheaper) automatically.
-
-Run modes:
-    daedalus_v4_pro_executor.py --once         # drain once, exit
-    daedalus_v4_pro_executor.py --watch        # daemon, poll every --interval
-    daedalus_v4_pro_executor.py --task-id CT-X # claim a specific task
-
-Logs: ~/.openclaw/logs/daedalus_v4_pro_executor.{out,err}.log
-launchd: com.amg.daedalus-v4-pro
+Logs: ~/.openclaw/logs/artisan_v4_flash_executor.{out,err}.log
+launchd: com.amg.artisan-v4-flash
 """
 from __future__ import annotations
 
 import argparse
 import fcntl
-import hashlib
 import json
 import os
 import pathlib
+import re
 import subprocess
 import sys
 import time
@@ -56,19 +46,27 @@ from mcp_rest_client import (  # noqa: E402
 try:
     from cost_kill_switch import KillSwitch  # noqa: E402
 except Exception:
-    KillSwitch = None  # cost gate optional; warns at runtime if missing
+    KillSwitch = None
+
+try:
+    from chief_cost_gate import ChiefCostGate  # noqa: E402
+except Exception:
+    ChiefCostGate = None
 
 DEEPSEEK_ENDPOINT = "https://api.deepseek.com/v1/chat/completions"
-MODEL = "deepseek-v4-pro"
+MODEL = "deepseek-v4-flash"
 SSH_HOST = "amg-staging"
-DAILY_CAP_USD = 20.0
-LOCK_FILE = HOME / ".openclaw" / "logs" / "daedalus_v4_pro_executor.lock"
-LOG_FILE = HOME / ".openclaw" / "logs" / "daedalus_v4_pro_executor.log"
-ARTIFACTS_DIR = HOME / "titan-harness" / "reports" / "daedalus"
+DAILY_CAP_USD = 10.0
+MAX_STEPS = 3
+LOCK_FILE = HOME / ".openclaw" / "logs" / "artisan_v4_flash_executor.lock"
+LOG_FILE = HOME / ".openclaw" / "logs" / "artisan_v4_flash_executor.log"
 
 REQUIRED_RECEIPT_KEYS = {
     "ok", "artifact_path", "artifact_hash", "stdout_tail", "exit_code", "reasoning",
 }
+
+STEP_PATTERN = re.compile(r"(?m)^\s*(?:\d+[.)]|step\s+\d+[:.])\s+", re.IGNORECASE)
+PHASE_PATTERN = re.compile(r"(?m)^\s*phase\s+\d+", re.IGNORECASE)
 
 
 def _log(msg: str) -> None:
@@ -81,9 +79,7 @@ def _log(msg: str) -> None:
 _API_KEY_CACHE: str | None = None
 
 def _resolve_api_key() -> str:
-    """Pull DEEPSEEK_API_KEY. Cached in module global after first hit so the
-    daemon doesn't slam VPS sshd with one ssh-grep call per poll cycle (16
-    daemons * 30s polling = SSH throttling under MaxStartups)."""
+    """Cached after first hit — avoids per-poll SSH (VPS sshd throttling)."""
     global _API_KEY_CACHE
     if _API_KEY_CACHE:
         return _API_KEY_CACHE
@@ -97,7 +93,7 @@ def _resolve_api_key() -> str:
         capture_output=True, text=True, timeout=15,
     )
     if out.returncode != 0:
-        raise RuntimeError(f"could not read DEEPSEEK_API_KEY from VPS: {out.stderr[:200]}")
+        raise RuntimeError(f"could not read DEEPSEEK_API_KEY: {out.stderr[:200]}")
     key = out.stdout.strip()
     if not key:
         raise RuntimeError("DEEPSEEK_API_KEY empty on VPS")
@@ -105,46 +101,47 @@ def _resolve_api_key() -> str:
     return key
 
 
-def _matches_daedalus(task: dict, owner: str | None = None) -> bool:
-    """Match Daedalus tasks. If owner is set, ALSO require owner:<owner> tag
-    or agent:<owner>:daedalus shorthand — used by the 3-EOM-mirror
-    architecture so each Kimi orchestrator (hercules/nestor/alexander) has
-    its OWN daedalus instance and they don't steal each other's work."""
+def _matches_artisan(task: dict, owner: str | None = None) -> bool:
+    """Match Artisan tasks. If owner is set, ALSO require an owner tag — used by
+    the 3-EOM-mirror so each chief (hercules/nestor/alexander) has its own
+    Artisan instance and they don't steal each other's work."""
     tags = [str(t).lower() for t in (task.get("tags") or [])]
     notes = (task.get("notes") or "").lower()
     base_match = (
-        "agent:daedalus" in tags
-        or "tier:v4_pro" in tags
-        or "dispatch: daedalus" in notes
+        "agent:artisan" in tags
+        or "tier:v4_flash" in tags
+        or "dispatch: artisan" in notes
     )
     if not base_match:
         return False
     if owner is None:
-        # Legacy catch-all — but skip any task that has an explicit owner-style
-        # tag, so owner-scoped daemons (post-2026-04-27 Phase 2.5) get
-        # exclusive rights to their tagged tasks. Prevents cross-contamination.
+        # Legacy catch-all — but skip tasks with owner-style tags so the
+        # owner-scoped daemons claim them exclusively (no contention).
         for tag in tags:
             if tag.startswith("owner:") or tag.startswith("for:") or tag.startswith("team:"):
                 return False
         return True
     owner = owner.lower()
-    # Owner-scoped match: require explicit owner tag.
     return (
         f"owner:{owner}" in tags
-        or f"agent:{owner}:daedalus" in tags
+        or f"agent:{owner}:artisan" in tags
         or f"team:{owner}" in tags
         or f"for:{owner}" in tags
     )
 
 
+def _count_steps(task: dict) -> int:
+    """Count numbered steps + phases in the task instructions. Used to
+    reject too-complex tasks that should go to Daedalus instead."""
+    text = (task.get("instructions") or "") + "\n" + (task.get("objective") or "")
+    return len(STEP_PATTERN.findall(text)) + len(PHASE_PATTERN.findall(text))
+
+
 def fetch_pending(owner: str | None = None) -> list[dict]:
-    """Pull approved+pending tasks tagged for Daedalus (optionally scoped to
-    an owner). Server-side tag filtering isn't supported, so we client-filter
-    the top 50."""
     out: list[dict] = []
     seen: set[str] = set()
     for status in ("approved", "pending"):
-        code, body = mcp_get_task_queue(status=status, limit=200)
+        code, body = mcp_get_task_queue(status=status, limit=50)
         if code != 200:
             continue
         for t in body.get("tasks") or []:
@@ -153,38 +150,38 @@ def fetch_pending(owner: str | None = None) -> list[dict]:
                 continue
             if t.get("locked_by"):
                 continue
-            if _matches_daedalus(t, owner=owner):
+            if _matches_artisan(t, owner=owner):
                 out.append(t)
                 seen.add(tid)
     return out
 
 
 def claim(task_id: str) -> bool:
-    code, body = mcp_claim_task(operator_id="daedalus", task_id=task_id)
+    code, body = mcp_claim_task(operator_id="artisan", task_id=task_id)
     return code == 200 and bool(body.get("success") or body.get("claimed"))
 
 
 def update(task_id: str, status: str, summary: str | None = None,
-           failure: str | None = None, deliverable: str | None = None) -> None:
-    """FSM hop locked→active→terminal with same fall-through-to-dead_letter
-    safety as the patched mercury_executor.py (no lock leaks)."""
+           failure: str | None = None, deliverable: str | None = None,
+           notes: str | None = None) -> None:
     needs_hop = status in {"completed", "failed", "blocked"}
     try:
         if needs_hop:
             code1, body1 = mcp_update_task(
                 task_id=task_id, status="active",
-                notes="daedalus_v4_pro: transitioning to terminal",
+                notes="artisan_v4_flash: transitioning to terminal",
             )
             if code1 != 200 or not body1.get("success", True):
                 _log(f"hop1-fail task={task_id} → dead_letter")
                 mcp_update_task(task_id=task_id, status="dead_letter",
-                                failure_reason=(failure or "daedalus hop1 failed")[:500])
+                                failure_reason=(failure or "artisan hop1 failed")[:500])
                 return
         code2, body2 = mcp_update_task(
             task_id=task_id, status=status,
             result_summary=(summary or "")[:1500],
             failure_reason=(failure or None),
             deliverable_link=deliverable,
+            notes=notes,
         )
         if code2 != 200 or not body2.get("success", True):
             _log(f"hop2-fail task={task_id} status={status} → dead_letter")
@@ -194,51 +191,28 @@ def update(task_id: str, status: str, summary: str | None = None,
         _log(f"update EXCEPTION task={task_id} → dead_letter ({e!r})")
         try:
             mcp_update_task(task_id=task_id, status="dead_letter",
-                            failure_reason=f"daedalus update exception: {e!r}"[:500])
+                            failure_reason=f"artisan update exception: {e!r}"[:500])
         except Exception as e2:
             _log(f"dead_letter fallback ALSO FAILED task={task_id}: {e2!r}")
 
 
 def _build_prompt(task: dict) -> str:
     tid = task.get("task_id")
-    objective = task.get("objective") or ""
-    instructions = task.get("instructions") or ""
-    accept = task.get("acceptance_criteria") or ""
-    context = task.get("context") or ""
-    return f"""ROLE: You are Daedalus, AMG factory's premium code+architecture executor backed by DeepSeek V4 Pro.
+    return f"""ROLE: You are Artisan, AMG factory's fast LLM executor backed by DeepSeek V4 Flash.
 
 TASK ID: {tid}
 
-OBJECTIVE:
-{objective}
+OBJECTIVE: {task.get('objective','')}
+CONTEXT: {task.get('context','')}
+INSTRUCTIONS: {task.get('instructions','')}
+ACCEPTANCE CRITERIA: {task.get('acceptance_criteria','')}
 
-CONTEXT:
-{context}
+OUTPUT FORMAT — return ONLY a single JSON object with exactly these keys:
+{{"ok": true|false, "artifact_path": str|null, "artifact_hash": str|null,
+  "stdout_tail": str, "exit_code": 0|N, "reasoning": str}}
 
-INSTRUCTIONS:
-{instructions}
-
-ACCEPTANCE CRITERIA:
-{accept}
-
-OUTPUT FORMAT — return ONLY a single JSON object with exactly these keys, no markdown fences, no preamble:
-
-{{
-  "ok": true|false,
-  "artifact_path": "/absolute/path/to/file/you/wrote OR null if no file",
-  "artifact_hash": "sha256-hex of artifact content OR null",
-  "stdout_tail": "last 600 chars of any stdout you'd return to caller",
-  "exit_code": 0|N,
-  "reasoning": "1-3 sentences on what you did and why ok=true|false"
-}}
-
-RULES:
-- Do NOT include a markdown fence around the JSON. Output STARTS with `{{` and ENDS with `}}`.
-- If you cannot complete the task, set ok=false + exit_code=non-zero + reasoning explaining what's missing.
-- If the task requires writing a file, write it via your own tool and report the absolute path + sha256.
-- If the task requires reading + analyzing, embed your finding in `stdout_tail` and set artifact_path=null.
-- DO NOT fabricate file paths or hashes. Either you wrote a real file or artifact_path=null.
-"""
+NO markdown fences. Output starts with `{{` ends with `}}`. Do not fabricate
+file paths or hashes. Aletheia detects fake completions and flags them."""
 
 
 def call_deepseek(api_key: str, prompt: str) -> tuple[dict, dict]:
@@ -246,14 +220,13 @@ def call_deepseek(api_key: str, prompt: str) -> tuple[dict, dict]:
         "model": MODEL,
         "messages": [
             {"role": "system", "content": (
-                "You are Daedalus. Output ONLY a single JSON object matching "
-                "the exact schema specified in the user prompt. No prose before "
-                "or after. No markdown fences. Be honest about ok/exit_code: "
-                "fake completions are detected by Aletheia and will be flagged."
+                "You are Artisan. Output ONLY a single JSON object matching "
+                "the schema. Be honest about ok/exit_code. Fake completions "
+                "are detected by Aletheia."
             )},
             {"role": "user", "content": prompt},
         ],
-        "max_tokens": 8192,
+        "max_tokens": 4096,
         "response_format": {"type": "json_object"},
     }
     req = urllib.request.Request(
@@ -261,19 +234,16 @@ def call_deepseek(api_key: str, prompt: str) -> tuple[dict, dict]:
         data=json.dumps(body).encode("utf-8"),
         headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
     )
-    with urllib.request.urlopen(req, timeout=300) as r:
+    with urllib.request.urlopen(req, timeout=180) as r:
         resp = json.loads(r.read())
     choices = resp.get("choices") or []
     if not choices:
         raise RuntimeError(f"empty choices: {resp}")
     msg = choices[0].get("message") or {}
-    content = (msg.get("content") or "").strip()
-    return resp, {"content": content, "reasoning": msg.get("reasoning_content") or ""}
+    return resp, {"content": (msg.get("content") or "").strip()}
 
 
 def parse_receipt(content: str) -> dict | None:
-    """Strict shape validation. Returns dict if valid, None if garbage."""
-    # Strip any accidental markdown fences
     s = content.strip()
     if s.startswith("```"):
         lines = s.splitlines()
@@ -283,29 +253,42 @@ def parse_receipt(content: str) -> dict | None:
             lines = lines[:-1]
         s = "\n".join(lines)
     try:
-        receipt = json.loads(s)
+        r = json.loads(s)
     except Exception:
         return None
-    if not isinstance(receipt, dict):
+    if not isinstance(r, dict):
         return None
-    missing = REQUIRED_RECEIPT_KEYS - set(receipt.keys())
-    if missing:
+    if REQUIRED_RECEIPT_KEYS - set(r.keys()):
         return None
-    if not isinstance(receipt.get("ok"), bool):
+    if not isinstance(r.get("ok"), bool):
         return None
-    return receipt
+    return r
 
 
-def estimate_cost_usd(prompt: str, max_out_tokens: int = 8192) -> float:
-    in_tokens = len(prompt) / 4  # rough
-    return (in_tokens * 0.27 + max_out_tokens * 1.10) / 1_000_000
+def estimate_cost_usd(prompt: str, max_out_tokens: int = 4096) -> float:
+    # V4 Flash: rough estimate $0.07/M input, $0.28/M output (~25% of V4 Pro)
+    in_tokens = len(prompt) / 4
+    return (in_tokens * 0.07 + max_out_tokens * 0.28) / 1_000_000
 
 
 def execute_one(task: dict, api_key: str, ks: KillSwitch | None,
-                owner: str | None = None, chief_gate=None) -> dict:
+                owner: str | None = None,
+                chief_gate: "ChiefCostGate | None" = None) -> dict:
     tid = task.get("task_id")
+    steps = _count_steps(task)
+    if steps > MAX_STEPS:
+        # Reject + requeue for Daedalus by appending an agent:daedalus marker
+        # to notes (the daedalus poller will pick it up next pass).
+        existing_notes = task.get("notes") or ""
+        update(tid, "blocked",
+               failure=f"artisan rejects: {steps} steps > {MAX_STEPS}; requeue agent:daedalus",
+               notes=f"{existing_notes}\nREQUEUE_TAG: agent:daedalus reason=artisan-too-complex steps={steps}")
+        _log(f"task={tid} REJECT steps={steps} → requeue daedalus")
+        return {"ok": False, "exit_code": 100, "reasoning": f"too-many-steps={steps}"}
     prompt = _build_prompt(task)
     est = estimate_cost_usd(prompt)
+    # Per-chief + fleet gate (if owner-scoped). Stops over-spend BEFORE the
+    # per-vendor gate fires.
     if chief_gate is not None:
         cached = chief_gate.check_cache(prompt)
         if cached is not None:
@@ -316,16 +299,13 @@ def execute_one(task: dict, api_key: str, ks: KillSwitch | None,
             update(tid, "blocked",
                    failure=f"chief-gate cap hit owner={owner} chief_spend=${deny['chief_spend_usd']:.4f}/${deny['chief_cap_usd']:.2f} fleet=${deny['fleet_spend_usd']:.4f}/${deny['fleet_cap_usd']:.2f}")
             return {"ok": False, "exit_code": 429, "reasoning": "chief-cost-cap"}
-    cached = None
     if ks is not None:
         cached = ks.check_cache(prompt)
         if cached is not None:
-            _log(f"task={tid} cache-hit → returning cached receipt")
             return cached if isinstance(cached, dict) else {"ok": True, "cached": True}
         if not ks.allow_call(estimated_cost_usd=est):
-            _log(f"task={tid} cost-cap hit (vendor=deepseek-v4-pro est=${est:.3f}) → REQUEUE for artisan")
-            update(tid, "blocked",
-                   failure="daedalus daily $20 cap reached; requeued tier:v4_flash for Artisan")
+            _log(f"task={tid} cost-cap hit (artisan $10/day) → block")
+            update(tid, "blocked", failure="artisan daily $10 cap reached")
             return {"ok": False, "exit_code": 429, "reasoning": "cost cap"}
     t0 = time.time()
     try:
@@ -336,7 +316,7 @@ def execute_one(task: dict, api_key: str, ks: KillSwitch | None,
         return {"ok": False, "exit_code": 1, "reasoning": f"deepseek-call-exception {e!r}"}
     latency = time.time() - t0
     usage = resp.get("usage") or {}
-    cost = (usage.get("prompt_tokens", 0) * 0.27 + usage.get("completion_tokens", 0) * 1.10) / 1_000_000
+    cost = (usage.get("prompt_tokens", 0) * 0.07 + usage.get("completion_tokens", 0) * 0.28) / 1_000_000
     if ks is not None:
         try:
             ks.record_call(prompt, cost, msg["content"])
@@ -349,13 +329,13 @@ def execute_one(task: dict, api_key: str, ks: KillSwitch | None,
             _log(f"task={tid} chief-gate record failed (non-fatal): {e!r}")
     receipt = parse_receipt(msg["content"])
     if receipt is None:
-        _log(f"task={tid} receipt UNPARSEABLE; raw_preview={msg['content'][:200]!r}")
+        _log(f"task={tid} receipt UNPARSEABLE; raw={msg['content'][:200]!r}")
         update(tid, "failed",
-               failure=f"daedalus returned unstructured/invalid JSON; preview: {msg['content'][:300]}"[:500])
+               failure=f"artisan returned unstructured JSON; preview: {msg['content'][:300]}"[:500])
         return {"ok": False, "exit_code": 2, "reasoning": "unstructured-output"}
     artifact_path = receipt.get("artifact_path")
     summary = (
-        f"daedalus_v4_pro receipt: ok={receipt.get('ok')} exit_code={receipt.get('exit_code')} "
+        f"artisan_v4_flash receipt: ok={receipt.get('ok')} exit_code={receipt.get('exit_code')} "
         f"artifact={artifact_path} hash={receipt.get('artifact_hash')} "
         f"latency={latency:.1f}s cost=${cost:.4f} | {receipt.get('reasoning','')[:300]}"
     )
@@ -365,30 +345,32 @@ def execute_one(task: dict, api_key: str, ks: KillSwitch | None,
     else:
         update(tid, "failed",
                failure=(receipt.get("reasoning") or "ok=false")[:500])
+    decision_tags = ["artisan-receipt", f"task:{tid}", "deepseek-v4-flash"]
+    if owner:
+        decision_tags.extend([f"owner:{owner}", f"chief:{owner}"])
     mcp_log_decision(
-        text=f"DAEDALUS executor receipt task={tid} ok={receipt.get('ok')} cost=${cost:.4f}",
+        text=f"ARTISAN executor receipt task={tid} ok={receipt.get('ok')} cost=${cost:.4f} owner={owner or 'legacy'}",
         rationale=summary,
-        tags=["daedalus-receipt", f"task:{tid}", "deepseek-v4-pro"],
-        project_source="daedalus",
+        tags=decision_tags,
+        project_source="artisan",
     )
     return receipt
 
 
 def drain_once(owner: str | None = None) -> dict:
     api_key = _resolve_api_key()
-    vendor = f"deepseek-v4-pro-{owner}" if owner else "deepseek-v4-pro"
-    ks = KillSwitch(vendor=vendor, daily_cap_usd=DAILY_CAP_USD,
+    ks = KillSwitch(vendor="deepseek-v4-flash", daily_cap_usd=DAILY_CAP_USD,
                     scope="executor") if KillSwitch else None
     chief_gate = None
-    if owner:
+    if owner and ChiefCostGate is not None:
         try:
-            from chief_cost_gate import ChiefCostGate
-            chief_gate = ChiefCostGate(chief=owner, role="daedalus",
-                                       vendor="deepseek-v4-pro")
+            chief_gate = ChiefCostGate(chief=owner, role="artisan",
+                                       vendor="deepseek-v4-flash")
         except Exception as e:
             _log(f"chief-gate construct failed (non-fatal): {e!r}")
     pending = fetch_pending(owner=owner)
-    out = {"owner": owner or "all", "scanned": len(pending), "claimed": 0, "ok": 0, "fail": 0, "skipped": 0}
+    out = {"scanned": len(pending), "claimed": 0, "ok": 0, "fail": 0, "skipped": 0, "rejected": 0,
+           "owner": owner or "legacy"}
     for t in pending:
         tid = t.get("task_id")
         if not claim(tid):
@@ -396,7 +378,9 @@ def drain_once(owner: str | None = None) -> dict:
             continue
         out["claimed"] += 1
         receipt = execute_one(t, api_key, ks, owner=owner, chief_gate=chief_gate)
-        if receipt.get("ok"):
+        if receipt.get("exit_code") == 100:
+            out["rejected"] += 1
+        elif receipt.get("ok"):
             out["ok"] += 1
         else:
             out["fail"] += 1
@@ -410,29 +394,31 @@ def main() -> int:
     p.add_argument("--interval", type=int, default=30)
     p.add_argument("--task-id", type=str, default=None)
     p.add_argument("--owner", type=str, default=None,
-                   help="3-EOM-mirror scope. One of: hercules, nestor, alexander. "
-                        "If unset, daemon runs in legacy catch-all mode (claims any agent:daedalus task).")
+                   help="restrict to tasks tagged owner:<name>; per-owner lock file")
     args = p.parse_args()
 
-    # Per-owner lock file so 3 owner-scoped daedalus daemons can coexist
-    # without fighting for the same lock.
     global LOCK_FILE
     if args.owner:
-        LOCK_FILE = HOME / ".openclaw" / "logs" / f"daedalus_v4_pro_executor.{args.owner}.lock"
-
+        LOCK_FILE = HOME / ".openclaw" / "logs" / f"artisan_v4_flash_executor.{args.owner}.lock"
     LOCK_FILE.parent.mkdir(parents=True, exist_ok=True)
     lock_fp = LOCK_FILE.open("a")
     try:
         fcntl.flock(lock_fp.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
     except BlockingIOError:
-        print(f"daedalus_v4_pro_executor (owner={args.owner or 'legacy'}): another instance holds the lock", file=sys.stderr)
+        print(f"artisan_v4_flash_executor (owner={args.owner or 'legacy'}): another instance holds the lock", file=sys.stderr)
         return 1
 
     if args.task_id:
-        # one-shot single-task
         api_key = _resolve_api_key()
-        ks = KillSwitch(vendor="deepseek-v4-pro", daily_cap_usd=DAILY_CAP_USD,
+        ks = KillSwitch(vendor="deepseek-v4-flash", daily_cap_usd=DAILY_CAP_USD,
                         scope="executor") if KillSwitch else None
+        chief_gate = None
+        if args.owner and ChiefCostGate is not None:
+            try:
+                chief_gate = ChiefCostGate(chief=args.owner, role="artisan",
+                                           vendor="deepseek-v4-flash")
+            except Exception as e:
+                _log(f"chief-gate construct failed (non-fatal): {e!r}")
         code, body = mcp_get_task_queue(task_id=args.task_id)
         tasks = (body or {}).get("tasks") or []
         if not tasks:
@@ -441,7 +427,7 @@ def main() -> int:
         if not claim(args.task_id):
             print(f"could not claim {args.task_id}")
             return 1
-        receipt = execute_one(tasks[0], api_key, ks)
+        receipt = execute_one(tasks[0], api_key, ks, owner=args.owner, chief_gate=chief_gate)
         print(json.dumps(receipt, indent=2))
         return 0 if receipt.get("ok") else 1
 
@@ -450,7 +436,7 @@ def main() -> int:
         print(json.dumps(result, indent=2))
         return 0
 
-    _log(f"daedalus_v4_pro starting watch interval={args.interval}s owner={args.owner or 'legacy'}")
+    _log(f"artisan_v4_flash starting watch interval={args.interval}s owner={args.owner or 'legacy'}")
     while True:
         try:
             r = drain_once(owner=args.owner)

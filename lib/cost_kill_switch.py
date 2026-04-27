@@ -52,6 +52,7 @@ import os
 import sqlite3
 import sys
 import time
+from contextlib import closing
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Optional
@@ -150,7 +151,7 @@ class KillSwitch:
         tenant_id in UNIQUE — each tenant gets an independent record.
         """
         self.ledger_path.parent.mkdir(parents=True, exist_ok=True)
-        with sqlite3.connect(self.ledger_path, timeout=5) as con:
+        with closing(sqlite3.connect(self.ledger_path, timeout=5)) as con:
             existing = con.execute(
                 "SELECT sql FROM sqlite_master WHERE type='table' AND name='calls'"
             ).fetchone()
@@ -220,7 +221,7 @@ class KillSwitch:
         separately. Single-tenant (tenant_id='global') users see prior behavior."""
         sha = _sha256_hex(artifact_text)
         day = _today_utc_str()
-        with sqlite3.connect(self.ledger_path, timeout=5) as con:
+        with closing(sqlite3.connect(self.ledger_path, timeout=5)) as con:
             row = con.execute(
                 'SELECT result_json FROM calls '
                 'WHERE day=? AND vendor=? AND scope=? AND tenant_id=? AND artifact_sha=? '
@@ -238,7 +239,7 @@ class KillSwitch:
         """Sum of today's API cost for (vendor, tenant_id). Scope-agnostic —
         a single daily cap governs ALL scopes for the tenant+vendor pair."""
         day = _today_utc_str()
-        with sqlite3.connect(self.ledger_path, timeout=5) as con:
+        with closing(sqlite3.connect(self.ledger_path, timeout=5)) as con:
             row = con.execute(
                 'SELECT COALESCE(SUM(cost_usd), 0) FROM calls '
                 'WHERE day=? AND vendor=? AND tenant_id=?',
@@ -248,7 +249,7 @@ class KillSwitch:
 
     def today_call_count(self) -> int:
         day = _today_utc_str()
-        with sqlite3.connect(self.ledger_path, timeout=5) as con:
+        with closing(sqlite3.connect(self.ledger_path, timeout=5)) as con:
             row = con.execute(
                 'SELECT COUNT(*) FROM calls '
                 'WHERE day=? AND vendor=? AND tenant_id=?',
@@ -284,7 +285,7 @@ class KillSwitch:
             result_json = json.dumps(result, default=str) if result is not None else None
         except (TypeError, ValueError):
             result_json = None
-        with sqlite3.connect(self.ledger_path, timeout=5) as con:
+        with closing(sqlite3.connect(self.ledger_path, timeout=5)) as con:
             try:
                 con.execute(
                     'INSERT INTO calls (ts, day, vendor, scope, tenant_id, '

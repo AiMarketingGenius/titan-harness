@@ -77,19 +77,38 @@ def _log(msg: str) -> None:
         f.write(f"[{ts}] {msg}\n")
 
 
-def _matches_hephaestus(task: dict) -> bool:
+def _matches_hephaestus(task: dict, owner: str | None = None) -> bool:
+    """Match Hephaestus tasks. If owner is set, also require an owner tag — used
+    by the 3-EOM-mirror so each chief gets its own dedicated Hephaestus
+    instance with no cross-contamination."""
     tags = [str(t).lower() for t in (task.get("tags") or [])]
     notes = (task.get("notes") or "").lower()
-    return (
+    base_match = (
         "agent:hephaestus" in tags
         or "lane:local-coder" in tags
         or "tier:local" in tags
         or "dispatch: hephaestus" in notes
         or (task.get("agent_assigned") or "").lower() == "hephaestus"
     )
+    if not base_match:
+        return False
+    if owner is None:
+        # Legacy catch-all — but skip tasks with owner-style tags so the
+        # owner-scoped daemons claim them exclusively (no contention).
+        for tag in tags:
+            if tag.startswith("owner:") or tag.startswith("for:") or tag.startswith("team:"):
+                return False
+        return True
+    owner = owner.lower()
+    return (
+        f"owner:{owner}" in tags
+        or f"agent:{owner}:hephaestus" in tags
+        or f"team:{owner}" in tags
+        or f"for:{owner}" in tags
+    )
 
 
-def fetch_pending() -> list[dict]:
+def fetch_pending(owner: str | None = None) -> list[dict]:
     out: list[dict] = []
     seen: set[str] = set()
     for status in ("approved", "pending"):
@@ -102,7 +121,7 @@ def fetch_pending() -> list[dict]:
                 continue
             if t.get("locked_by"):
                 continue
-            if _matches_hephaestus(t):
+            if _matches_hephaestus(t, owner=owner):
                 out.append(t)
                 seen.add(tid)
     return out
@@ -240,7 +259,7 @@ def _maybe_write_artifact(receipt: dict) -> dict:
     return receipt
 
 
-def execute_one(task: dict) -> dict:
+def execute_one(task: dict, owner: str | None = None) -> dict:
     tid = task.get("task_id")
     prompt = _build_prompt(task)
     t0 = time.time()
@@ -275,25 +294,29 @@ def execute_one(task: dict) -> dict:
     else:
         update(tid, "failed",
                failure=(receipt.get("reasoning") or "ok=false")[:500])
+    decision_tags = ["hephaestus-receipt", f"task:{tid}", "ollama-local", f"model:{model}"]
+    if owner:
+        decision_tags.extend([f"owner:{owner}", f"chief:{owner}"])
     mcp_log_decision(
-        text=f"HEPHAESTUS executor receipt task={tid} ok={receipt.get('ok')} model={model} cost=$0",
+        text=f"HEPHAESTUS executor receipt task={tid} ok={receipt.get('ok')} model={model} cost=$0 owner={owner or 'legacy'}",
         rationale=summary,
-        tags=["hephaestus-receipt", f"task:{tid}", "ollama-local", f"model:{model}"],
+        tags=decision_tags,
         project_source="hephaestus",
     )
     return receipt
 
 
-def drain_once() -> dict:
-    pending = fetch_pending()
-    out = {"scanned": len(pending), "claimed": 0, "ok": 0, "fail": 0, "skipped": 0}
+def drain_once(owner: str | None = None) -> dict:
+    pending = fetch_pending(owner=owner)
+    out = {"scanned": len(pending), "claimed": 0, "ok": 0, "fail": 0, "skipped": 0,
+           "owner": owner or "legacy"}
     for t in pending:
         tid = t.get("task_id")
         if not claim(tid):
             out["skipped"] += 1
             continue
         out["claimed"] += 1
-        receipt = execute_one(t)
+        receipt = execute_one(t, owner=owner)
         if receipt.get("ok"):
             out["ok"] += 1
         else:
@@ -307,14 +330,19 @@ def main() -> int:
     p.add_argument("--watch", action="store_true")
     p.add_argument("--interval", type=int, default=30)
     p.add_argument("--task-id", type=str, default=None)
+    p.add_argument("--owner", type=str, default=None,
+                   help="restrict to tasks tagged owner:<name>; per-owner lock file")
     args = p.parse_args()
 
+    global LOCK_FILE
+    if args.owner:
+        LOCK_FILE = HOME / ".openclaw" / "logs" / f"hephaestus_local_executor.{args.owner}.lock"
     LOCK_FILE.parent.mkdir(parents=True, exist_ok=True)
     lock_fp = LOCK_FILE.open("a")
     try:
         fcntl.flock(lock_fp.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
     except BlockingIOError:
-        print("hephaestus_local_executor: another instance holds the lock", file=sys.stderr)
+        print(f"hephaestus_local_executor (owner={args.owner or 'legacy'}): another instance holds the lock", file=sys.stderr)
         return 1
 
     if args.task_id:
@@ -326,19 +354,19 @@ def main() -> int:
         if not claim(args.task_id):
             print(f"could not claim {args.task_id}")
             return 1
-        receipt = execute_one(tasks[0])
+        receipt = execute_one(tasks[0], owner=args.owner)
         print(json.dumps(receipt, indent=2))
         return 0 if receipt.get("ok") else 1
 
     if args.once or not args.watch:
-        result = drain_once()
+        result = drain_once(owner=args.owner)
         print(json.dumps(result, indent=2))
         return 0
 
-    _log(f"hephaestus_local starting watch interval={args.interval}s primary={PRIMARY_MODEL}")
+    _log(f"hephaestus_local starting watch interval={args.interval}s primary={PRIMARY_MODEL} owner={args.owner or 'legacy'}")
     while True:
         try:
-            r = drain_once()
+            r = drain_once(owner=args.owner)
             if r["scanned"] > 0:
                 _log(f"watch drain: {r}")
         except Exception as e:
