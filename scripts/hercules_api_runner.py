@@ -362,6 +362,117 @@ def tool_get_sprint_state(args: dict) -> dict:
     return {"http_code": code, "result": body}
 
 
+# ─── search_kb: namespace-scoped knowledge-base search ──────────────────────
+# Phase 2.5 Phase B (2026-04-27): each chief gets their own kb:<chief>:*
+# namespaces ingested into op_memory_vectors. This tool retrieves chunks
+# from the calling persona's own namespaces only — cross-chief access is
+# refused at the tool layer (ACL enforced server-side via project_tag filter).
+_CURRENT_PERSONA: str | None = None  # set by run_turn at the start of each turn
+PERSONA_TO_CHIEF = {
+    "hercules": "hercules",
+    "nestor": "nestor",
+    "alexander": "alexander",
+}
+
+
+def tool_search_kb(args: dict) -> dict:
+    """Semantic search over the calling persona's KB namespaces.
+
+    Args:
+      namespace: kb:<chief>:<topic>  e.g. kb:hercules:eom, kb:alexander:hormozi
+      query: natural-language search string
+      count: max results (1–10, default 5)
+
+    ACL: persona can only search kb:<their-chief>:*. Cross-chief requests
+    return access_denied without touching the vector store.
+    """
+    namespace = (args.get("namespace") or "").strip()
+    query = (args.get("query") or "").strip()
+    count = max(1, min(int(args.get("count", 5) or 5), 10))
+    if not namespace or not query:
+        return {"error": "namespace + query both required"}
+    if not namespace.startswith("kb:"):
+        return {"error": "namespace must start with kb: (e.g. kb:hercules:eom)"}
+    parts = namespace.split(":", 2)
+    if len(parts) < 3:
+        return {"error": "namespace must be kb:<chief>:<topic>"}
+    target_chief = parts[1].lower()
+
+    persona = (_CURRENT_PERSONA or "").lower()
+    persona_chief = PERSONA_TO_CHIEF.get(persona)
+    if not persona_chief:
+        return {"error": f"unknown calling persona: {persona!r} (cannot resolve chief)"}
+    if target_chief != persona_chief:
+        return {
+            "error": "access_denied",
+            "calling_persona": persona,
+            "calling_persona_chief": persona_chief,
+            "requested_chief": target_chief,
+            "reason": (
+                f"persona '{persona}' (chief={persona_chief}) cannot search "
+                f"namespaces belonging to chief '{target_chief}'. Each chief "
+                f"is restricted to kb:{persona_chief}:*"
+            ),
+        }
+
+    # Over-fetch via MCP search-memory (which queries op_memory_vectors via
+    # nomic-embed-text + pgvector), filter to chunk_type='kb' and the exact
+    # namespace via topic_tags. project_filter narrows the query to the
+    # chief's project_tag — keeps the vector index lookup efficient.
+    raw = _mcp_post("/api/search-memory", {
+        "query": query,
+        "count": count * 4,  # over-fetch so post-filter doesn't starve
+        "project_filter": persona_chief,
+    })
+    # The /api/search-memory route returns either {content:[{text:'...'}]}
+    # MCP-style or a direct array. Handle both.
+    rows: list[dict] = []
+    if isinstance(raw, dict):
+        if isinstance(raw.get("data"), list):
+            rows = raw["data"]
+        elif isinstance(raw.get("matches"), list):
+            rows = raw["matches"]
+        elif isinstance(raw.get("content"), list):
+            # MCP-style text payload — surface as-is for now, no post-filter.
+            return {
+                "namespace": namespace,
+                "query": query,
+                "raw_text_payload": raw,
+                "note": "MCP-style payload received; client-side topic_tag filter not applied",
+            }
+    # Post-filter by namespace + chunk_type.
+    filtered = []
+    for r in rows:
+        if not isinstance(r, dict):
+            continue
+        if (r.get("chunk_type") or "").lower() != "kb":
+            continue
+        tags = r.get("topic_tags") or []
+        if isinstance(tags, str):
+            try:
+                tags = json.loads(tags)
+            except Exception:
+                tags = [tags]
+        if namespace not in tags:
+            continue
+        filtered.append({
+            "id": r.get("id"),
+            "summary": r.get("summary") or (r.get("content") or "")[:200],
+            "content": (r.get("content") or "")[:1500],
+            "topic_tags": tags,
+            "similarity": r.get("similarity") or r.get("final_score") or r.get("hot_score"),
+            "created_at": r.get("created_at"),
+        })
+        if len(filtered) >= count:
+            break
+    return {
+        "namespace": namespace,
+        "query": query,
+        "count_returned": len(filtered),
+        "results": filtered,
+    }
+
+
 TOOL_REGISTRY = {
     "log_decision": tool_log_decision,
     "search_memory": tool_search_memory,
@@ -371,6 +482,7 @@ TOOL_REGISTRY = {
     "update_sprint_state": tool_update_sprint_state,
     "get_recent_decisions": tool_get_recent_decisions,
     "get_sprint_state": tool_get_sprint_state,
+    "search_kb": tool_search_kb,
 }
 
 
@@ -506,6 +618,41 @@ TOOL_SCHEMA = [
             "parameters": {
                 "type": "object",
                 "properties": {"project_id": {"type": "string"}},
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "search_kb",
+            "description": (
+                "Semantic search over your dedicated KB namespaces. Each chief can only "
+                "search their own kb:<chief>:* namespaces (ACL enforced). Use this for "
+                "domain knowledge: doctrines, frameworks, project briefs, methodology. "
+                "For active operational state (decisions, blockers, sprints) use search_memory "
+                "instead. Hercules namespaces: kb:hercules:eom, kb:hercules:doctrine. "
+                "Alexander namespaces: kb:alexander:outbound, kb:alexander:seo-content, "
+                "kb:alexander:hormozi, kb:alexander:welby, kb:alexander:koray, "
+                "kb:alexander:reputation, kb:alexander:paid-ads. Nestor namespaces: "
+                "kb:nestor:lumina-cro."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "namespace": {
+                        "type": "string",
+                        "description": "kb:<chief>:<topic> e.g. kb:hercules:eom",
+                    },
+                    "query": {
+                        "type": "string",
+                        "description": "Natural-language search query.",
+                    },
+                    "count": {
+                        "type": "integer",
+                        "description": "Max results (1-10, default 5).",
+                    },
+                },
+                "required": ["namespace", "query"],
             },
         },
     },
@@ -697,11 +844,90 @@ def _generate_auto_snapshot(persona: str, session_id: str, turn_count: int,
         _log(persona, f"auto-snapshot FAILED session={session_id} turn={turn_count}: {e!r}")
 
 
+# ─── verbal control commands (power off / awake) ────────────────────────────
+POWER_OFF_PHRASES = {"power off", "powerdown", "power down", ":powerdown", "shutdown"}
+AWAKE_PHRASES = {"awake", "wake up", ":awake", "rehydrate", ":rehydrate"}
+
+
+def powerdown_persona(persona: str, session_id: str, verbose: bool = False) -> dict:
+    """Graceful Hercules powerdown: log a RESTART_HANDOFF decision capturing
+    the thread state, mark the session as powered-down, return for clean exit.
+    Cold-start hydration on the next launch will pick up this handoff via
+    search_memory(restart_handoff)."""
+    recent = _load_convo(persona, session_id, max_messages=20)
+    bullets = []
+    for m in recent[-12:]:
+        role = m.get("role", "?")
+        content = (m.get("content") or "")
+        if not content:
+            continue
+        bullets.append(f"[{role}] {content[:300]}")
+    handoff_text = (
+        f"RESTART_HANDOFF persona={persona} session={session_id} "
+        f"ts={datetime.now(timezone.utc).isoformat()} "
+        f"trigger=powerdown-verbal\n\n"
+        f"Thread state at powerdown (last {len(bullets)} message previews):\n\n"
+        + "\n".join(bullets)
+    )[:3500]
+    try:
+        mcp_log_decision_fn(
+            text=handoff_text,
+            rationale=(
+                f"Manual 'power off' issued by Solon. Logs the thread for cold-start "
+                f"hydration next time {persona} is awakened. Hydration will read "
+                f"this via search_memory('restart_handoff') and brief the persona."
+            ),
+            tags=[
+                "RESTART_HANDOFF", "powerdown:manual", "powerdown:verbal",
+                f"persona:{persona}", f"session:{session_id}", "rolling-memory",
+            ],
+            project_source=persona,
+        )
+        _log(persona, f"powerdown OK session={session_id}")
+    except Exception as e:
+        _log(persona, f"powerdown log_decision FAILED session={session_id}: {e!r}")
+        return {"ok": False, "error": repr(e)}
+    # Mark the session as powered-down in sqlite for downstream consumers.
+    try:
+        conn = sqlite3.connect(_convo_db(persona))
+        cols = [r[1] for r in conn.execute("PRAGMA table_info(sessions)").fetchall()]
+        if "powered_down_at" not in cols:
+            conn.execute("ALTER TABLE sessions ADD COLUMN powered_down_at TEXT")
+        conn.execute(
+            "UPDATE sessions SET powered_down_at=? WHERE session_id=?",
+            (datetime.now(timezone.utc).isoformat(), session_id),
+        )
+        conn.commit()
+        conn.close()
+    except Exception as e:
+        _log(persona, f"powerdown sqlite mark FAILED (non-fatal): {e!r}")
+    return {"ok": True, "session_id": session_id}
+
+
+def force_rehydrate(persona: str, session_id: str, verbose: bool = False) -> dict:
+    """'awake' command: re-run cold-start hydration on the current session even
+    if it was already hydrated. Useful when the persona has been running for a
+    while and you want a fresh-from-MCP brief of current factory state."""
+    try:
+        conn = sqlite3.connect(_convo_db(persona))
+        conn.execute("UPDATE sessions SET hydrated=0 WHERE session_id=?", (session_id,))
+        conn.commit()
+        conn.close()
+    except Exception as e:
+        _log(persona, f"force_rehydrate sqlite reset FAILED: {e!r}")
+    return cold_start_hydrate(persona, session_id, verbose=verbose)
+
+
 def run_turn(persona: str, user_message: str, session_id: str | None = None,
              temp: float = 0.7, verbose: bool = False, _from_hydration: bool = False) -> dict:
     """One full conversation turn — user message in, final assistant text out.
     Resolves all tool calls along the way. Returns dict with `text`, `tool_calls`,
     `usage`, `cost_usd`, `session_id`."""
+    # Set the persona-scope global so search_kb (and any other persona-aware
+    # tool) can enforce ACL. Best-effort thread-safety: not actually
+    # thread-safe, but the runner only invokes one turn at a time per process.
+    global _CURRENT_PERSONA
+    _CURRENT_PERSONA = persona
     if session_id is None:
         session_id = _current_session(persona)
     api_key = _resolve_kimi_key()
@@ -826,7 +1052,14 @@ def main() -> int:
             print(f"[hydrate] failed (non-fatal): {e!r}", file=sys.stderr)
 
     if args.interactive:
-        print(f"[hercules-api-runner persona={args.persona} session={sid}] type ':quit' to exit", file=sys.stderr)
+        print(
+            f"[hercules-api-runner persona={args.persona} session={sid}]\n"
+            f"  :quit / :q / exit  — leave (no handoff log)\n"
+            f"  power off          — graceful shutdown, logs RESTART_HANDOFF to MCP\n"
+            f"  awake              — force re-hydrate from MCP mid-session\n"
+            f"  :new               — start a fresh session",
+            file=sys.stderr,
+        )
         while True:
             try:
                 line = input("you> ").strip()
@@ -835,8 +1068,25 @@ def main() -> int:
                 return 0
             if not line:
                 continue
-            if line in {":quit", ":q", "exit"}:
+            low = line.lower().strip().rstrip(".!").strip()
+            if low in {":quit", ":q", "exit"}:
                 return 0
+            if low in POWER_OFF_PHRASES:
+                print(f"\n[{args.persona}] powering down — logging RESTART_HANDOFF to MCP...",
+                      file=sys.stderr)
+                r = powerdown_persona(args.persona, sid, verbose=args.verbose)
+                if r.get("ok"):
+                    print(f"[{args.persona}] handoff logged. Goodnight.", file=sys.stderr)
+                else:
+                    print(f"[{args.persona}] handoff FAILED: {r.get('error')}",
+                          file=sys.stderr)
+                return 0
+            if low in AWAKE_PHRASES:
+                print(f"\n[{args.persona}] re-hydrating from MCP...", file=sys.stderr)
+                r = force_rehydrate(args.persona, sid, verbose=args.verbose)
+                if r.get("brief"):
+                    print(f"\n[{args.persona} fresh brief]\n{r['brief']}\n", file=sys.stderr)
+                continue
             if line == ":new":
                 sid = _current_session(args.persona, new=True)
                 print(f"[new session: {sid}]", file=sys.stderr)
