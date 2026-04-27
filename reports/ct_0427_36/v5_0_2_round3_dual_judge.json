@@ -1,0 +1,82 @@
+=== CT-0427-36 v5.0 dual-judge ===
+draft: /var/folders/q9/lsylqm311yg5ftw0h27knqqc0000gp/T/v5_0_2.XXXXXX.md.5PXyZRenJA  (19,640 chars)
+
+[1/2] Calling Kimi K2.6...
+  Kimi score: 7.3/10  (tech=7.0, complete=7.5)  cost=$0.0203
+[2/2] Calling Gemini (retry chain)...
+  attempt 1: gemini-2.5-flash
+    parse fail, raw head: '{\n  "decision": "revise",\n  "overall_score_10": 8.1,\n  "edge_case_coverage": 8.0,\n  "risk_identification": 8.2,\n  "flagged_sections": [\n    "§1 — Credential rotation explicitly out of scope, but a cri'
+  attempt 2: gemini-2.5-flash-lite
+  Gemini (gemini-2.5-flash-lite) score: 8.5/10  (edge=8.0, risk=9.0)
+{
+  "task": "CT-0427-36",
+  "artifact": "/var/folders/q9/lsylqm311yg5ftw0h27knqqc0000gp/T/v5_0_2.XXXXXX.md.5PXyZRenJA",
+  "floor": 9.0,
+  "decision": "revise",
+  "kimi_k2_6": {
+    "ok": true,
+    "score": 7.3,
+    "passes_floor": false,
+    "details": {
+      "decision": "revise",
+      "overall_score_10": 7.3,
+      "technical_soundness": 7.0,
+      "completeness": 7.5,
+      "flagged_sections": [
+        "\u00a73/\u00a74 \u2014 Themis and Iolaus are referenced as live routing actors but never defined as agents, services, or human roles; implementation blocked.",
+        "\u00a77 \u2014 Lua script omits fleet-key increment for P0 bypass, returning a misleading `projected` value while leaving the fleet ledger stale; also lacks guard for nil KEYS[3] when p0_mode=1.",
+        "\u00a77 \u2014 No mechanism validates that Lua ARGV[5] p0_override_cap matches an approved Solon decision UUID; arbitrary caller can supply any cap.",
+        "\u00a77/\u00a711 \u2014 P0 override spend accounting semantics undefined for monthly $200 target reconciliation with split fleet/p0 ledgers.",
+        "\u00a711 Phase 7 \u2014 Stale editing artifact ('before round 2') contradicts document's round-3 status and acceptance criterion \u00a714; timing of CT-36 patch is ambiguous.",
+        "\u00a73 \u2014 Metered Kimi API usage lacks a tier assignment despite being a billable API call in the cost pool.",
+        "\u00a75 \u2014 Step 2 ('Scrub trade secrets') does not explicitly invoke \u00a76 scrubber or specify halt behavior on scrubber failure.",
+        "\u00a77 \u2014 Under-spend reconciliation undefined: no logic for releasing unused reservation when actual cost < estimate."
+      ],
+      "required_revisions": [
+        "Add an operative definition of Themis and Iolaus (role, model/runtime, outputs, ownership) in \u00a74 or a new subsection.",
+        "Fix Lua script to increment KEYS[1] unconditionally for all metered calls, or explicitly define fleet key as non-P0-only and add a total-spend reconciliation formula for monthly reporting.",
+        "Add a pre-flight validation step that the P0 override cap is checked against a Redis-hashed Solon approval record (e.g., `solon_override:<uuid>`) before the Lua script executes in p0_mode=1.",
+        "Defend against nil KEYS[3] in Lua or mandate that callers always pass three keys; return `bad_args` if p0_mode=1 and KEYS[3] is missing.",
+        "Rewrite \u00a711 Phase 7 editing artifact to state the CT-36 script must be patched before Phase 7 cutover or before any reuse in the current round.",
+        "Assign metered Kimi API to an explicit tier (e.g., T1 or T2) with model routing and cost treatment.",
+        "In \u00a75 step 2, insert a mandatory \u00a76 scrubber invocation with fail-closed branching.",
+        "Define under-spend behavior: either permit negative delta reservation via the same Lua script or maintain an unspent-reservation key with expiration."
+      ],
+      "reasoning": "The megaprompt demonstrates strong structural discipline and closes several prior gaps, but it contains critical implementation blockers including an undefined routing dependency (Themis/Iolaus), a materially incorrect Lua accounting script, and a missing validation chain for P0 override caps that would allow unbounded spend. These flaws prevent a production-grade dispatch."
+    },
+    "cost_usd_est": 0.020265,
+    "latency_ms": 187648,
+    "error": null
+  },
+  "gemini_2_5_flash": {
+    "ok": true,
+    "score": 8.5,
+    "passes_floor": false,
+    "details": {
+      "decision": "revise",
+      "overall_score_10": 8.5,
+      "edge_case_coverage": 8.0,
+      "risk_identification": 9.0,
+      "flagged_sections": [
+        "\u00a75 \u2014 Partial-Migration Recovery Contract: While the contract defines states and actions, it doesn't explicitly cover race conditions where an agent might be marked 'cutover' or 'locked' just before a broader rollback is triggered, leading to a transiently inconsistent fleet state that might not be fully captured by the 'mixed-state matrix'.",
+        "\u00a77 \u2014 Atomic Redis Lua Gate: The Lua script handles basic cost reservation and P0 bypass, but doesn't explicitly detail how to handle Redis unavailability *during* a P0 bypass reservation, or how to reconcile potential clock skew between the application and Redis for TTLs.",
+        "\u00a78 \u2014 Cost-Gate Rollback Receipt Schema: The schema includes `blocked_calls` but lacks a field to capture the *reason* for blocking (e.g., fleet cap, P0 cap, Redis unavailable), which could be crucial for post-mortem analysis.",
+        "\u00a711 \u2014 Phase Plan: Phase 4 (7 Agent Migration) mentions a 7-day buffer before Lumina if earlier agents show variance, but doesn't specify what constitutes 'variance' beyond the 0.5 rubric drop mentioned in \u00a75, nor does it detail if this buffer applies to *all* agents or just Lumina.",
+        "\u00a714 \u2014 Acceptance Criteria: Criterion 12 states rollback is <= 15 minutes, but \u00a78's Cost-Gate Rollback mentions replaying MCP receipts, which could potentially exceed this time limit depending on the volume of receipts. This is a potential contradiction.",
+        "\u00a715 \u2014 Self-Score: The self-score for edge cases (9.1) seems optimistic given the lack of explicit handling for race conditions in partial migrations and Redis unavailability during P0 bypass."
+      ],
+      "required_revisions": [
+        "In \u00a75, explicitly define behavior and logging for race conditions where an agent's state might be updated between a broader rollback decision and the agent's own state update.",
+        "In \u00a77, add a sub-section detailing the fail-closed behavior and recovery steps for Redis unavailability specifically during a P0 bypass reservation attempt.",
+        "In \u00a78, enhance the `Cost-Gate Rollback Receipt Schema` to include a `blocker_reason` field.",
+        "In \u00a711, clarify the definition of 'variance' for the Lumina migration buffer and specify if the buffer is a delay for Lumina only or a pause for the entire wave.",
+        "In \u00a714, reconcile the 15-minute rollback target with the potential time required for cost-gate receipt replay, or adjust the target/criteria.",
+        "Re-evaluate the edge case coverage score in \u00a715 based on the identified gaps, particularly regarding race conditions and Redis unavailability during P0 bypass."
+      ],
+      "reasoning": "The megaprompt demonstrates strong risk identification and covers many critical edge cases like cost gates and partial migrations. However, it lacks explicit detail on race conditions during partial migrations and Redis unavailability during P0 bypass reservations, and there's a potential contradiction in rollback timeframes."
+    },
+    "latency_ms": 3836,
+    "error": null
+  },
+  "ts_utc": "2026-04-27T22:25:35Z"
+}
