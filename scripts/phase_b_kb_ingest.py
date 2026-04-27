@@ -94,7 +94,15 @@ NAMESPACE_PLAN = [
         "namespace": "kb:hercules:doctrine",
         "chief": "hercules",
         "source_kind": SOURCE_KIND_MERGED_DIRS,
-        "sources": ["/opt/amg-docs/doctrines/", "/opt/amg-docs/doctrine/"],
+        "sources": [
+            "/opt/amg-docs/doctrines/",
+            "/opt/amg-docs/doctrine/",
+            # Expanded corpus added 2026-04-27 after Hercules couldn't find Atlas:
+            # the original 6-file slice was missing Encyclopedia, Agent Roster,
+            # Atlas architecture DRs, etc. These are the load-bearing doctrines.
+            "/opt/amg-docs/doctrine-expanded/plans/",
+            "/opt/amg-docs/doctrine-expanded/downloads/",
+        ],
         "extensions": [".md", ".txt"],
     },
     {
@@ -437,7 +445,11 @@ def ingest_namespace(plan: dict, dry_run: bool = False) -> dict:
                 "project_tag": chief,
                 "project_id": chief,
                 "chunk_type": "kb",
-                "operator_id": "KB_INGEST_PHASE_B",
+                # op_search_memory RPC requires operator_id='OPERATOR_AMG' or
+                # rows are silently filtered out of search results. Ingestion
+                # uses the canonical operator id; provenance is preserved via
+                # topic_tags + summary + project_tag.
+                "operator_id": "OPERATOR_AMG",
                 "model_name": EMBED_MODEL,
                 "embedding_dim": 768,
                 "topic_tags": [namespace, src["file_name"], f"chief:{chief}"],
