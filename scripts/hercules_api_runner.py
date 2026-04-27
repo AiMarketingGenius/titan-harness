@@ -293,10 +293,13 @@ def tool_log_decision(args: dict) -> dict:
     return {"http_code": code, "result": body}
 
 
-# ─── direct vector-store retrieval (bypasses broken MCP HTTP routes) ────────
-# The /api/search-memory route is currently 404 on the live MCP server (CT-0427-32
-# queued for daedalus-hercules to fix). Until that lands, we bypass MCP and call
-# Ollama (local Mac, nomic-embed-text) + Supabase op_search_memory RPC directly.
+# ─── direct retrieval path (PERMANENT — not a workaround) ──────────────────
+# Per Solon directive 2026-04-27: this is the production retrieval architecture
+# going forward. Direct-to-Supabase + local Ollama nomic-embed-text is faster
+# and cheaper than routing through the MCP HTTP layer. The MCP /api/search-*
+# and /api/bootstrap-context routes stay deprecated — less surface, fewer
+# things to break. All three tools (search_memory, search_kb, get_bootstrap_
+# context) use this same path so we don't carry two retrieval architectures.
 
 LOCAL_OLLAMA_URL = os.environ.get("LOCAL_OLLAMA_URL", "http://127.0.0.1:11434")
 SUPABASE_URL_FOR_SEARCH = os.environ.get(
@@ -384,50 +387,117 @@ def _supabase_search_memory(embedding: list[float], filter_project: str | None,
 
 
 def tool_search_memory(args: dict) -> dict:
-    """Semantic search over op_decisions + op_memory_vectors. First tries the
-    direct path (Mac Ollama + Supabase RPC) since the MCP HTTP route is
-    currently 404. Falls back to MCP if direct path fails."""
+    """Semantic search over op_decisions + op_memory_vectors via the canonical
+    direct path (local Ollama nomic-embed-text + Supabase op_search_memory
+    RPC). Same path as tool_search_kb; same path as the bootstrap-context
+    retrieval — one retrieval architecture, period."""
     query = (args.get("query") or "").strip()
     count = int(args.get("count", 10) or 10)
     project_filter = args.get("project_filter")
     if not query:
         return {"error": "query required"}
     embedding = _embed_query_local(query)
-    if embedding:
-        rows = _supabase_search_memory(
-            embedding, filter_project=project_filter,
-            filter_chunk_types=None, match_count=min(count, 10),
-        )
-        if rows:
-            return {
-                "matches": [
-                    {
-                        "id": r.get("id"),
-                        "summary": r.get("summary"),
-                        "content": (r.get("content") or "")[:1500],
-                        "project_tag": r.get("project_tag"),
-                        "chunk_type": r.get("chunk_type"),
-                        "similarity": r.get("similarity") or r.get("final_score"),
-                        "created_at": r.get("created_at"),
-                    }
-                    for r in rows[:count]
-                ],
-                "count": len(rows),
-                "source": "direct-supabase-rpc",
+    if not embedding:
+        return {"error": "embed_failed",
+                "reason": "local Ollama nomic-embed-text not reachable at " + LOCAL_OLLAMA_URL}
+    rows = _supabase_search_memory(
+        embedding, filter_project=project_filter,
+        filter_chunk_types=None, match_count=min(count, 10),
+    )
+    return {
+        "matches": [
+            {
+                "id": r.get("id"),
+                "summary": r.get("summary"),
+                "content": (r.get("content") or "")[:1500],
+                "project_tag": r.get("project_tag"),
+                "chunk_type": r.get("chunk_type"),
+                "similarity": round(r.get("similarity") or 0, 3),
+                "final_score": round(r.get("final_score") or 0, 3),
+                "created_at": r.get("created_at"),
             }
-    # Fall back to MCP (still 404 right now but harmless)
-    return _mcp_post("/api/search-memory", {
-        "query": query, "count": count, "project_filter": project_filter,
-    })
+            for r in (rows or [])[:count]
+        ],
+        "count": len(rows or []),
+        "source": "direct-supabase-rpc",
+    }
+
+
+def _direct_supabase_table(path: str, params: dict | None = None) -> list[dict]:
+    """Generic Supabase REST GET against a table. Used for sprint state,
+    standing rules, recent decisions etc. — the building blocks of
+    bootstrap-context."""
+    key = _resolve_supabase_key()
+    if not key:
+        return []
+    url = f"{SUPABASE_URL_FOR_SEARCH.rstrip('/')}/rest/v1/{path.lstrip('/')}"
+    if params:
+        url += "?" + urllib.parse.urlencode({k: v for k, v in params.items() if v is not None})
+    req = urllib.request.Request(
+        url, headers={"apikey": key, "Authorization": f"Bearer {key}", "Accept": "application/json"},
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=20) as r:
+            data = json.loads(r.read())
+        return data if isinstance(data, list) else []
+    except Exception:
+        return []
 
 
 def tool_get_bootstrap_context(args: dict) -> dict:
-    return _mcp_post("/api/bootstrap-context", {
-        "scope": args.get("scope", "eom"),
-        "project_id": args.get("project_id", "EOM"),
-        "max_decisions": args.get("max_decisions", 10),
-        "max_rules": args.get("max_rules", 15),
+    """Bootstrap context bundle: standing rules + sprint state + recent
+    decisions + pending titan tasks. Direct-to-Supabase path (PERMANENT —
+    /api/bootstrap-context HTTP route is deprecated). Mirrors the schema
+    used by /opt/amg-mcp-server/src/tools/bootstrap.js's getBootstrapContext
+    handler so the shape stays consistent for downstream consumers."""
+    project_id = args.get("project_id", "EOM")
+    scope = (args.get("scope") or "eom").lower()
+    max_rules = min(int(args.get("max_rules", 15) or 15), 40)
+    max_decisions = min(int(args.get("max_decisions", 10) or 10), 20)
+
+    # 1. Standing rules (active=true, scope filter, by priority desc).
+    scope_filter = f"or=(scope.eq.{scope},scope.eq.both)" if scope != "both" else None
+    rules = _direct_supabase_table("standing_rules", {
+        "select": "rule_text,priority,category,scope",
+        "active": "eq.true",
+        "order": "priority.desc",
+        "limit": str(max_rules),
+        **({"or": f"(scope.eq.{scope},scope.eq.both)"} if scope != "both" else {}),
     })
+
+    # 2. Sprint state for the project.
+    sprint = _direct_supabase_table("op_sprint_state", {
+        "select": "*",
+        "project_id": f"eq.{project_id}",
+        "limit": "1",
+    })
+
+    # 3. Recent decisions (cross-project, latest first).
+    decisions = _direct_supabase_table("op_decisions", {
+        "select": "decision_text,project_source,tags,created_at",
+        "order": "created_at.desc",
+        "limit": str(max_decisions),
+    })
+
+    # 4. Pending titan tasks (assigned_to=titan, approved/locked).
+    tasks = _direct_supabase_table("operator_task_queue", {
+        "select": "task_id,objective,priority,status",
+        "assigned_to": "eq.titan",
+        "status": "in.(approved,locked,pending)",
+        "order": "priority.asc",
+        "limit": "5",
+    })
+
+    return {
+        "ts_utc": datetime.now(timezone.utc).isoformat(),
+        "project_id": project_id,
+        "scope": scope,
+        "standing_rules": rules,
+        "sprint_state": (sprint[0] if sprint else None),
+        "recent_decisions": decisions,
+        "pending_titan_tasks": tasks,
+        "source": "direct-supabase",
+    }
 
 
 def tool_queue_operator_task(args: dict) -> dict:
