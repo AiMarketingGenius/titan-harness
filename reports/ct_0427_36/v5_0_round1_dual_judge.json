@@ -1,0 +1,76 @@
+{
+  "task": "CT-0427-36",
+  "artifact": "/Users/solonzafiropoulos1/Downloads/4 MEGAPROMPT_AMG_MODEL_SOVEREIGNTY_v5_0_DRAFT_2026-04-27.md",
+  "floor": 9.0,
+  "decision": "revise",
+  "kimi_k2_6": {
+    "ok": true,
+    "score": 6.3,
+    "passes_floor": false,
+    "details": {
+      "decision": "revise",
+      "overall_score_10": 6.3,
+      "technical_soundness": 6.5,
+      "completeness": 6.0,
+      "flagged_sections": [
+        "\u00a77 / \u00a79 \u2014 Cost math is contradictory: daily hard caps of $35/day imply ~$1050/mo per Tier-0 agent, yet monthly targets list $500/mo and AC #10 demands \u2264$200/mo total.",
+        "\u00a78 \u2014 Timeline impossible: Phase 6 schedules 7-day post-cutover monitoring on Days 20\u201322, but Phase 4 runs through Day 17, so Lumina needs monitoring until Day 24.",
+        "\u00a73 / \u00a76 / \u00a77 \u2014 Kimi Allegro 'flat-rate' is undefined; no API rate limits, ToS constraints, or multiplexing logic for 7 agents on a ~$30/mo subscription.",
+        "\u00a71 / \u00a72 \u2014 IP-sovereignty rationale is strategically incoherent: migrating from Anthropic to DeepSeek/Kimi (Chinese third-party APIs) without data-residency, DPA, or training-data retention analysis.",
+        "\u00a76 / \u00a711 \u2014 Rollback paths are asserted but not documented; missing concrete env-var/SI revert steps and per-agent runbooks.",
+        "\u00a76 \u2014 Trade-secret scrub is mandated but lacks implementation: no redaction rules, PII pipeline, or pre-flight checklist specified."
+      ],
+      "required_revisions": [
+        "Reconcile cost model: align daily hard caps, monthly per-agent targets, and total burn ceiling; justify or remove the \u2264$200/mo target given Tier-0 spend.",
+        "Fix schedule: Phase 6 (7-day validation) must start only after the final agent's 7-day window elapses (Day 24 earliest), or stagger Phase 4 to accommodate.",
+        "Define Kimi Allegro access model explicitly: API token pricing, rate limits, concurrency rules, and whether the claimed flat-rate is a consumer subscription being API-misused.",
+        "Document per-agent rollback runbooks: exact env-var keys, SI revert commands, DNS/routing flips, and sub-5-minute dry-run procedures.",
+        "Harden IP-sovereignty analysis: add provider comparison on training-data retention, data residency, and DPAs for DeepSeek/Kimi/Anthropic/Perplexity.",
+        "Specify trade-secret scrub mechanism: automated regex/NER pipeline or mandatory manual checklist fields before any 3rd-party dispatch."
+      ],
+      "reasoning": "The draft sketches a coherent tier-ladder and migration narrative, but it contains fatal contradictions in cost arithmetic and project timeline, hand-waves critical operational details like rollback and data sanitization, and advances an IP-sovereignty thesis without reconciling why alternative foreign third-party APIs reduce leakage risk. These gaps make it unfit for production dispatch without revision."
+    },
+    "cost_usd_est": 0.016791,
+    "latency_ms": 91654,
+    "error": null
+  },
+  "gemini_2_5_flash": {
+    "ok": true,
+    "score": 8.5,
+    "passes_floor": false,
+    "details": {
+      "decision": "revise",
+      "overall_score_10": 8.5,
+      "edge_case_coverage": 8.0,
+      "risk_identification": 9.0,
+      "flagged_sections": [
+        "\u00a74 \u2014 Mercury LLM-fallback benching is a critical fix, but the prompt doesn't explicitly state how the 'primitives only' mode is enforced or how non-primitive tasks are rejected and re-queued. This could lead to unexpected behavior if the rejection logic is flawed.",
+        "\u00a76 \u2014 The migration sequence for the 7 AMG agents relies on a 'cheap-judge pair' (Kimi K2 + Gemini) for quality comparison. While mentioned, the specific criteria for a '9.0 quality match' and how edge cases like subjective quality or subtle regressions are handled by this cheap-judge pair are not detailed. This could lead to a false sense of security if the cheap-judge is not robust enough.",
+        "\u00a77 \u2014 The cost cap monitoring relies on Redis counters. While Redis is generally reliable, the prompt doesn't detail the resilience of this system against Redis outages or data loss, which could lead to unmonitored spend or false halts.",
+        "\u00a78 \u2014 Phase 4 (7 AMG agent migration) mentions a '1 day buffer' for each agent, but Lumina is specifically called out as needing 'extra care' due to a higher quality bar. The plan doesn't explicitly detail what happens if Lumina or other agents require more than the allocated time, potentially delaying subsequent phases.",
+        "\u00a78 \u2014 Phase 5 (Anthropic API decommission) states that Titan, Achilles, and EOM will continue using Anthropic. However, it doesn't detail the process for rotating the API key for these specific, continuing users, nor does it explicitly confirm that the *new* key will be provisioned correctly for them before the old one is fully decommissioned for the other agents.",
+        "\u00a710 \u2014 The risk of 'DeepSeek API reliability' is flagged as yellow, with a mitigation of retry and fallback to Kimi Allegro. However, it doesn't specify the retry count, timeout duration, or how frequently this fallback mechanism is expected to be triggered. A complete outage of DeepSeek could still impact Daedalus and Artisan significantly.",
+        "\u00a710 \u2014 The risk of 'Cost cap false-trip' is noted, with a mitigation of a Solon override flag. However, the process for documenting and approving these overrides is not detailed, which could lead to ad-hoc exceptions that undermine the cost discipline.",
+        "\u00a710 \u2014 The risk of 'Aristotle blind spots' is noted, with a mitigation of keeping the Perplexity API key warm. However, the prompt doesn't specify the criteria or timeline for *decommissioning* the Perplexity key after the grace period, leaving a potential lingering dependency.",
+        "\u00a711 \u2014 Non-negotiable #5 states 'Structured JSON output mandatory. Any agent returning unstructured response = automatic FAIL.' This is a strong rule, but the prompt doesn't detail the automated mechanism for detecting and enforcing this failure, especially for agents that might have complex output structures.",
+        "\u00a713 \u2014 The dual-engine validation step requires Kimi K2 and Gemini (until Aristotle exists). The prompt states Gemini will be used for 'edge-case coverage + risk identification'. However, it doesn't specify how Gemini's output will be integrated or weighted with Kimi K2's 'technical soundness + completeness' score to arrive at the final 9+/10 score for the megaprompt itself."
+      ],
+      "required_revisions": [
+        "For Mercury (\u00a74), detail the enforcement mechanism for 'primitives only' mode and the explicit rejection/re-queuing logic for non-primitive tasks.",
+        "Clarify the criteria and robustness of the Kimi K2 + Gemini 'cheap-judge pair' for quality comparison in \u00a76, including how subjective quality and subtle regressions are handled.",
+        "Detail the resilience and failover mechanisms for the Redis-backed cost cap monitoring system in \u00a77 to prevent outages from impacting cost control.",
+        "Provide a more detailed contingency plan for Lumina's migration in \u00a78, including specific actions if it requires more than the allocated time, and how this impacts subsequent phases.",
+        "Specify the process for rotating and provisioning the Anthropic API key for the continuing users (Titan, Achilles, EOM) in \u00a78, Phase 5.",
+        "Quantify the retry count, timeout duration, and expected fallback frequency for the DeepSeek API reliability mitigation in \u00a710.",
+        "Define the process for documenting and approving Solon override flags for cost caps in \u00a710 to ensure consistent application of discipline.",
+        "Specify the criteria and timeline for decommissioning the Perplexity API key after the grace period in \u00a710.",
+        "Describe the automated mechanism for detecting and enforcing the 'Structured JSON output mandatory' rule in \u00a711.",
+        "Explain how Gemini's scoring for 'edge-case coverage + risk identification' will be integrated with Kimi K2's score to determine the final megaprompt validation score in \u00a713."
+      ],
+      "reasoning": "The megaprompt demonstrates strong risk identification and a clear, phased approach to a complex migration. However, it lacks sufficient detail on the robustness of several key automated systems (cost monitoring, quality validation, primitive enforcement) and contingency planning for migration delays, leaving potential edge cases and failure modes inadequately addressed."
+    },
+    "latency_ms": 5120,
+    "error": null
+  },
+  "ts_utc": "2026-04-27T19:09:17Z"
+}
