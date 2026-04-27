@@ -132,6 +132,46 @@ def verify_file_exists(path: str, claim_ts: float | None) -> tuple[bool, str]:
     return True, f"file {path} exists (size={p.stat().st_size}B)"
 
 
+def verify_artifact_hash(artifact_path: str, claimed_hash: str) -> tuple[bool, str, str]:
+    """Phase-1.3 (Hercules MASTER BUILD ORDER 2026-04-26) — sha256 grounding.
+    When an executor receipt claims artifact_hash, compute sha256(file) and
+    compare. Mismatch = FALSE_COMPLETION (CRITICAL severity). File missing
+    but hash claimed = FALSE_COMPLETION (CRITICAL). File exists, hash absent
+    in receipt = INFO (caller didn't provide hash, can't strict-verify).
+    Returns (ok, severity, evidence)."""
+    import hashlib
+    p = pathlib.Path(artifact_path).expanduser()
+    if not p.exists() or not p.is_file():
+        return False, "CRITICAL", (
+            f"FALSE_COMPLETION: receipt claims artifact_path={artifact_path} with "
+            f"hash={claimed_hash[:16] if claimed_hash else 'none'}... but file "
+            f"does NOT exist on disk. Sha256 grounding failed."
+        )
+    if not claimed_hash:
+        return True, "INFO", (
+            f"file {artifact_path} exists ({p.stat().st_size}B) but receipt "
+            f"omitted artifact_hash — cannot strict-verify. Pass with INFO."
+        )
+    try:
+        h = hashlib.sha256()
+        with p.open("rb") as f:
+            for chunk in iter(lambda: f.read(65536), b""):
+                h.update(chunk)
+        actual = h.hexdigest()
+    except Exception as e:
+        return False, "CRITICAL", f"sha256 read FAILED for {artifact_path}: {e!r}"
+    claimed_norm = (claimed_hash or "").strip().lower().lstrip("sha256:")
+    actual_norm = actual.lower()
+    if claimed_norm == actual_norm:
+        return True, "INFO", f"sha256({artifact_path}) MATCHES receipt.hash ({actual[:16]}...)"
+    return False, "CRITICAL", (
+        f"FALSE_COMPLETION: sha256 MISMATCH on {artifact_path}. "
+        f"Receipt claimed {claimed_norm[:16]}... but actual is {actual_norm[:16]}.... "
+        f"Either the file was tampered, the hash was hallucinated, or the executor "
+        f"computed the hash on a different file."
+    )
+
+
 def verify_real_artifacts(task_id: str, decision: dict) -> tuple[bool, str]:
     """Fix 2 (2026-04-26): when a 'mercury-proof' decision claims a multi-phase
     task is complete, confirm the acceptance_criteria artifacts actually exist
@@ -328,15 +368,127 @@ def queue_hercules_callout(decision: dict, claim: dict, shame_path: pathlib.Path
     (OUTBOX / f"aletheia_callout_{stamp}.json").write_text(json.dumps(payload, indent=2))
 
 
+TASK_COMPLETIONS_CURSOR = STATE_DIR / "aletheia_task_completions_cursor.json"
+
+
+def _extract_artifact_from_summary(summary: str) -> tuple[str | None, str | None]:
+    """Phase-1.3: best-effort parse of the structured-receipt result_summary
+    written by daedalus/artisan/nestor/alexander executors. Format example:
+        'daedalus_v4_pro receipt: ok=True exit_code=0 artifact=/path/file hash=abc123 ...'
+    Returns (artifact_path, artifact_hash) or (None, None)."""
+    import re
+    if not summary:
+        return None, None
+    path_m = re.search(r"artifact=(\S+)", summary)
+    hash_m = re.search(r"hash=([a-fA-F0-9]+|None)", summary)
+    path = path_m.group(1) if path_m else None
+    hsh = hash_m.group(1) if hash_m else None
+    if path == "None":
+        path = None
+    if hsh == "None":
+        hsh = None
+    return path, hsh
+
+
+def drain_task_completions() -> dict:
+    """Patch 2026-04-26: catch direct-row false-completions where Mercury (or
+    any executor) flips op_task_queue.status='completed' WITHOUT logging a
+    decision Aletheia could see. CT-0426-37 was the smoking gun — Mercury's
+    LLM-fallback path wrote the LLM tool-call argument verbatim into
+    result_summary and marked completed. Aletheia's existing decision-poll
+    never fired. This pass closes that gap by polling the queue directly.
+
+    Phase-1.3 enhancement (2026-04-27, Hercules MASTER BUILD ORDER): when the
+    executor receipt embedded in result_summary claims an artifact_path +
+    artifact_hash, compute sha256(file) and compare. CRITICAL on mismatch."""
+    state = _load_state(TASK_COMPLETIONS_CURSOR, {"seen_task_ids": []})
+    seen = set(state.get("seen_task_ids") or [])
+    code, body = mcp_get_task_queue(status="completed", include_completed=True, limit=30)
+    if code != 200:
+        return {"scanned": 0, "verified": 0, "violations": 0, "error": f"MCP queue code={code}"}
+    tasks = body.get("tasks") or []
+    out = {"scanned": len(tasks), "verified": 0, "violations": 0, "skipped_seen": 0}
+    for t in tasks:
+        tid = t.get("task_id")
+        if not tid or tid in seen:
+            out["skipped_seen"] += 1
+            continue
+        # Skip tasks completed >24h ago — they've had time to be human-audited
+        completed_at = parse_iso(t.get("completed_at") or "")
+        if completed_at and (time.time() - completed_at) > 86400:
+            seen.add(tid)
+            continue
+        # Build a synthetic "decision" from the task's claimed proof so we can
+        # reuse verify_real_artifacts unchanged.
+        result_summary = t.get("result_summary") or ""
+        synth_decision = {
+            "id": f"task-row-{tid}",
+            "text": result_summary,
+            "rationale": t.get("notes") or "",
+            "tags": t.get("tags") or [],
+            "project_source": t.get("assigned_to") or "unknown",
+            "created_at": t.get("completed_at") or "",
+        }
+        ok, evidence = verify_real_artifacts(tid, synth_decision)
+        # Phase-1.3 sha256 grounding: when the receipt embeds an
+        # artifact_path + artifact_hash (e.g., daedalus/artisan structured
+        # receipts), compute sha256 of the file and compare. CRITICAL on
+        # mismatch (overrides the artifact-existence pass above).
+        severity = "INFO"
+        artifact_path, artifact_hash = _extract_artifact_from_summary(result_summary)
+        if artifact_path:
+            hash_ok, hash_sev, hash_ev = verify_artifact_hash(artifact_path, artifact_hash or "")
+            if not hash_ok:
+                ok = False
+                severity = hash_sev
+                evidence = f"{evidence} | sha256-grounding: {hash_ev}"
+            else:
+                # hash check passed — append to evidence for audit trail
+                evidence = f"{evidence} | sha256-grounding: {hash_ev}"
+        if ok:
+            out["verified"] += 1
+        else:
+            out["violations"] += 1
+            offending_agent = (t.get("assigned_to") or t.get("agent_assigned") or "unknown")
+            shame_path = write_shame_report(
+                synth_decision,
+                {"kind": "task_row_completion", "value": tid, "severity": severity},
+                evidence,
+            )
+            mcp_log_decision(
+                text=(
+                    f"ALETHEIA {severity} VIOLATION — {offending_agent} flipped task "
+                    f"{tid} status=completed; verification failed."
+                ),
+                rationale=(
+                    f"task_row direct verification. severity={severity}. "
+                    f"Result summary preview: {result_summary[:200]!r}. "
+                    f"Evidence: {evidence}. Shame: {shame_path}."
+                ),
+                tags=[
+                    "aletheia-violation", f"severity:{severity.lower()}", "queue-poll-source",
+                    f"agent:{offending_agent}", f"task:{tid}",
+                ],
+                project_source="titan",
+            )
+            _log(f"QUEUE-POLL {severity} VIOLATION agent={offending_agent} task={tid} → {shame_path.name}")
+        seen.add(tid)
+    state["seen_task_ids"] = list(seen)[-500:]
+    _save_state(TASK_COMPLETIONS_CURSOR, state)
+    return out
+
+
 def drain_once() -> dict:
     state = _load_state(CURSOR_FILE, {"seen_decision_ids": []})
     seen = set(state.get("seen_decision_ids") or [])
     violations_state = _load_state(VIOLATIONS_FILE, {"violations_per_agent": {}})
+    # NEW: scan op_task_queue for direct-row completions (catches Mercury false-completions)
+    queue_pass = drain_task_completions()
     code, body = mcp_get_recent(count=20)
     if code != 200:
-        return {"scanned": 0, "verified": 0, "violations": 0, "error": f"MCP code={code}"}
+        return {"scanned": 0, "verified": 0, "violations": queue_pass.get("violations", 0), "queue_pass": queue_pass, "error": f"MCP code={code}"}
     decisions = body.get("decisions") or []
-    out = {"scanned": len(decisions), "verified": 0, "violations": 0, "skipped_seen": 0}
+    out = {"scanned": len(decisions), "verified": 0, "violations": 0, "skipped_seen": 0, "queue_pass": queue_pass}
     for d in decisions:
         did = d.get("id") or d.get("created_at", "") + d.get("text", "")[:40]
         if did in seen:

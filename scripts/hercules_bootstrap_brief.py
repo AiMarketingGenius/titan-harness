@@ -84,10 +84,16 @@ def _daemon_health() -> dict:
             "com.amg.hercules-daemon",
             "com.amg.hercules-mcp-bridge",
             "com.amg.hercules-dispatch-receiver",
+            "com.amg.hercules-bootstrap",
             "com.amg.mercury-executor",
             "com.amg.mercury-mcp-notifier",
             "com.amg.mercury-folder-sync",
+            "com.amg.daedalus-v4-pro",
+            "com.amg.artisan-v4-flash",
+            "com.amg.nestor-executor",
+            "com.amg.alexander-executor",
             "com.amg.aletheia-verify",
+            "com.amg.factory-status",
             "com.amg.cerberus-security",
             "com.amg.warden-enforcer",
         ]
@@ -130,6 +136,66 @@ def _recent_inbox(n: int = 5) -> list[str]:
         key=lambda p: p.stat().st_mtime, reverse=True,
     )[:n]
     return [f"{p.name} ({p.stat().st_size}B)" for p in files]
+
+
+SOURCE_OF_TRUTH_DIR = HOME / "titan-harness" / "docs" / "source-of-truth"
+# Full-doc inline mode per Solon directive 2026-04-26: Hercules wants the
+# COMPLETE source-of-truth docs in every brief, mirroring Claude EOM V2's
+# Project Files. No compression, no truncation. Hard ceiling only as a paste-
+# friendliness guard for catastrophic doc bloat (the brief still has to fit
+# in a single Kimi tab paste; ~800KB is a realistic upper bound).
+GIST_TOTAL_BUDGET = 800_000
+
+
+def _read_doc_full(path: pathlib.Path) -> str:
+    """Read the FULL content of a markdown doc — no truncation, no
+    compression. Per Solon directive 2026-04-26."""
+    try:
+        return path.read_text(encoding="utf-8", errors="replace")
+    except Exception as e:
+        return f"(read error: {e!r})"
+
+
+def _grounding_documents() -> str:
+    """Build the auto-inlined Grounding Documents section. Hercules reads this
+    every time Solon pastes a fresh brief — no separate context-injection step
+    needed. Solon directive 2026-04-26: full doc text inlined, no compression
+    (mirrors Claude EOM V2 Project Files behavior)."""
+    if not SOURCE_OF_TRUTH_DIR.exists():
+        return ("(no source-of-truth folder yet — set up via "
+                "`mkdir -p ~/titan-harness/docs/source-of-truth/` and symlink canonical docs)")
+    files = sorted(
+        [p for p in SOURCE_OF_TRUTH_DIR.iterdir()
+         if p.is_file() or p.is_symlink()],
+        key=lambda p: p.name.lower(),
+    )
+    if not files:
+        return "(source-of-truth folder is empty — symlink canonical AMG docs into it)"
+    chunks = []
+    total = 0
+    for f in files:
+        if not f.name.endswith(".md"):
+            continue
+        try:
+            mtime = datetime.fromtimestamp(f.stat().st_mtime, tz=timezone.utc).isoformat(timespec="seconds")
+            size_kb = f.stat().st_size // 1024
+        except Exception:
+            mtime, size_kb = "?", "?"
+        if total >= GIST_TOTAL_BUDGET:
+            chunks.append(
+                f"### {f.name}  *(skipped — total brief size cap {GIST_TOTAL_BUDGET // 1000}KB hit)*\n\n"
+                f"_Symlink target:_ `{f.resolve()}` ({size_kb}KB)\n"
+                f"_Read on demand:_ paste this path back to Solon and ask him to inline it manually.\n"
+            )
+            continue
+        body = _read_doc_full(f)
+        total += len(body)
+        chunks.append(
+            f"### {f.name}  ({size_kb}KB · last_modified {mtime})\n\n"
+            f"_Symlink target:_ `{f.resolve()}`\n\n"
+            f"```markdown\n{body}\n```\n"
+        )
+    return "\n---\n\n".join(chunks)
 
 
 def _latest_conversation_snapshot(decisions: list[dict]) -> dict | None:
@@ -199,6 +265,7 @@ def build_brief() -> str:
 
     cost = _cost_today_kimi()
     inbox_recent = _recent_inbox(5)
+    grounding = _grounding_documents()
 
     # Conversation snapshot block (only if a recent powerdown exists)
     snapshot_block = ""
@@ -346,13 +413,85 @@ rejects phantom agents at queue time — check the agent name before dispatching
 
 ---
 
-## Active doctrines you should respect
+## Direct MCP queue access from Kimi tab — no Solon-courier needed
+
+**You can POST dispatches DIRECTLY to MCP from this Kimi tab.** Use Kimi's
+Web/HTTP fetch capability. Endpoint:
+
+`POST https://memory.aimarketinggenius.io/api/queue-task`
+**Content-Type:** `application/json`
+**Auth:** none currently (security follow-up planned)
+
+**Required fields in JSON body:** `objective`, `instructions`, `acceptance_criteria`
+**Recommended fields:** `priority` (`urgent`/`high`/`med`/`low`), `agent` (`ops`),
+`project_id` (`EOM` for AMG factory work), `queued_by` (`hercules`),
+`tags` (route by agent — pick the right specialist):
+
+| Tag | Specialist | Lane | Cost cap | Use for |
+|---|---|---|---|---|
+| `agent:daedalus` + `tier:v4_pro` | Daedalus | DeepSeek V4 Pro | $20/day | premium code/architecture audit, multi-step refactors |
+| `agent:artisan` + `tier:v4_flash` | Artisan | DeepSeek V4 Flash | $10/day | fast 1-3 step LLM tasks (rejects multi-step) |
+| `agent:nestor` | Nestor | Kimi K2.6 | $5/day | product / UX / mockups (Apple polish floor 9.3+) |
+| `agent:alexander` | Alexander | Kimi K2.6 | $5/day | brand / copy / voice (sentence-case, AMG voice) |
+| `agent:mercury` + `MERCURY_ACTION:` in notes | Mercury | primitive (ssh_run, file_read, file_write) | free | concrete VPS / file ops with deterministic exit codes |
+
+**On success the endpoint returns:** `{{"success":true, "task_id":"CT-MMDD-NN", "status":"approved", "approval":"auto_delegated"}}`
+
+**Then:** within 30s, the matching executor daemon (Daedalus / Artisan /
+Mercury) will claim + execute + log a structured-JSON receipt back to MCP.
+You'll see the receipt land in `recent_decisions` on the live-state gist
+below within 60s.
+
+---
+
+## Live state Hercules can WebFetch on demand (no Solon re-paste needed)
+
+**Two public gists Hercules fetches mid-session:**
+
+1. **Factory status (operational metadata, JSON, refreshed every 60s):**
+   `https://gist.githubusercontent.com/AiMarketingGenius/05608a50c9f47954f3de19c67d581350/raw/factory_status.json`
+
+2. **Persistent memory rolling 24h digest (markdown, refreshed every 5 min, ~$0.0004/cycle):**
+   `https://gist.githubusercontent.com/AiMarketingGenius/b59184268c84eb4b511fda5b8f176291/raw/hercules_memory_summary.md`
+
+   This is the Phase-1.1 deliverable from Hercules's Master Build Order 2026-04-26 — surfaces what's changed in the last 24h, sprint state, queue health, open incidents, and one-line recommended next dispatch. Hercules WebFetches at the start of any new tab to hydrate context without Solon re-pasting the full 547KB brief.
+
+Schema (refreshed every 60s by Mac launchd `com.amg.factory-status`):
+- `queue.{{approved,locked,dead_letter,by_agent}}` — current MCP queue depth + per-agent assignment counts
+- `agents.{{mercury_executor,hercules_mcp_bridge,daedalus_v4_pro,artisan_v4_flash,...}}` — `{{alive, pid, last_exit}}` for each launchd daemon
+- `recent_completions[]` — last 5 task completions (task_id, agent, completed_at, objective_preview)
+- `recent_decisions[]` — last 10 MCP decisions (ts, tags, project, text_preview)
+- `lock_leaks_recent` — count of warden LOCK_LEAK violations in the last decision window
+- `sprint` — current EOM sprint name + completion + blockers
+
+**Use it like this from your Kimi tab:**
+> Web-search / fetch the gist URL above, parse the JSON, answer Solon's
+> "what's the factory doing right now?" with concrete numbers from `queue`,
+> `agents`, and `recent_decisions`. No re-paste needed.
+
+The full brief paste (this file) is what gives you the source-of-truth doc
+inline — that stays paste-only because publishing the AMG encyclopedia
+would be a trade-secret leak.
+
+---
+
+## Grounding Documents (Source of Truth)
+
+*Auto-inlined from `~/titan-harness/docs/source-of-truth/` every 5 min by
+`hercules_bootstrap_brief.py` so Hercules has the full AMG / Atlas / Chamber
+context baked into every fresh tab — no separate "let me find that doc" step.*
+
+{grounding}
+
+---
+
+## Doctrine references (canonical paths beyond the inlined gist above)
 
 - `~/titan-harness/CLAUDE.md` — session operating contract (brevity, RADAR, hard limits)
-- `~/titan-harness/plans/DOCTRINE_AMG_FACTORY_ARCHITECTURE_v1_0.md` — Perplexity 2026-04-26 architecture review (binding)
+- `~/titan-harness/plans/DOCTRINE_AMG_FACTORY_ARCHITECTURE_v1_0.md` — 2026-04-26 architecture review (binding)
 - `~/titan-harness/plans/DOCTRINE_GREEK_CODENAMES.md` — naming
 - `~/titan-harness/plans/DOCTRINE_AMG_PRICING_GUARDRAIL.md` — pricing floors
-- All docs under `/opt/amg-docs/doctrines/` on VPS
+- All docs under `/opt/amg-docs/doctrines/` on VPS (also indexed at `~/titan-harness/library_of_alexandria/ALEXANDRIA_INDEX.md`)
 {snapshot_block}
 ---
 

@@ -34,6 +34,7 @@ from mcp_rest_client import (  # noqa: E402
     get_task_queue as mcp_get_task_queue,
     log_decision as mcp_log_decision,
     health as mcp_health,
+    update_task as mcp_update_task,
 )
 
 STATE_DIR = HOME / ".openclaw" / "state"
@@ -47,6 +48,12 @@ IDLE_MINUTES = 30
 QUEUE_STALL_MINUTES = 20
 LOCK_LEAK_HOURS = 2
 ESCALATE_AFTER = 3  # same agent in 1 hour
+# Phase-1.4 eviction thresholds (Hercules MASTER BUILD ORDER 2026-04-26):
+# Move from passive logging to active eviction. The original 2h LOCK_LEAK
+# detection still runs (for Aletheia + audit trail); eviction adds an
+# automatic action once the lock crosses the EVICT_AFTER_MINUTES line.
+EVICT_AFTER_MINUTES = 5  # tasks locked >5 min get auto-requeued (status=approved)
+DEAD_LETTER_AFTER_HOURS = 24  # tasks locked >24h get archived (status=dead_letter)
 
 
 def _log(msg: str) -> None:
@@ -142,6 +149,82 @@ def check_lock_leaks() -> list[dict]:
     return out
 
 
+def evict_stale_locks() -> dict:
+    """Phase-1.4 eviction: actually move stale-locked tasks out of `locked`
+    state. Two thresholds:
+      - locked >5 min and ≤24h → status='approved' (re-queue for retry)
+      - locked >24h → status='dead_letter' (abandoned; manual review)
+
+    The MCP FSM allows locked → {active, approved, dead_letter}. We pick
+    `approved` for the re-queue path so the next executor poll can re-claim
+    cleanly. dead_letter is the archival sink for truly stuck tasks.
+
+    Returns a counter dict for the caller to roll up."""
+    out = {"scanned": 0, "requeued": 0, "dead_lettered": 0, "skipped": 0, "errors": 0}
+    code, body = mcp_get_task_queue(status="locked", limit=50)
+    if code != 200:
+        out["errors"] = 1
+        return out
+    now = datetime.now(tz=timezone.utc)
+    requeue_cutoff = now - timedelta(minutes=EVICT_AFTER_MINUTES)
+    dead_cutoff = now - timedelta(hours=DEAD_LETTER_AFTER_HOURS)
+    for t in (body.get("tasks") or []):
+        out["scanned"] += 1
+        tid = t.get("task_id")
+        locked_at = parse_iso(t.get("locked_at") or "")
+        if not tid or not locked_at:
+            out["skipped"] += 1
+            continue
+        locked_by = t.get("locked_by") or "unknown"
+        if locked_at < dead_cutoff:
+            # Truly abandoned — dead_letter
+            try:
+                code2, body2 = mcp_update_task(
+                    task_id=tid, status="dead_letter",
+                    failure_reason=f"warden eviction 2026-04-26: locked by {locked_by} since {t.get('locked_at')} (>{DEAD_LETTER_AFTER_HOURS}h, abandoned)",
+                )
+                if code2 == 200:
+                    out["dead_lettered"] += 1
+                    _log(f"EVICT→dead_letter task={tid} locked_by={locked_by} age={now - locked_at}")
+                    mcp_log_decision(
+                        text=f"WARDEN EVICTION dead_letter task={tid} locked_by={locked_by}",
+                        rationale=f"Lock age {(now - locked_at).total_seconds()/3600:.1f}h > {DEAD_LETTER_AFTER_HOURS}h dead-letter threshold. Auto-archived by warden.",
+                        tags=["warden-eviction", "dead-letter", f"task:{tid}", f"agent:{locked_by}"],
+                        project_source="titan",
+                    )
+                else:
+                    out["errors"] += 1
+                    _log(f"EVICT FAIL task={tid} code={code2} body={str(body2)[:200]}")
+            except Exception as e:
+                out["errors"] += 1
+                _log(f"EVICT EXCEPTION task={tid}: {e!r}")
+        elif locked_at < requeue_cutoff:
+            # 5min-24h → re-queue to approved so executors can re-claim
+            try:
+                code2, body2 = mcp_update_task(
+                    task_id=tid, status="approved",
+                    notes=f"warden re-queue 2026-04-26T{now.strftime('%H:%MZ')}: previously locked by {locked_by} since {t.get('locked_at')} ({(now - locked_at).total_seconds()/60:.1f} min) — auto-requeued for retry",
+                )
+                if code2 == 200:
+                    out["requeued"] += 1
+                    _log(f"EVICT→approved task={tid} locked_by={locked_by} age_min={(now - locked_at).total_seconds()/60:.1f}")
+                    mcp_log_decision(
+                        text=f"WARDEN EVICTION re-queue task={tid} locked_by={locked_by}",
+                        rationale=f"Lock age {(now - locked_at).total_seconds()/60:.1f}min > {EVICT_AFTER_MINUTES}min eviction threshold. Auto-requeued to approved status for next-executor pickup.",
+                        tags=["warden-eviction", "re-queued", f"task:{tid}", f"agent:{locked_by}"],
+                        project_source="titan",
+                    )
+                else:
+                    out["errors"] += 1
+                    _log(f"EVICT FAIL task={tid} code={code2} body={str(body2)[:200]}")
+            except Exception as e:
+                out["errors"] += 1
+                _log(f"EVICT EXCEPTION task={tid}: {e!r}")
+        else:
+            out["skipped"] += 1  # still within 5-min grace window
+    return out
+
+
 def check_false_completions() -> list[dict]:
     """A done-marked task with no result_summary AND no log_decision tagged
     with the task_id is suspicious."""
@@ -213,7 +296,11 @@ def drain_once() -> dict:
         violations.append(s)
     violations.extend(check_lock_leaks())
     violations.extend(check_false_completions())
-    out = {"violations": len(violations), "auto_restarted": 0, "escalated": 0}
+    # Phase-1.4: actively evict stale locks (not just log). This must happen
+    # AFTER detection so the LOCK_LEAK violations still get logged for the
+    # audit trail before the underlying tasks get re-queued/dead-lettered.
+    eviction = evict_stale_locks()
+    out = {"violations": len(violations), "auto_restarted": 0, "escalated": 0, "eviction": eviction}
     for v in violations:
         count_in_window = record_violation(violations_state, v)
         action = "flag-only"
