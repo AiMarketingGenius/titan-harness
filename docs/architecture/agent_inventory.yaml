@@ -1,0 +1,281 @@
+---
+# AMG Agent Inventory — capability manifest
+#
+# Canonical path: /opt/amg-governance/agent_inventory.yaml
+# Harness mirror: docs/architecture/agent_inventory.yaml
+# Source: CHIEF_BUILD_TEAMS_v1.1 §7 Naming Registry (Phase 1)
+# Status: Phase 1 — REGISTRY ONLY. No executors. Queue rejects phantom agents.
+#
+# Phase 1 deliverable per CT-0427-60: register all 12 chief team builders
+# + Iris + Athena with current_status="planned", executor_enabled=false,
+# no_executor_action="reject_with_explanation". Phase 2+ wires tag-based
+# enforcement; this Phase 1 registry exists for Phase 2 to consume.
+#
+# Existing enforcement (already live as of 2026-04-27):
+#   /opt/amg-mcp-server/src/tools/task-queue.js:51 — VALID_AGENT enum check
+#   rejects any args.agent NOT in [alex, maya, jordan, sam, riley, nadia,
+#   lumina, ops]. Phantom-agent enum-based dispatch is already blocked.
+#
+# Phase 2+ work (NOT this CT):
+#   Tag-based phantom rejection — when args.tags includes "agent:<name>",
+#   queue must consult this manifest and reject if status != "active".
+
+registry_version: "1.0.0"
+last_updated: "2026-04-27T20:50:00Z"
+last_updated_by: "titan / CT-0427-60"
+
+# ============================================================
+# CHIEFS — exempt from deployment portability doctrine
+# (Kimi GUI runtime requirement; per CHIEF_BUILD_TEAMS_v1.1 §2)
+# ============================================================
+chiefs:
+  - name: hercules
+    role: "Architecture, doctrine, queue honesty, risk gates, cross-team orchestration"
+    runtime: "Kimi GUI app + persona profile"
+    bundle_id: "io.achilles.hercules.dock"
+    persona_credential: "phone 617-797-0402"
+    current_status: "active"
+    executor_enabled: true
+    deployment_portable: false
+    portability_exempt_reason: "Kimi GUI runtime per CT-0427-41"
+
+  - name: nestor
+    role: "Product, UX, demos, client-safe presentation, Atlas onboarding"
+    runtime: "Kimi GUI app + persona profile"
+    bundle_id: "io.achilles.nestor.dock"
+    persona_credential: "email growmybusiness@aimarketinggenius.io"
+    current_status: "active"
+    executor_enabled: true
+    deployment_portable: false
+    portability_exempt_reason: "Kimi GUI runtime per CT-0427-41"
+
+  - name: alexander
+    role: "Content, SEO, voice/chat, brand language, offer positioning, newsletters"
+    runtime: "Kimi GUI app + persona profile"
+    bundle_id: "com.amg.alexander.app"
+    persona_credential: "phone 339-242-3653"
+    current_status: "active"
+    executor_enabled: true
+    deployment_portable: false
+    portability_exempt_reason: "Kimi GUI runtime per CT-0427-41"
+
+# ============================================================
+# CHIEF TEAM BUILDERS — Phase 1 planned (no executors yet)
+# All inherit deployment-portable doctrine per v4.0.3.1 §3I.7
+# ============================================================
+chief_team_builders:
+
+  # ----- Hercules family (4) -----
+  - name: iolaus
+    chief: hercules
+    owner: hercules
+    role: "Build-order compiler — strategy → bounded task packets with acceptance criteria"
+    default_lane: "local/DeepSeek first; Kimi only if approved"
+    daily_warning_usd: 1.25
+    current_status: "planned"
+    executor_enabled: false
+    no_executor_action: "reject_with_explanation"
+    planned_phase: "Phase 5 (CHIEF_BUILD_TEAMS_v1.1 §9 — first-3 builders)"
+    deployment_portable: true
+
+  - name: cadmus
+    chief: hercules
+    owner: hercules
+    role: "Doctrine and registry writer — architecture docs, capability manifests, naming registry"
+    default_lane: "local first"
+    daily_warning_usd: 0.75
+    current_status: "planned"
+    executor_enabled: false
+    no_executor_action: "reject_with_explanation"
+    planned_phase: "Phase 6 (full roster)"
+    deployment_portable: true
+
+  - name: themis
+    chief: hercules
+    owner: hercules
+    role: "Risk and approval gate — owner-risk, public-risk, credential-risk, cost exception classifier"
+    default_lane: "local R1 first; V4 Reasoner exception"
+    daily_warning_usd: 1.25
+    current_status: "planned"
+    executor_enabled: false
+    no_executor_action: "reject_with_explanation"
+    planned_phase: "Phase 6 (full roster)"
+    deployment_portable: true
+
+  - name: nike
+    chief: hercules
+    owner: hercules
+    role: "Proof closer — receipts, proof packets, verifier-ready summaries"
+    default_lane: "local/Kimi low-cost lane"
+    daily_warning_usd: 0.75
+    current_status: "planned"
+    executor_enabled: false
+    no_executor_action: "reject_with_explanation"
+    planned_phase: "Phase 6 (full roster)"
+    deployment_portable: true
+
+  # ----- Nestor family (4) -----
+  - name: ariadne
+    chief: nestor
+    owner: nestor
+    role: "UX flow mapper — user journeys, onboarding paths, IA, demo scripts"
+    default_lane: "Kimi for taste, local fallback"
+    daily_warning_usd: 1.25
+    current_status: "planned"
+    executor_enabled: false
+    no_executor_action: "reject_with_explanation"
+    planned_phase: "Phase 5 (first-3 builders)"
+    deployment_portable: true
+
+  - name: calypso
+    chief: nestor
+    owner: nestor
+    role: "Interface polish reviewer — mobile fit, contrast, spacing, screenshots, client polish"
+    default_lane: "Kimi or local vision substitute"
+    daily_warning_usd: 1.00
+    current_status: "planned"
+    executor_enabled: false
+    no_executor_action: "reject_with_explanation"
+    planned_phase: "Phase 6 (full roster)"
+    deployment_portable: true
+
+  - name: demeter
+    chief: nestor
+    owner: nestor
+    role: "CRM and lifecycle mapper — leads, member lifecycle, retention hooks, CRM-facing UX"
+    default_lane: "local first"
+    daily_warning_usd: 0.75
+    current_status: "planned"
+    executor_enabled: false
+    no_executor_action: "reject_with_explanation"
+    planned_phase: "Phase 6 (full roster)"
+    deployment_portable: true
+
+  - name: pallas
+    chief: nestor
+    owner: nestor
+    role: "Product acceptance tester — product acceptance checks, client-safe constraints"
+    default_lane: "local R1 first"
+    daily_warning_usd: 1.00
+    current_status: "planned"
+    executor_enabled: false
+    no_executor_action: "reject_with_explanation"
+    planned_phase: "Phase 6 (full roster)"
+    deployment_portable: true
+
+  # ----- Alexander family (4) -----
+  - name: calliope
+    chief: alexander
+    owner: alexander
+    role: "Long-form content architect — pillar briefs, newsletters, offers, campaign narratives"
+    default_lane: "Kimi for voice"
+    daily_warning_usd: 1.25
+    current_status: "planned"
+    executor_enabled: false
+    no_executor_action: "reject_with_explanation"
+    planned_phase: "Phase 5 (first-3 builders)"
+    deployment_portable: true
+
+  - name: pythia
+    chief: alexander
+    owner: alexander
+    role: "SEO and market-intent researcher — keyword maps, SERP assumptions, timing language"
+    default_lane: "Brave/RAG/local first"
+    daily_warning_usd: 1.00
+    current_status: "planned"
+    executor_enabled: false
+    no_executor_action: "reject_with_explanation"
+    planned_phase: "Phase 6 (full roster)"
+    deployment_portable: true
+
+  - name: orpheus
+    chief: alexander
+    owner: alexander
+    role: "Voice and chat dialogue tuner — voice scripts, interruption handling, sentiment, CRM notes"
+    default_lane: "Kimi/local"
+    daily_warning_usd: 1.25
+    current_status: "planned"
+    executor_enabled: false
+    no_executor_action: "reject_with_explanation"
+    planned_phase: "Phase 6 (full roster)"
+    deployment_portable: true
+
+  - name: clio
+    chief: alexander
+    owner: alexander
+    role: "Evidence and case-study keeper — claims, citations, proof snippets, case-study facts"
+    default_lane: "local R1 first"
+    daily_warning_usd: 0.75
+    current_status: "planned"
+    executor_enabled: false
+    no_executor_action: "reject_with_explanation"
+    planned_phase: "Phase 6 (full roster)"
+    deployment_portable: true
+
+# ============================================================
+# v4.0.x line — factory-wide non-chief agents
+# Both inherit deployment-portable doctrine per v4.0.3.1 §3I.7
+# ============================================================
+factory_wide:
+  - name: iris
+    chief: null
+    owner: null
+    scope: "factory_wide"
+    role: "Task router / mailman — push layer over pull layer; chief-inbox-only routing"
+    default_lane: "local Python systemd unit"
+    cohort_pattern: "synchronized A/B/C/D (00:00 / 06:00 / 12:00 / 18:00 UTC)"
+    current_status: "planned"
+    executor_enabled: false
+    no_executor_action: "reject_with_explanation"
+    planned_phase: "Phase 11.7 per v4.0.2.2"
+    deployment_portable: true
+    spec: "/opt/amg-docs/megaprompts/v4_0_2_2_IRIS_MAILMAN_FINAL_2026-04-27.md"
+
+  - name: athena
+    chief: null
+    owner: null
+    scope: "factory_wide"
+    role: "Knowledge curator / intelligence officer — KB writes, SI delta proposals (Solon-gated), namespace proposals"
+    default_lane: "Kimi flat-rate for synthesis + Tavily/Brave for search; AMG Sonar-Replica when CT-51 ships"
+    cohort_pattern: "synchronized A/B/C/D"
+    current_status: "planned"
+    executor_enabled: false
+    no_executor_action: "reject_with_explanation"
+    planned_phase: "Phase 11.8 per v4.0.3.1"
+    deployment_portable: true
+    spec: "/opt/amg-docs/megaprompts/v4_0_3_1_ATHENA_UNIVERSITY_2026-04-27.md"
+    mutual_check_pair: "aletheia (citation honesty pre-commit gate)"
+
+# ============================================================
+# Existing agents (referenced for naming-collision discipline; not Phase 1 deliverable)
+# ============================================================
+existing_agents:
+  client_facing:
+    - alex
+    - maya
+    - jordan
+    - sam
+    - riley
+    - nadia
+    - lumina
+
+  shared_lieutenants:
+    - daedalus      # code audit (DeepSeek V4 Pro, Titan-shared)
+    - artisan       # bulk edits (DeepSeek V4 Flash, Titan-shared)
+    - mercury       # primitives (local Qwen 32B, Titan-shared)
+
+  shared_verifiers:
+    - aletheia      # claim verification, citation honesty
+    - argus         # observability watchdog
+    - hygeia        # hygiene / cleanup janitor
+    - cerberus      # security audit
+    - warden        # idle-eviction enforcement
+
+# ============================================================
+# Naming guard (per CHIEF_BUILD_TEAMS_v1.1 §7)
+# ============================================================
+naming_collisions_guard:
+  - "alex (client agent) MUST NOT collide with alexander (chief). Never shorten alexander to alex."
+  - "iolaus is hercules-builder, NOT a Titan lieutenant. Distinct namespace."
+  - "orpheus / calliope reserved for v4.0.x scope only — apollo (music v6) excluded from current paper-freeze."
+  - "aristotle is RETIRED from formal judge stack per AMG_SOVEREIGN_JUDGES_v0.1; future research service must avoid Perplexity/Grok/Gemini."
