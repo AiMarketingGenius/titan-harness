@@ -45,7 +45,11 @@ MCP_BASE = os.environ.get("IRIS_MCP_BASE", "https://memory.aimarketinggenius.io"
 
 # Mail-only: Iris records delivery but does NOT lock — these have no autonomous
 # consumer on the VPS, so locking causes claim_cycle_deadlock (CT-0428-recovery).
-OPERATORS_MAIL_ONLY = {"titan", "manual", "n8n", "achilles"}
+# achilles_courier added 2026-04-28 per tier1_gate_phase1 spec §12.3 — Achilles's
+# Mac courier subscribes to op_decisions tagged iris-mail recipient:achilles_courier
+# via Supabase Realtime (PATCH-01 pattern) and runs Stagehand against the
+# corresponding eom_judgments row.
+OPERATORS_MAIL_ONLY = {"titan", "manual", "n8n", "achilles", "achilles_courier"}
 # Claimable: each has a tmux supervisor that consumes wake flags.
 BUILDER_AGENTS = {"codex", "hercules", "nestor", "alexander", "kimi_code"}
 ALL_KNOWN = OPERATORS_MAIL_ONLY | BUILDER_AGENTS
