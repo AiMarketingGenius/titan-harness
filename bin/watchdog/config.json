@@ -15,7 +15,20 @@
     "/var/lib/docker/volumes",
     "/opt/amg-docs",
     "/opt/amg-governance",
-    "/var/ossec/queue/vd"
+    "/var/ossec/queue/vd",
+    "/root/.cache/ms-playwright",
+    "/opt/persistent-browser/user-data-1",
+    "/opt/persistent-browser/user-data-2",
+    "/opt/persistent-browser/user-data-3",
+    "/opt/persistent-browser/user-data-4",
+    "/opt/persistent-browser/user-data-5",
+    "/opt/persistent-browser/user-data-6",
+    "/opt/persistent-browser/user-data-7",
+    "/opt/persistent-browser/user-data-8",
+    "/opt/persistent-browser/user-data-9",
+    "/opt/persistent-browser/user-data-10",
+    "/opt/persistent-browser/user-data-11",
+    "/opt/persistent-browser/user-data-12"
   ],
   "safe_remediation": {
     "journal_vacuum_size": "200M",
