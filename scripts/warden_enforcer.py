@@ -52,7 +52,15 @@ ESCALATE_AFTER = 3  # same agent in 1 hour
 # Move from passive logging to active eviction. The original 2h LOCK_LEAK
 # detection still runs (for Aletheia + audit trail); eviction adds an
 # automatic action once the lock crosses the EVICT_AFTER_MINUTES line.
-EVICT_AFTER_MINUTES = 5  # tasks locked >5 min get auto-requeued (status=approved)
+#
+# Policy v2 (2026-04-28, Solon directive pre-DIR-002a):
+# 5min was incompatible with CLASS_A work (DIR-002a alone = 14 acceptance
+# criteria across DDL + MCP tools + smoke tests, 30-60min execution).
+# CT-0428-11 evicted 4× on 7.6-9min cycles 18:21-19:02Z. 11+ tasks evicted
+# same day on identical pattern — systemic, not task-specific. Raised to
+# 90min to cover full CLASS_A directive execution windows; LOCK_LEAK at
+# 2h still catches genuine stuck locks; dead_letter at 24h unchanged.
+EVICT_AFTER_MINUTES = 90  # tasks locked >90 min get auto-requeued (status=approved)
 DEAD_LETTER_AFTER_HOURS = 24  # tasks locked >24h get archived (status=dead_letter)
 
 
