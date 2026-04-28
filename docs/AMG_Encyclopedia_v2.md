@@ -328,4 +328,107 @@ because they're never rendered to a subscriber.
 
 ---
 
+## 7. Shift Crew Rotation Doctrine (CT-0428-09)
+
+Source of record: `~/Downloads/AMG Atlas AI Agent Operations  Shift Rotation, Hallucination Prevention, and Queue Diagnostics.md`
+
+### 7.1 Rotation Trigger: Hybrid Context-Fill + Hard Wall
+
+**Primary trigger: 60% context budget consumed (not wall-clock time).**
+
+Research grounds this precisely: Chroma's 2025 study of 18 frontier models found degradation begins well before context limits, with meaningful accuracy drops observable once significant noise has accumulated. The research on long-running coding agents identifies a 35-minute wall — the point where context has typically grown to 80K–150K tokens — after which every agent's success rate decreases and doubling task duration quadruples the failure rate. At 60% of a 150K-token task budget (90K tokens), the agent is approaching this inflection.[^1][^2]
+
+**Secondary mandatory trigger: 45 minutes wall-clock elapsed on a single task, regardless of fill.**
+
+This is the hard backstop. The 35-minute threshold is empirically derived from coding agent research; 45 minutes adds a 10-minute buffer for AMG's higher-stakes deployment.[^1]
+
+**Tertiary trigger: second-pass reviewer score ≤ 8.0 on two consecutive deliverables from the same agent session.** This is the quality-decline signal. It activates a mid-session compaction (not a full rotation) first, then rotation if a third low score follows.
+
+**What does NOT trigger rotation:** wall-clock time alone, task count alone. These are weaker proxies for the real variable, which is context accumulation.
+
+### 7.2 Recommended Handoff Protocol: Option B (Checkpoint + Fresh Agent)
+
+**Protocol: Checkpoint current task → summarize state to MCP → fresh agent resumes. Original agent goes off-shift.**
+
+Production multi-agent systems converge on this. LangGraph's persistence layer saves graph checkpoints at every node boundary, enabling any worker to pick up from the last saved state. The checkpoint-at-phase-boundary pattern (your Haiku phase-gate already implements this for long-running tasks) is the correct foundation.[^3]
+
+The handoff document format is specified in Section 3 below.
+
+Option A (finish current task regardless) fails for long-horizon tasks: a 45-minute task that has 30 minutes left is the exact scenario rotation was designed to prevent. Option C (kill + restart) wastes all partial work and is only used for crash recovery, not planned rotation.
+
+### 7.3 Agent Count Per Role: 3 Agents Per Role (Not 4)
+
+**3 agents per role: 1 primary + 2 relief.** Not 4.
+
+The reasoning: multi-agent systems cost 4.8x more than single agents in aggregate due to repeated context billing at each agent transition. Adding a fourth agent adds coordination overhead — more handoff points, more handoff documents, more MCP writes — without proportional quality gain. SRE rotation literature recommends a minimum of 5 engineers for 24/7 on-call coverage to prevent burnout, but the analog for stateless AI agents is different: context-stateless agents don't fatigue between sessions, so you need enough to cover concurrent demand, not enough to prevent burnout. At AMG's current MRR ($7,300/month), 3 agents per role is the cost-justified ceiling.[^4][^5]
+
+**Rotation schedule:**
+- Titan-Prime (Claude Opus 4.7) — primary engineer, complex infra tasks
+- Titan-Relief-1 (DeepSeek V4 Flash) — high-volume coding tasks, lower complexity
+- Titan-Relief-2 (DeepSeek V4 Pro) — medium-complexity tasks, cost-efficient reasoning
+
+- EOM-Prime (Claude Opus 4.7 or Kimi K2.6) — primary orchestration brain
+- EOM-Relief-1 (DeepSeek V4 Pro) — task decomposition, queue management
+- EOM-Relief-2 (DeepSeek V4 Flash) — status synthesis, morning digest generation
+
+| Role | Prime | Relief 1 | Relief 2 |
+|---|---|---|---|
+| Titan | Titan-Prime (Claude Opus 4.7) | Titan-Relief-1 (DeepSeek V4 Flash) | Titan-Relief-2 (DeepSeek V4 Pro) |
+| EOM | EOM-Prime (Claude Opus 4.7 or Kimi K2.6) | EOM-Relief-1 (DeepSeek V4 Pro) | EOM-Relief-2 (DeepSeek V4 Flash) |
+
+### 7.4 Mid-Task Handoff Document Format (Canonical)
+
+This is the exact format the outgoing agent writes to MCP (via `log_decision` or a dedicated `handoff` endpoint) before rotating:
+
+```markdown
+## HANDOFF DOCUMENT — [TASK_ID] — [AGENT_NAME] → OFF-SHIFT
+**Timestamp:** [ISO-8601]
+**Rotation Reason:** [context-fill-60% | wall-clock-45min | quality-decline]
+**Context Usage at Rotation:** [X tokens / Y% of budget]
+
+### TASK GOAL
+[Single sentence: what this task is trying to accomplish]
+
+### COMPLETED PHASES
+- Phase 1: [description] ✅ [artifact link or commit hash]
+- Phase 2: [description] ✅ [artifact link or commit hash]
+
+### IN-PROGRESS PHASE (incomplete)
+- Phase N: [description — what was done, what was NOT done]
+- Last action taken: [exact action, tool call, or edit]
+- Expected next action: [what the incoming agent should do FIRST]
+
+### KEY DECISIONS MADE
+- [Decision 1: why X was chosen over Y]
+- [Decision 2: known constraint or gotcha]
+
+### OPEN QUESTIONS / BLOCKERS
+- [Any unresolved ambiguity the incoming agent needs to resolve before proceeding]
+
+### ARTIFACT POINTERS
+- [MCP table name + row ID for each artifact produced]
+- [GitHub commit hash for code changes]
+- [Supabase table + record ID for schema changes]
+
+### DO NOT
+- [Explicit list of actions the outgoing agent was about to take but did NOT yet take]
+- [Avoids the incoming agent duplicating a half-done action]
+```
+
+The incoming agent reads this document as the **first action** of its session, before any other tool calls. This mirrors the ATC verbal handoff pattern: no action without current situational awareness.[^15]
+
+### 7.5 Iris Alerts
+
+**Alerting that must be in place so this never fails silently:**
+
+1. **Staleness alert:** Tasks with `status='queued' AND approval='pre_approved' AND created_at < NOW() - INTERVAL '10 minutes'` → Slack alert. This is the canonical production pattern: Pega Platform implements an identical alert (PEGA0137) that fires when queue items are not picked up within an expected time.[^10]
+
+2. **Iris heartbeat:** Iris writes `last_heartbeat` to a Supabase row every poll cycle. A separate cron checks that `last_heartbeat > NOW() - INTERVAL '5 minutes'`; failure fires a Slack alert.
+
+3. **Wake flag orphan alert:** if `/home/titan/.claude/titan-wake.flag` is older than 5 minutes (written but not consumed), fire an alert — supervisor loop is dead.
+
+4. **Consumer lag metric:** expose `COUNT(*) WHERE status='active' AND claimed_at < NOW() - claim_timeout` as a metric. If > 0, the claim-timeout reaper is not running.
+
+---
+
 *End of AMG Encyclopedia v2.*
