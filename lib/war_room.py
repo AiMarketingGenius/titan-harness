@@ -604,6 +604,19 @@ The goal: address the listed blockers with the MINIMUM edit that satisfies \
 them, so the next grading round gives 9.4+. Not more. Not less.
 """
 
+# Anthropic prompt-cache-aware system block. Direct API path uses this
+# array form so the static REVISION_SYSTEM_PROMPT (~1KB, identical every
+# call) becomes a cache hit on every revision after the first within the
+# 5-min ephemeral cache window. Gateway path keeps the plain string
+# because LiteLLM's OpenAI-format bridge does not preserve cache_control.
+REVISION_SYSTEM_BLOCK = [
+    {
+        'type': 'text',
+        'text': REVISION_SYSTEM_PROMPT,
+        'cache_control': {'type': 'ephemeral'},
+    }
+]
+
 
 def _build_revision_user_message(previous_output: str, grade: GradeResult,
                                  phase: str, trigger_source: str) -> str:
@@ -1025,43 +1038,45 @@ class WarRoom:
             return '', 0.0
 
         reviser_model = self.policy.get('reviser_model', DEFAULT_REVISER_MODEL)
-        body = {
-            'model': reviser_model,
-            'max_tokens': 8192,  # extra headroom for Sonnet-grade revisions
-            'system': REVISION_SYSTEM_PROMPT,
-            'messages': [
-                {'role': 'user',
-                 'content': _build_revision_user_message(
-                     previous_output, grade, phase, trigger_source)},
-            ],
-        }
+        user_msg = _build_revision_user_message(
+            previous_output, grade, phase, trigger_source)
 
         # Sonnet 4.6 producing an 8k-token revision on a 15KB input takes
         # 60-120s. 240s gives comfortable headroom without blocking the
         # shim's 240s overall timeout (which is a separate guard).
         if GATEWAY_ENABLED and GATEWAY_URL:
+            # Gateway path: LiteLLM bridges to OpenAI format; cache_control
+            # is not preserved across the bridge, so use plain string system.
             _an_url = GATEWAY_URL
             _an_headers = {
                 'Authorization': f'Bearer {LITELLM_MASTER_KEY}',
                 'Content-Type': 'application/json',
             }
-            # Translate Anthropic-native body to OpenAI chat format.
-            # The gateway accepts either shape, but OpenAI-compat is simpler.
             _an_body = {
-                'model': body.get('model'),
-                'max_tokens': body.get('max_tokens', 4096),
+                'model': reviser_model,
+                'max_tokens': 8192,
                 'messages': (
-                    [{'role': 'system', 'content': body.get('system', '')}] if body.get('system') else []
-                ) + body.get('messages', []),
+                    [{'role': 'system', 'content': REVISION_SYSTEM_PROMPT}]
+                    + [{'role': 'user', 'content': user_msg}]
+                ),
             }
         else:
+            # Direct Anthropic path: use array form with cache_control so the
+            # ~1KB REVISION_SYSTEM_PROMPT becomes a 5-min ephemeral cache hit
+            # on every revision after the first. Saves ~70-90% input tokens
+            # on the system portion across the refinement loop.
             _an_url = ANTHROPIC_URL
             _an_headers = {
                 'x-api-key': key,
                 'anthropic-version': ANTHROPIC_VERSION,
                 'Content-Type': 'application/json',
             }
-            _an_body = body
+            _an_body = {
+                'model': reviser_model,
+                'max_tokens': 8192,
+                'system': REVISION_SYSTEM_BLOCK,
+                'messages': [{'role': 'user', 'content': user_msg}],
+            }
         status, resp = _http_post(
             _an_url,
             headers=_an_headers,
