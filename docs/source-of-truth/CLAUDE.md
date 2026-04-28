@@ -1,0 +1,1 @@
+/Users/solonzafiropoulos1/titan-harness/CLAUDE.md

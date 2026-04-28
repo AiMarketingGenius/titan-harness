@@ -51,3 +51,11 @@ RADAR.md
 .wrangler/
 dist/
 *.crt
+
+# Non-doctrine path classes (added 2026-04-28 CT-0428-38 triage)
+# reports/    — ops outputs / evidence packets / overnight followthroughs
+# scratch/    — WIP / megaprompt drafts / scratch docs
+# mcp-server-patches/ — CT-0428-36 working dir for Layer B hot-patch mirror
+reports/
+scratch/
+mcp-server-patches/

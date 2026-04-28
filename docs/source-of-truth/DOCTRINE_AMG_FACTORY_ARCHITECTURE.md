@@ -1,0 +1,1 @@
+/Users/solonzafiropoulos1/titan-harness/plans/DOCTRINE_AMG_FACTORY_ARCHITECTURE_v1_0.md

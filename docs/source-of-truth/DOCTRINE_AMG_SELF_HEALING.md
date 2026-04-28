@@ -1,0 +1,1 @@
+/Users/solonzafiropoulos1/titan-harness/plans/DOCTRINE_AMG_SELF_HEALING_v1.0.md

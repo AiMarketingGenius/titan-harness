@@ -1,0 +1,1 @@
+/Users/solonzafiropoulos1/Downloads/DOCTRINE_AMG_ENCYCLOPEDIA_v1.7_2026-04-22.md
