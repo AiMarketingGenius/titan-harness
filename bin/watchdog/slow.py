@@ -34,6 +34,31 @@ def check_required_services(cfg: dict) -> dict:
     return out
 
 
+def check_pending_emergency_signals() -> int:
+    """Returns count of pending emergency signals (status='pending') across
+    both target_agent='titan' and 'achilles' (and 'all'). Per v3 §3.7 —
+    watchdog enrichment for emergency-signal observability.
+
+    Failure modes (network/MCP unreachable) return -1 so consumers can
+    distinguish "zero pending" from "no signal data available".
+    """
+    import urllib.request
+    base = os.environ.get('AMG_API_BASE', 'https://memory.aimarketinggenius.io')
+    total = 0
+    try:
+        for agent in ('titan', 'achilles'):
+            with urllib.request.urlopen(
+                f'{base}/api/emergency/pending?agent={agent}',
+                timeout=5,
+            ) as resp:
+                import json as _json
+                data = _json.loads(resp.read().decode('utf-8'))
+                total += int(data.get('count') or 0)
+        return total
+    except Exception:
+        return -1
+
+
 def check_required_containers(cfg: dict) -> dict:
     """Returns {container: 'healthy'|'running'|'unhealthy'|'starting'|'missing'|'unknown'}.
 
@@ -72,9 +97,12 @@ def main(argv: list[str]) -> int:
     consumers = top_disk_consumers(20)
     candidates = owner_risk_classify(consumers)
 
-    # Service health (systemd) + container health (docker)
+    # Service health (systemd) + container health (docker) + emergency-signal
+    # enrichment (per v3 §3.7 — pending_emergency_count surfaced alongside
+    # service/container failures for observability).
     services = check_required_services(cfg)
     containers = check_required_containers(cfg)
+    pending_emergency = check_pending_emergency_signals()
     flapping_services = [s for s, st in services.items() if st not in ("active", "unknown")]
     flapping_containers = [c for c, st in containers.items() if st not in ("healthy", "running", "unknown")]
     flapping = flapping_services + flapping_containers
@@ -94,6 +122,7 @@ def main(argv: list[str]) -> int:
         "owner_risk_candidates": candidates,
         "service_health": services,
         "container_health": containers,
+        "pending_emergency_count": pending_emergency,
         "service_failures": flapping,
         "alerts_sent": [],
         "blocked": bool(flapping) or status == "critical",
