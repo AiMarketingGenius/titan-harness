@@ -1,14 +1,18 @@
 #!/usr/bin/env python3
-"""Iris daemon v0.2 — Atlas Factory CT-0428-08.
+"""Iris daemon v0.3 — Atlas Factory CT-0428-RECOVERY (claim_cycle_deadlock_fix).
 
-Changes vs v0.1 (CT-0427-99):
-  - VALID_OPERATORS expanded to include 'titan','manual','n8n','achilles'
-    (closes the silent-skip gap for non-builder tasks).
-  - SKIP logging with explicit reason on every dropped row.
-  - Per-poll heartbeat write to amg_daemon_heartbeats.
-  - Per-poll heartbeat POST to MCP /api/decisions tagged iris-heartbeat
-    (every Nth poll only — default every 10 polls = ~5min — to avoid spam).
-  - is_fresh() expiry/age check.
+Changes vs v0.2 (CT-0428-08):
+  - Operator-class tasks (titan / manual / n8n / achilles) now MAIL-ONLY:
+    Iris logs delivery to amg_shell_logs + posts to MCP /api/decisions
+    tagged iris-mail, but does NOT lock the row. There is no autonomous
+    consumer for those operators on the VPS, so any auto-claim deadlocks.
+    Builder agents (codex / hercules / nestor / alexander / kimi_code)
+    still get the existing claim+flag-drop path because they HAVE tmux
+    supervisors that consume.
+  - MAX_TASK_AGE_HOURS default 168 -> 72 (matches doctrine §5.4 freshness
+    floor; 8-day-old CT-0419/0420/0421 mail bursts triggered this fix).
+  - SELECT pre-filters by created_at > NOW() - INTERVAL N hours so old
+    rows aren't even pulled into the FOR UPDATE SKIP LOCKED window.
 
 Slack alerts disabled per 2026-04-26 doctrine — alerts fire to amg_alerts.
 """
@@ -35,13 +39,16 @@ import psycopg2.extras
 POLL_INTERVAL_S = int(os.environ.get("IRIS_POLL_INTERVAL_S", "30"))
 ATLAS_ENV_PATH = os.environ.get("IRIS_ENV_PATH", "/etc/amg-agents/atlas.env")
 LOG_PATH = "/var/log/iris-daemon.log"
-MAX_TASK_AGE_HOURS = int(os.environ.get("IRIS_MAX_TASK_AGE_HOURS", "168"))  # 7 days
+MAX_TASK_AGE_HOURS = int(os.environ.get("IRIS_MAX_TASK_AGE_HOURS", "72"))  # doctrine §5.4 freshness floor
 MCP_HEARTBEAT_EVERY_N_POLLS = int(os.environ.get("IRIS_MCP_HEARTBEAT_EVERY_N_POLLS", "10"))
 MCP_BASE = os.environ.get("IRIS_MCP_BASE", "https://memory.aimarketinggenius.io")
 
-VALID_OPERATORS = {"titan", "manual", "n8n", "achilles"}
+# Mail-only: Iris records delivery but does NOT lock — these have no autonomous
+# consumer on the VPS, so locking causes claim_cycle_deadlock (CT-0428-recovery).
+OPERATORS_MAIL_ONLY = {"titan", "manual", "n8n", "achilles"}
+# Claimable: each has a tmux supervisor that consumes wake flags.
 BUILDER_AGENTS = {"codex", "hercules", "nestor", "alexander", "kimi_code"}
-ALL_CLAIMABLE = VALID_OPERATORS | BUILDER_AGENTS
+ALL_KNOWN = OPERATORS_MAIL_ONLY | BUILDER_AGENTS
 
 logging.basicConfig(
     level=logging.INFO,
@@ -209,17 +216,39 @@ def claim_and_drop_flag(cur, task: dict) -> bool:
     if not cur.fetchone():
         return False
 
-    # Builder agents have wake-flag dirs; titan/manual/n8n do not — claim is sufficient.
-    if agent in BUILDER_AGENTS:
-        flag = pathlib.Path(f"/home/{agent}/.claude/{agent}-wake.flag")
-        flag.parent.mkdir(parents=True, exist_ok=True)
-        body = f"iris-claim task={task_id} ts={now_utc().isoformat()}\n"
-        flag.write_text(body)
-        try:
-            subprocess.run(["chown", f"{agent}:{agent}", str(flag)], check=False, capture_output=True)
-        except Exception as exc:
-            log.warning("chown failed for %s: %s", flag, exc)
+    flag = pathlib.Path(f"/home/{agent}/.claude/{agent}-wake.flag")
+    flag.parent.mkdir(parents=True, exist_ok=True)
+    body = f"iris-claim task={task_id} ts={now_utc().isoformat()}\n"
+    flag.write_text(body)
+    try:
+        subprocess.run(["chown", f"{agent}:{agent}", str(flag)], check=False, capture_output=True)
+    except Exception as exc:
+        log.warning("chown failed for %s: %s", flag, exc)
     return True
+
+
+def mail_only(cur, task: dict) -> None:
+    """Operator-class delivery: log + decision-tag, never lock the row."""
+    task_id = task["task_id"]
+    recipient = task["assigned_to"]
+    objective = (task.get("objective") or "")[:200]
+    summary = f"recipient={recipient} obj={objective}"
+    cur.execute(
+        "INSERT INTO amg_shell_logs(task_id, agent, command, stdout_excerpt, exit_code) VALUES (%s,%s,%s,%s,0);",
+        (task_id, "iris", "mail_delivered (mail-only operator)", summary[:500]),
+    )
+    body = json.dumps({
+        "text": f"Mail delivered: {task_id} → {recipient}. Objective: {objective}",
+        "project_source": "titan",
+        "tags": ["iris-mail", "mail_delivered", task_id, f"recipient:{recipient}", "claim_cycle_deadlock_fix"],
+    }).encode("utf-8")
+    try:
+        req = urlreq.Request(f"{MCP_BASE}/api/decisions", data=body, method="POST",
+                             headers={"Content-Type": "application/json"})
+        with urlreq.urlopen(req, timeout=4) as resp:
+            resp.read(64)
+    except (URLError, Exception) as exc:
+        log.warning("mail_only MCP post failed (non-fatal): %s", exc)
 
 
 def poll_once(dsn: str) -> None:
@@ -235,29 +264,39 @@ def poll_once(dsn: str) -> None:
 
             cur.execute(
                 """
-                SELECT task_id, assigned_to, proof_spec, priority, task_risk_tier, expires_at, created_at
+                SELECT task_id, assigned_to, objective, proof_spec, priority, task_risk_tier, expires_at, created_at
                 FROM op_task_queue
                 WHERE status IN ('queued','approved') AND approval='pre_approved'
+                  AND created_at > NOW() - (%s || ' hours')::INTERVAL
                 ORDER BY priority='urgent' DESC, created_at ASC
                 LIMIT 25
                 FOR UPDATE SKIP LOCKED;
-                """
+                """,
+                (str(MAX_TASK_AGE_HOURS),),
             )
             rows = cur.fetchall()
             claimed_count = 0
+            mailed_count = 0
             skipped_count = 0
             for row in rows:
                 task = dict(row)
-                if task["assigned_to"] not in ALL_CLAIMABLE:
+                if task["assigned_to"] not in ALL_KNOWN:
                     log.info("SKIP task=%s reason=unknown_operator %s", task["task_id"], task["assigned_to"])
                     shell_log(cur, task_id=task["task_id"], agent="iris", command="SKIP unknown_operator", stdout=str(task["assigned_to"]), exit_code=1)
                     skipped_count += 1
                     continue
+                # Application-level freshness as belt-and-suspenders behind the SQL filter.
                 fresh, reason = is_fresh(task)
                 if not fresh:
                     log.info("SKIP task=%s reason=%s", task["task_id"], reason)
                     shell_log(cur, task_id=task["task_id"], agent="iris", command="SKIP not_fresh", stdout=reason, exit_code=1)
                     skipped_count += 1
+                    continue
+                # Operator-class: mail-only, no lock (claim_cycle_deadlock_fix).
+                if task["assigned_to"] in OPERATORS_MAIL_ONLY:
+                    mail_only(cur, task)
+                    log.info("MAIL-ONLY task=%s recipient=%s (no auto-claim)", task["task_id"], task["assigned_to"])
+                    mailed_count += 1
                     continue
                 allowed, gate_reason = pre_claim_gate(cur, task)
                 if not allowed:
@@ -275,7 +314,7 @@ def poll_once(dsn: str) -> None:
                     shell_log(cur, task_id=task["task_id"], agent="iris", command="claim_race_lost", stdout="another worker won", exit_code=0)
 
             heartbeat_db(cur, host=host, pid=pid, poll_count=_poll_count, status="ok",
-                         meta={"scanned": len(rows), "claimed": claimed_count, "skipped": skipped_count})
+                         meta={"scanned": len(rows), "claimed": claimed_count, "mailed": mailed_count, "skipped": skipped_count})
             conn.commit()
 
     if _poll_count % MCP_HEARTBEAT_EVERY_N_POLLS == 0:
@@ -289,8 +328,8 @@ def main() -> int:
         log.error("SUPABASE_DB_URL not in %s and not in environment; exiting", ATLAS_ENV_PATH)
         return 2
 
-    log.info("Iris v0.2 starting; poll_interval=%ss; valid_operators=%s",
-             POLL_INTERVAL_S, sorted(ALL_CLAIMABLE))
+    log.info("Iris v0.3 starting; poll_interval=%ss; max_age_h=%s; mail_only=%s; claimable=%s",
+             POLL_INTERVAL_S, MAX_TASK_AGE_HOURS, sorted(OPERATORS_MAIL_ONLY), sorted(BUILDER_AGENTS))
     while _running:
         try:
             poll_once(dsn)
@@ -300,7 +339,7 @@ def main() -> int:
             if not _running:
                 break
             time.sleep(1)
-    log.info("Iris v0.2 clean exit")
+    log.info("Iris v0.3 clean exit")
     return 0
 
 
