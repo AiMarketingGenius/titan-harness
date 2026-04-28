@@ -275,22 +275,58 @@ def execute_task(task: dict) -> dict:
         result["latency_ms"] = int((time.time() - t0) * 1000)
         return result
 
-    # LLM-fallback: hand to dispatch bridge → amg_fleet → Ollama
+    # Hercules dispatch 2026-04-26: BENCH the LLM-fallback path. Mercury's
+    # job is now primitives ONLY (ssh_run, file_read, file_write,
+    # infisical_get, browser_*, delegate). Tasks without a MERCURY_ACTION
+    # directive are REJECTED + requeued for Daedalus / Artisan via a
+    # tag-injection in notes. The old fallback caused fake completions
+    # (CT-0426-37) because Mercury saved Qwen 32B's tool-call argument
+    # JSON verbatim into result_summary without verification. New path is
+    # mechanically reject-and-requeue — never produce a fake completion.
+    #
+    # Override (NOT recommended): set MERCURY_LLM_FALLBACK_ENABLED=true to
+    # restore the legacy behavior. Logs a warning every fallback so it's
+    # auditable.
     if not task_id:
-        return {"ok": False, "error": "no task_id for LLM fallback", "mode": "llm"}
+        return {"ok": False, "error": "no task_id for reject/requeue", "mode": "no-primitive"}
+    if os.environ.get("MERCURY_LLM_FALLBACK_ENABLED", "").lower() == "true":
+        _log(f"WARNING task={task_id} using LEGACY LLM-fallback path (MERCURY_LLM_FALLBACK_ENABLED=true)")
+        try:
+            out = subprocess.run(
+                ["python3", str(DISPATCH_BRIDGE), "--task-id", str(task_id)],
+                capture_output=True, text=True, timeout=420,
+            )
+            return {
+                "ok": out.returncode == 0,
+                "mode": "llm-legacy",
+                "stdout": out.stdout[-2000:],
+                "stderr": out.stderr[-800:],
+                "error": None if out.returncode == 0 else f"dispatch_bridge exit {out.returncode}: {(out.stderr or out.stdout or '')[-300:]}",
+            }
+        except subprocess.TimeoutExpired:
+            return {"ok": False, "mode": "llm-legacy", "error": "dispatch_bridge timeout 420s"}
+        except Exception as e:
+            return {"ok": False, "mode": "llm-legacy", "error": f"dispatch_bridge exception: {e!r}"}
+    # Default path: reject + requeue to Daedalus.
+    existing_notes = task.get("notes") or ""
+    requeue_marker = f"\nREQUEUE_TAG: agent:daedalus reason=mercury-no-primitive ts={datetime.now(timezone.utc).isoformat()}"
     try:
-        out = subprocess.run(
-            ["python3", str(DISPATCH_BRIDGE), "--task-id", str(task_id)],
-            capture_output=True, text=True, timeout=420,
+        mcp_update_task(
+            task_id=task_id, status="active",
+            notes=existing_notes + requeue_marker,
         )
-        return {
-            "ok": out.returncode == 0,
-            "mode": "llm",
-            "stdout": out.stdout[-2000:],
-            "stderr": out.stderr[-800:],
-        }
-    except subprocess.TimeoutExpired:
-        return {"ok": False, "mode": "llm", "error": "dispatch_bridge timeout 420s"}
+        mcp_update_task(
+            task_id=task_id, status="approved",
+            notes=existing_notes + requeue_marker,
+        )
+    except Exception as e:
+        _log(f"reject-requeue update failed task={task_id}: {e!r}")
+    _log(f"task={task_id} REJECT-REQUEUE: no MERCURY_ACTION primitive; tagged for daedalus")
+    return {
+        "ok": False,
+        "mode": "reject-requeue",
+        "error": "mercury accepts primitives only; requeued for agent:daedalus",
+    }
 
 
 # ─── MCP loop ───────────────────────────────────────────────────────────────
@@ -301,6 +337,43 @@ def fetch_one_by_id(task_id: str) -> dict | None:
         return None
     tasks = body.get("tasks") or []
     return tasks[0] if tasks else None
+
+
+def is_mercury_eligible(task: dict) -> tuple[bool, str]:
+    """CT-0428-recovery / mercury_phase1_patch (Solon directive 2026-04-28).
+
+    Mercury claims ONLY rows that carry a Mercury or Hercules domain marker.
+    Raw assigned_to='titan' rows WITHOUT those markers are SKIPPED — Iris v0.3
+    mails them and Titan-the-Claude-Code-session picks up manually. Same
+    skip applies to raw assigned_to='manual' / 'n8n' / 'achilles' rows that
+    landed in Mercury's titan-scoped fetch via tag/note quirk.
+
+    Returns (eligible, reason). Reason is logged on every skip.
+    """
+    notes = (task.get("notes") or "").lower()
+    tags = [str(x).lower() for x in (task.get("tags") or [])]
+    assigned_to = (task.get("assigned_to") or "").lower()
+    agent_assigned = (task.get("agent_assigned") or "").lower()
+
+    has_mercury_marker = (
+        "dispatch: mercury" in notes
+        or "agent:mercury" in tags
+        or "mercury" in tags
+        or agent_assigned == "mercury"
+    )
+    has_hercules_marker = (
+        "dispatch: hercules" in notes
+        or "agent:hercules" in tags
+        or "hercules" in tags
+        or "hercules-domain" in tags
+        or agent_assigned == "hercules"
+    )
+
+    if has_mercury_marker:
+        return True, "mercury-marker"
+    if has_hercules_marker:
+        return True, "hercules-domain"
+    return False, f"raw-{assigned_to or 'unknown'}-no-marker (mercury_phase1_patch)"
 
 
 def fetch_pending_for_mercury(limit: int = 5) -> list[dict]:
@@ -324,16 +397,12 @@ def fetch_pending_for_mercury(limit: int = 5) -> list[dict]:
             # skip already-locked tasks
             if t.get("locked_by") and t.get("locked_by") != "mercury":
                 continue
-            notes = (t.get("notes") or "").lower()
-            tags = [str(x).lower() for x in (t.get("tags") or [])]
-            agent_assigned = (t.get("agent_assigned") or "").lower()
-            if (
-                "dispatch: mercury" in notes
-                or "agent:mercury" in tags
-                or agent_assigned == "mercury"
-            ):
+            eligible, reason = is_mercury_eligible(t)
+            if eligible:
                 out.append(t)
                 seen_ids.add(tid)
+            else:
+                _log(f"FETCH-SKIP task={tid} reason={reason}")
             if len(out) >= limit:
                 break
         if len(out) >= limit:
@@ -351,17 +420,49 @@ def update_task(task_id: str, status: str, summary: str | None = None, error: st
       locked → active|approved|dead_letter
       active → completed|failed|blocked|pending_qc|dead_letter
     Direct locked → completed is rejected — must hop through active first.
-    The terminal-success state is 'completed' (not 'done')."""
+    The terminal-success state is 'completed' (not 'done').
+
+    Lock-leak guard: if the second hop (active → terminal) fails for any reason,
+    fall back to dead_letter (allowed direct from locked) so the task never
+    stays stuck. Logs every step so warden can correlate."""
     if status == "done":
         status = "completed"  # MCP terminology
-    if status in {"completed", "failed", "blocked"}:
-        # Hop to 'active' first to satisfy the FSM
-        mcp_update_task(task_id=task_id, status="active",
-                        notes="mercury_executor: transitioning to terminal")
-    mcp_update_task(
-        task_id=task_id, status=status,
-        result_summary=summary, failure_reason=error,
-    )
+    needs_hop = status in {"completed", "failed", "blocked"}
+    try:
+        if needs_hop:
+            code1, body1 = mcp_update_task(
+                task_id=task_id, status="active",
+                notes="mercury_executor: transitioning to terminal",
+            )
+            if code1 != 200 or not body1.get("success", True):
+                # First hop failed — try direct dead_letter (allowed from locked)
+                _log(f"update_task hop1-fail task={task_id} code={code1} body={body1!r:.200} → falling to dead_letter")
+                mcp_update_task(
+                    task_id=task_id, status="dead_letter",
+                    failure_reason=(error or "mercury hop1 failed")[:500],
+                )
+                return
+        code2, body2 = mcp_update_task(
+            task_id=task_id, status=status,
+            result_summary=summary, failure_reason=error,
+        )
+        if code2 != 200 or not body2.get("success", True):
+            _log(f"update_task hop2-fail task={task_id} status={status} code={code2} body={body2!r:.200} → falling to dead_letter")
+            mcp_update_task(
+                task_id=task_id, status="dead_letter",
+                failure_reason=(error or f"mercury hop2 to {status} failed")[:500],
+            )
+    except Exception as e:
+        # Final safety net — never leave a task locked
+        _log(f"update_task EXCEPTION task={task_id} status={status} err={e!r} → dead_letter")
+        try:
+            mcp_update_task(
+                task_id=task_id, status="dead_letter",
+                failure_reason=f"mercury update_task exception: {e!r}"[:500],
+            )
+        except Exception as e2:
+            _log(f"update_task dead_letter fallback ALSO FAILED task={task_id} err={e2!r} — task may leak")
+            raise
 
 
 def log_proof(task: dict, result: dict) -> None:
@@ -392,19 +493,26 @@ def drain_once(limit: int = 5, wake_task_id: str | None = None) -> dict:
             _log(f"wake task_id={wake_task_id} not found in queue")
             return {"scanned": 0, "claimed": 0, "executed": 0, "failed": 0,
                     "wake_id_not_found": wake_task_id}
-        notes = (t.get("notes") or "").lower()
-        tags = [str(x).lower() for x in (t.get("tags") or [])]
-        if not ("dispatch: mercury" in notes or "agent:mercury" in tags):
-            _log(f"wake task_id={wake_task_id} is not a Mercury task; skipping")
+        eligible, reason = is_mercury_eligible(t)
+        if not eligible:
+            _log(f"wake task_id={wake_task_id} not Mercury-eligible reason={reason}; skipping")
             return {"scanned": 1, "claimed": 0, "executed": 0, "failed": 0,
-                    "wake_id_not_mercury": wake_task_id}
+                    "wake_id_not_eligible": wake_task_id, "reason": reason}
         tasks = [t]
     else:
         tasks = fetch_pending_for_mercury(limit=limit)
-    results = {"scanned": len(tasks), "claimed": 0, "executed": 0, "failed": 0}
+    results = {"scanned": len(tasks), "claimed": 0, "executed": 0, "failed": 0, "skipped_phase1": 0}
     for t in tasks:
         tid = t.get("task_id") or t.get("id")
         if not tid:
+            continue
+        # Belt-and-suspenders: re-verify Mercury eligibility right before claim.
+        # Even if fetch_pending_for_mercury / wake-path drift, we never claim a
+        # raw-titan row without markers (mercury_phase1_patch).
+        eligible, reason = is_mercury_eligible(t)
+        if not eligible:
+            _log(f"CLAIM-SKIP task={tid} reason={reason}")
+            results["skipped_phase1"] += 1
             continue
         if not claim_task(tid):
             _log(f"claim failed for {tid} (already claimed?)")
