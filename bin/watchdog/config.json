@@ -27,7 +27,9 @@
   "required_services": [
     "wazuh-manager",
     "ollama",
-    "docker",
-    "redis-server"
+    "docker"
+  ],
+  "required_containers": [
+    {"name": "n8n-redis-live", "expected": "healthy"}
   ]
 }

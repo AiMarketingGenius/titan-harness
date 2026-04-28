@@ -34,6 +34,35 @@ def check_required_services(cfg: dict) -> dict:
     return out
 
 
+def check_required_containers(cfg: dict) -> dict:
+    """Returns {container: 'healthy'|'running'|'unhealthy'|'starting'|'missing'|'unknown'}.
+
+    Containerized services (e.g. Redis as n8n-redis-live) cannot be probed via
+    systemctl is-active because they are not registered with systemd. Use
+    docker inspect — prefer Health.Status (HEALTHCHECK-aware) and fall back to
+    State.Status when the image has no HEALTHCHECK configured.
+    """
+    out = {}
+    for entry in cfg.get("required_containers", []):
+        name = entry.get("name") if isinstance(entry, dict) else entry
+        if not name:
+            continue
+        try:
+            r = subprocess.run(
+                ["docker", "inspect", "--format",
+                 "{{if .State.Health}}{{.State.Health.Status}}{{else}}{{.State.Status}}{{end}}",
+                 name],
+                capture_output=True, text=True, timeout=5,
+            )
+            if r.returncode != 0:
+                out[name] = "missing"
+            else:
+                out[name] = r.stdout.strip() or "unknown"
+        except (subprocess.SubprocessError, OSError):
+            out[name] = "unknown"
+    return out
+
+
 def main(argv: list[str]) -> int:
     cfg = load_config()
     signals = collect_slow_signals()
@@ -43,9 +72,12 @@ def main(argv: list[str]) -> int:
     consumers = top_disk_consumers(20)
     candidates = owner_risk_classify(consumers)
 
-    # Service health
+    # Service health (systemd) + container health (docker)
     services = check_required_services(cfg)
-    flapping = [s for s, st in services.items() if st not in ("active", "unknown")]
+    containers = check_required_containers(cfg)
+    flapping_services = [s for s, st in services.items() if st not in ("active", "unknown")]
+    flapping_containers = [c for c, st in containers.items() if st not in ("healthy", "running", "unknown")]
+    flapping = flapping_services + flapping_containers
 
     receipt = {
         "ok": True,
@@ -61,6 +93,7 @@ def main(argv: list[str]) -> int:
         "safe_actions": [],  # slow loop doesn't auto-remediate
         "owner_risk_candidates": candidates,
         "service_health": services,
+        "container_health": containers,
         "service_failures": flapping,
         "alerts_sent": [],
         "blocked": bool(flapping) or status == "critical",
@@ -77,7 +110,7 @@ def main(argv: list[str]) -> int:
         log_decision(
             text=msg,
             tags=["ct-0427-57", "watchdog-vps", "watchdog-slow", status],
-            rationale=f"slow loop: signals={signals}, consumers={candidates[:5]}, services={services}",
+            rationale=f"slow loop: signals={signals}, consumers={candidates[:5]}, services={services}, containers={containers}",
         )
 
     receipt["alerts_sent"] = alerts
