@@ -1,0 +1,12 @@
+[Unit]
+Description=Atlas morning digest — CT-0427-99
+After=network-online.target
+
+[Service]
+Type=oneshot
+User=root
+WorkingDirectory=/opt/amg-titan/iris
+ExecStart=/usr/bin/python3 /opt/amg-titan/iris/n8n_workers.py morning-digest
+StandardOutput=append:/var/log/atlas-morning-digest.log
+StandardError=append:/var/log/atlas-morning-digest.log
+Environment=IRIS_ENV_PATH=/etc/amg-agents/atlas.env

@@ -1,0 +1,45 @@
+{
+  "_comment": "Atlas Factory CT-0427-99 — 5 governance workflow definitions for n8n import. Live runtime today is /opt/amg-titan/iris/n8n_workers.py via systemd timers (atlas-governance-workers.timer every 5 min + atlas-morning-digest.timer at 10:00 UTC). Import these to the existing n8n stack (n8n-n8n-1 docker container) when ready to migrate. SLACK NODES INTENTIONALLY OMITTED per 2026-04-26 doctrine; alerts route to amg_blocker_register + MCP log_decision instead.",
+  "workflows": [
+    {
+      "name": "atlas/heartbeat-stale-lock-alert",
+      "schedule": "*/5 * * * *",
+      "nodes": [
+        {"type": "n8n-nodes-base.scheduleTrigger", "name": "Cron", "parameters": {"rule": {"interval": [{"field": "minutes", "minutesInterval": 5}]}}},
+        {"type": "n8n-nodes-base.executeCommand", "name": "RunWorker", "parameters": {"command": "/usr/bin/python3 /opt/amg-titan/iris/n8n_workers.py heartbeat-stale-lock-alert"}}
+      ]
+    },
+    {
+      "name": "atlas/cost-sentinel",
+      "schedule": "*/5 * * * *",
+      "nodes": [
+        {"type": "n8n-nodes-base.scheduleTrigger", "name": "Cron", "parameters": {"rule": {"interval": [{"field": "minutes", "minutesInterval": 5}]}}},
+        {"type": "n8n-nodes-base.executeCommand", "name": "RunWorker", "parameters": {"command": "/usr/bin/python3 /opt/amg-titan/iris/n8n_workers.py cost-sentinel"}}
+      ]
+    },
+    {
+      "name": "atlas/reaper",
+      "schedule": "*/5 * * * *",
+      "nodes": [
+        {"type": "n8n-nodes-base.scheduleTrigger", "name": "Cron", "parameters": {"rule": {"interval": [{"field": "minutes", "minutesInterval": 5}]}}},
+        {"type": "n8n-nodes-base.executeCommand", "name": "RunWorker", "parameters": {"command": "/usr/bin/python3 /opt/amg-titan/iris/n8n_workers.py reaper"}}
+      ]
+    },
+    {
+      "name": "atlas/false-completion-kill-switch",
+      "schedule": "*/5 * * * *",
+      "nodes": [
+        {"type": "n8n-nodes-base.scheduleTrigger", "name": "Cron", "parameters": {"rule": {"interval": [{"field": "minutes", "minutesInterval": 5}]}}},
+        {"type": "n8n-nodes-base.executeCommand", "name": "RunWorker", "parameters": {"command": "/usr/bin/python3 /opt/amg-titan/iris/n8n_workers.py false-completion-kill-switch"}}
+      ]
+    },
+    {
+      "name": "atlas/morning-digest",
+      "schedule": "0 10 * * *",
+      "nodes": [
+        {"type": "n8n-nodes-base.scheduleTrigger", "name": "Cron", "parameters": {"rule": {"interval": [{"field": "cronExpression", "cronExpression": "0 10 * * *"}]}}},
+        {"type": "n8n-nodes-base.executeCommand", "name": "RunWorker", "parameters": {"command": "/usr/bin/python3 /opt/amg-titan/iris/n8n_workers.py morning-digest"}}
+      ]
+    }
+  ]
+}

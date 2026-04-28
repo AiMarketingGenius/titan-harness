@@ -1,0 +1,15 @@
+[Unit]
+Description=Atlas governance workers (heartbeat + cost-sentinel + reaper + kill-switch) — CT-0427-99
+After=network-online.target
+
+[Service]
+Type=oneshot
+User=root
+WorkingDirectory=/opt/amg-titan/iris
+ExecStart=/usr/bin/python3 /opt/amg-titan/iris/n8n_workers.py heartbeat-stale-lock-alert
+ExecStart=/usr/bin/python3 /opt/amg-titan/iris/n8n_workers.py cost-sentinel
+ExecStart=/usr/bin/python3 /opt/amg-titan/iris/n8n_workers.py reaper
+ExecStart=/usr/bin/python3 /opt/amg-titan/iris/n8n_workers.py false-completion-kill-switch
+StandardOutput=append:/var/log/atlas-governance-workers.log
+StandardError=append:/var/log/atlas-governance-workers.log
+Environment=IRIS_ENV_PATH=/etc/amg-agents/atlas.env

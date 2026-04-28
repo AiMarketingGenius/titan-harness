@@ -1,0 +1,10 @@
+[Unit]
+Description=Atlas morning digest timer — CT-0427-99 (10:00 UTC = 06:00 ET)
+Requires=atlas-morning-digest.service
+
+[Timer]
+OnCalendar=*-*-* 10:00:00 UTC
+Persistent=true
+
+[Install]
+WantedBy=timers.target

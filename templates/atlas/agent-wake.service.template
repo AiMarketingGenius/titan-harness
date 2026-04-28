@@ -1,0 +1,12 @@
+[Unit]
+Description=Wake-flag handler for AGENT_NAME (Atlas Factory CT-0427-97)
+After=multi-user.target
+
+[Service]
+Type=oneshot
+User=AGENT_NAME
+Group=AGENT_NAME
+WorkingDirectory=/home/AGENT_NAME
+ExecStart=/home/AGENT_NAME/.claude/nudge-AGENT_NAME.sh
+StandardOutput=append:/home/AGENT_NAME/.claude/logs/AGENT_NAME-wake.log
+StandardError=append:/home/AGENT_NAME/.claude/logs/AGENT_NAME-wake.log

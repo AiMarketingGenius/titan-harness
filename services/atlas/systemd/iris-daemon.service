@@ -1,0 +1,21 @@
+[Unit]
+Description=Iris claim+flag daemon (Atlas Factory CT-0427-99)
+Documentation=file:///opt/amg-docs/runbooks/atlas-factory-build/Atlas_Factory_Build_TITAN_Work_Pack_v1_renumbered_2026-04-27.md
+After=network-online.target postgresql.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/opt/amg-titan/iris
+ExecStart=/usr/bin/python3 /opt/amg-titan/iris/iris_daemon.py
+Restart=on-failure
+RestartSec=30
+StandardOutput=append:/var/log/iris-daemon.log
+StandardError=append:/var/log/iris-daemon.log
+Environment=PYTHONUNBUFFERED=1
+Environment=IRIS_POLL_INTERVAL_S=30
+Environment=IRIS_ENV_PATH=/etc/amg-agents/atlas.env
+
+[Install]
+WantedBy=multi-user.target
