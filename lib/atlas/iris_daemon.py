@@ -1,8 +1,27 @@
 #!/usr/bin/env python3
-"""Iris daemon v0.3 — Atlas Factory CT-0428-RECOVERY (claim_cycle_deadlock_fix).
+"""Iris daemon v0.4 — Atlas Factory CT-0428-22 (mail idempotency + install-packet routing).
+
+Changes vs v0.3 (CT-0428-RECOVERY):
+  - Mail-only delivery is now IDEMPOTENT: every successful operator-class
+    delivery records a row in iris_mail_log keyed by task_id. The poll
+    SELECT excludes any task already in iris_mail_log so each task is
+    mailed exactly once per its lifetime in op_task_queue. Kills the
+    re-delivery loop blocker iris_mail_loop_ct-0428-12 (active P10 since
+    2026-04-28).
+  - Install-packet detection added: when objective/instructions match
+    install-packet keywords (e.g., "wire X into Y harness", references
+    to scripts/, bin/, lib/, tests/, configs/ paths), Iris auto-creates
+    a follow-up queue_operator_task assigned to the receiving harness
+    owner with the standard verify+test+commit protocol embedded in
+    instructions. Replaces the "files dumped in worktree without an
+    install task" anti-pattern that surfaced via CT-0428-04.
+  - SELECT now also pulls instructions + queued_by so install-packet
+    detection has the full text. Self-recursion guard: tasks queued_by
+    'iris' (the install-followup tasks themselves) bypass install-packet
+    detection.
 
 Changes vs v0.2 (CT-0428-08):
-  - Operator-class tasks (titan / manual / n8n / achilles) now MAIL-ONLY:
+  - Operator-class tasks (titan / manual / n8n / achilles) MAIL-ONLY:
     Iris logs delivery to amg_shell_logs + posts to MCP /api/decisions
     tagged iris-mail, but does NOT lock the row. There is no autonomous
     consumer for those operators on the VPS, so any auto-claim deadlocks.
@@ -53,6 +72,70 @@ OPERATORS_MAIL_ONLY = {"titan", "manual", "n8n", "achilles", "achilles_courier"}
 # Claimable: each has a tmux supervisor that consumes wake flags.
 BUILDER_AGENTS = {"codex", "hercules", "nestor", "alexander", "kimi_code"}
 ALL_KNOWN = OPERATORS_MAIL_ONLY | BUILDER_AGENTS
+
+# CT-0428-22: install-packet detection. When an operator-class objective text
+# matches one of these patterns, Iris routes via queue_install_followup() in
+# addition to mail-only, creating a structured verify+test+commit sub-task on
+# the receiving harness owner instead of relying on the recipient to
+# materialize and verify files themselves.
+#
+# Conservative keyword set — false positives prefer mail-only over false-
+# negative routing. Add new keywords as new install patterns surface.
+INSTALL_PACKET_KEYWORDS = (
+    "wire ",
+    "install ",
+    "deploy ",
+    "scaffold ",
+    "drop into",
+    "copy to ",
+    "scripts/",
+    "tests/",
+    " bin/",
+    " lib/",
+    "configs/",
+    "into achilles harness",
+    "into titan harness",
+    "into the achilles harness",
+    "into the titan harness",
+)
+
+# Boilerplate the install-packet follow-up task carries — receiving harness
+# session reads the source mail referenced via parent_task_id, materializes
+# any files the source describes, runs associated tests, then commits or
+# named-stashes per the result.
+INSTALL_PROTOCOL_TEMPLATE = """\
+INSTALL PROTOCOL (auto-routed from CT-0428-22 iris install-packet detection)
+
+Source mail: parent_task_id={source_task_id}
+Original recipient: {recipient}
+Source objective (verbatim): {objective_excerpt}
+
+Receiving harness session, run in this order:
+  (1) Read the source task referenced via parent_task_id (op_task_queue.task_id={source_task_id}).
+      Pull objective + instructions in full so file paths and test references are exact.
+  (2) Materialize any files the source describes. If files were embedded in the
+      objective/instructions text (heredocs, code blocks), write them to the
+      paths exactly as specified. If the source references a remote artifact
+      (URL / git ref / other harness path), fetch it.
+  (3) Verify content against the original spec. If a verification command is
+      named in the source (lint / type-check / smoke harness), run it.
+  (4) Run associated tests:
+        - pytest path/ if tests/ dir referenced
+        - the explicit test command if the source named one
+        - bash bin/<harness>-preflight.sh if no tests but harness preflight exists
+  (5) Commit on green:
+        - git add <paths>; git commit with message tagged the source task_id
+        - Mac sessions: also confirm post-commit auto-mirror landed (3-leg green)
+      OR named-stash on red:
+        - git stash push -u -m "iris-install-packet-{source_task_id}-FAILED"
+        - then log a blocker in MCP describing why
+  (6) log_decision tag iris_install_completed_{source_task_id} with diff link
+      OR iris_install_failed_{source_task_id} with rationale.
+
+Acceptance: the source task's intent is realized in working code in the receiving
+harness, with tests green and a committed (or named-stashed) artifact + a
+log_decision entry that links source + result.
+"""
 
 logging.basicConfig(
     level=logging.INFO,
@@ -231,8 +314,14 @@ def claim_and_drop_flag(cur, task: dict) -> bool:
     return True
 
 
-def mail_only(cur, task: dict) -> None:
-    """Operator-class delivery: log + decision-tag, never lock the row."""
+def mail_only(cur, task: dict, *, install_followup_id: Optional[str] = None) -> None:
+    """Operator-class delivery: log + decision-tag, never lock the row.
+
+    CT-0428-22: also records to iris_mail_log so subsequent polls skip
+    this task (idempotency). When called as part of install-packet routing,
+    install_followup_id is the queued sub-task's task_id and gets recorded
+    in iris_mail_log.install_packet_followup_task_id for traceability.
+    """
     task_id = task["task_id"]
     recipient = task["assigned_to"]
     objective = (task.get("objective") or "")[:200]
@@ -241,10 +330,28 @@ def mail_only(cur, task: dict) -> None:
         "INSERT INTO amg_shell_logs(task_id, agent, command, stdout_excerpt, exit_code) VALUES (%s,%s,%s,%s,0);",
         (task_id, "iris", "mail_delivered (mail-only operator)", summary[:500]),
     )
+    cur.execute(
+        """
+        INSERT INTO iris_mail_log(task_id, recipient, install_packet_routed, install_packet_followup_task_id, meta)
+        VALUES (%s, %s, %s, %s, %s)
+        ON CONFLICT (task_id) DO NOTHING;
+        """,
+        (
+            task_id,
+            recipient,
+            install_followup_id is not None,
+            install_followup_id,
+            json.dumps({"objective_excerpt": objective[:200]}),
+        ),
+    )
+    decision_tags = ["iris-mail", "mail_delivered", task_id, f"recipient:{recipient}", "claim_cycle_deadlock_fix"]
+    if install_followup_id:
+        decision_tags.extend(["install_packet_routed", f"followup:{install_followup_id}"])
     body = json.dumps({
-        "text": f"Mail delivered: {task_id} → {recipient}. Objective: {objective}",
+        "text": f"Mail delivered: {task_id} → {recipient}. Objective: {objective}"
+                + (f" (install-packet routed: followup_task_id={install_followup_id})" if install_followup_id else ""),
         "project_source": "titan",
-        "tags": ["iris-mail", "mail_delivered", task_id, f"recipient:{recipient}", "claim_cycle_deadlock_fix"],
+        "tags": decision_tags,
     }).encode("utf-8")
     try:
         req = urlreq.Request(f"{MCP_BASE}/api/decisions", data=body, method="POST",
@@ -253,6 +360,76 @@ def mail_only(cur, task: dict) -> None:
             resp.read(64)
     except (URLError, Exception) as exc:
         log.warning("mail_only MCP post failed (non-fatal): %s", exc)
+
+
+def is_install_packet(task: dict) -> bool:
+    """Detect if an operator-class mail describes installing files into a
+    receiving harness. False if the task was queued by Iris itself (anti-
+    recursion guard) or if no install keywords appear in objective/instructions.
+    """
+    if (task.get("queued_by") or "").lower() == "iris":
+        return False
+    text = (
+        ((task.get("objective") or "") + " " + (task.get("instructions") or ""))
+        .lower()
+    )
+    return any(kw in text for kw in INSTALL_PACKET_KEYWORDS)
+
+
+def queue_install_followup(cur, task: dict) -> Optional[str]:
+    """Insert a structured verify+test+commit follow-up task assigned to the
+    receiving harness owner. Returns the new task_id on success, None on
+    conflict (already routed) or insert failure.
+    """
+    source_task_id = task["task_id"]
+    recipient = task["assigned_to"]
+    follow_id = f"{source_task_id}-install"
+    objective_excerpt = (task.get("objective") or "")[:300]
+    instructions = INSTALL_PROTOCOL_TEMPLATE.format(
+        source_task_id=source_task_id,
+        recipient=recipient,
+        objective_excerpt=objective_excerpt,
+    )
+    follow_objective = f"INSTALL: {objective_excerpt[:150]}"
+    acceptance = (
+        "(1) Files referenced in source mail materialized at the paths the source describes. "
+        "(2) Tests/preflight green (or named-stashed on red with a logged blocker). "
+        "(3) Commit landed in receiving harness with message tagged the source task_id; "
+        "3-leg mirror green for Mac sessions. "
+        "(4) log_decision tag iris_install_completed_{src} OR iris_install_failed_{src}."
+    ).format(src=source_task_id)
+    try:
+        cur.execute(
+            """
+            INSERT INTO op_task_queue(
+              task_id, priority, agent, objective, instructions, acceptance_criteria,
+              assigned_to, status, approval, queued_by, parent_task_id, tags
+            )
+            VALUES (%s, %s, 'ops', %s, %s, %s, %s, 'queued', 'pre_approved', 'iris',
+                    (SELECT id FROM op_task_queue WHERE task_id=%s LIMIT 1),
+                    ARRAY['iris_install_followup', %s, %s])
+            ON CONFLICT (task_id) DO NOTHING
+            RETURNING task_id;
+            """,
+            (
+                follow_id,
+                task.get("priority") or "normal",
+                follow_objective,
+                instructions,
+                acceptance,
+                recipient,
+                source_task_id,
+                f"source:{source_task_id}",
+                f"recipient:{recipient}",
+            ),
+        )
+        row = cur.fetchone()
+        if row:
+            return row[0]
+        return None
+    except Exception as exc:
+        log.warning("queue_install_followup insert failed task=%s: %s", source_task_id, exc)
+        return None
 
 
 def poll_once(dsn: str) -> None:
@@ -268,11 +445,15 @@ def poll_once(dsn: str) -> None:
 
             cur.execute(
                 """
-                SELECT task_id, assigned_to, objective, proof_spec, priority, task_risk_tier, expires_at, created_at
-                FROM op_task_queue
-                WHERE status IN ('queued','approved') AND approval='pre_approved'
-                  AND created_at > NOW() - (%s || ' hours')::INTERVAL
-                ORDER BY priority='urgent' DESC, created_at ASC
+                SELECT q.task_id, q.assigned_to, q.objective, q.instructions, q.proof_spec,
+                       q.priority, q.task_risk_tier, q.expires_at, q.created_at, q.queued_by
+                FROM op_task_queue q
+                WHERE q.status IN ('queued','approved') AND q.approval='pre_approved'
+                  AND q.created_at > NOW() - (%s || ' hours')::INTERVAL
+                  AND NOT EXISTS (
+                    SELECT 1 FROM iris_mail_log m WHERE m.task_id = q.task_id
+                  )
+                ORDER BY q.priority='urgent' DESC, q.created_at ASC
                 LIMIT 25
                 FOR UPDATE SKIP LOCKED;
                 """,
@@ -297,9 +478,22 @@ def poll_once(dsn: str) -> None:
                     skipped_count += 1
                     continue
                 # Operator-class: mail-only, no lock (claim_cycle_deadlock_fix).
+                # CT-0428-22: also detect install-packet objectives + auto-route
+                # to a structured verify+test+commit follow-up task on the
+                # recipient harness owner.
                 if task["assigned_to"] in OPERATORS_MAIL_ONLY:
-                    mail_only(cur, task)
-                    log.info("MAIL-ONLY task=%s recipient=%s (no auto-claim)", task["task_id"], task["assigned_to"])
+                    follow_id = None
+                    if is_install_packet(task):
+                        follow_id = queue_install_followup(cur, task)
+                        if follow_id:
+                            log.info("INSTALL-PACKET routed task=%s -> followup=%s recipient=%s",
+                                     task["task_id"], follow_id, task["assigned_to"])
+                            shell_log(cur, task_id=task["task_id"], agent="iris",
+                                      command="install_packet_routed",
+                                      stdout=f"followup={follow_id}", exit_code=0)
+                    mail_only(cur, task, install_followup_id=follow_id)
+                    log.info("MAIL-ONLY task=%s recipient=%s install_followup=%s (no auto-claim)",
+                             task["task_id"], task["assigned_to"], follow_id or "no")
                     mailed_count += 1
                     continue
                 allowed, gate_reason = pre_claim_gate(cur, task)
@@ -332,7 +526,8 @@ def main() -> int:
         log.error("SUPABASE_DB_URL not in %s and not in environment; exiting", ATLAS_ENV_PATH)
         return 2
 
-    log.info("Iris v0.3 starting; poll_interval=%ss; max_age_h=%s; mail_only=%s; claimable=%s",
+    log.info("Iris v0.4 starting; poll_interval=%ss; max_age_h=%s; mail_only=%s; claimable=%s; "
+             "idempotency=iris_mail_log; install_packet_routing=enabled",
              POLL_INTERVAL_S, MAX_TASK_AGE_HOURS, sorted(OPERATORS_MAIL_ONLY), sorted(BUILDER_AGENTS))
     while _running:
         try:
@@ -343,7 +538,7 @@ def main() -> int:
             if not _running:
                 break
             time.sleep(1)
-    log.info("Iris v0.3 clean exit")
+    log.info("Iris v0.4 clean exit")
     return 0
 
 
