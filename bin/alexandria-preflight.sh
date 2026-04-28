@@ -9,10 +9,18 @@
 #   baselines/                       — perf + capacity baselines
 #   templates/                       — proposal templates, brand voice
 #   library_of_alexandria/           — catalog manifests + promoted artifacts
+#   docs/                            — architecture, megaprompts, source-of-truth
 #   repo root                        — only for CORE_CONTRACT/CLAUDE/INVENTORY/
 #                                       RADAR/README/RELAUNCH_*/SESSION_PROMPT/
 #                                       IDEA_TO_EXECUTION_PIPELINE/ALEXANDRIA_INDEX
 #   /opt/amg-titan/solon-corpus/     — harvested raw corpus (VPS only)
+#
+# Non-doctrine path classes (skipped, per CT-0428-38 Fix 2):
+#   reports/                         — ops outputs / evidence packets / overnight runs
+#   scratch/                         — WIP / drafts / scratch docs
+#   migrations/                      — SQL/data migration notes (own lifecycle)
+#   lib/, scripts/, bin/, sql/,      — code/tooling, not doctrine
+#   hooks/, deploy/
 #
 # Runs as:
 #   - a git pre-commit step (informational, WARN not BLOCK)

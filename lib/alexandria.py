@@ -317,11 +317,23 @@ def _is_approved_doctrine_path(rel_path: str) -> bool:
 
 
 def _is_doctrine_file(path: Path) -> bool:
-    """Heuristic: markdown files are doctrine unless they live in code dirs."""
+    """Heuristic: markdown files are doctrine unless they live in code dirs
+    OR in non-doctrine path classes.
+
+    Non-doctrine path classes (CT-0428-38 Fix 2):
+      reports/    — ops outputs, evidence packets, overnight followthroughs
+      scratch/    — WIP / drafts / scratch docs (gitignored anyway, but
+                    belt+suspenders for any tracked .md that lands there)
+      migrations/ — SQL/data migration notes, not canonical doctrine
+    These are file classes with their own retention/lifecycle rules; the
+    Library of Alexandria placement contract does not apply to them.
+    """
     if path.suffix.lower() != ".md":
         return False
     rel = str(path.relative_to(REPO_ROOT))
     if rel.startswith(("lib/", "scripts/", "bin/", "sql/", "hooks/", "deploy/")):
+        return False
+    if rel.startswith(("reports/", "scratch/", "migrations/")):
         return False
     return True
 
