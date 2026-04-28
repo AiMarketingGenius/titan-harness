@@ -67,10 +67,26 @@ fi
 echo "RADAR_REFRESHED: $RADAR_REFRESHED"
 
 # 1b. Alexandria refresh
+# CT-0428-38 Fix 3b: refresh writes a "Last index refresh" timestamp into the
+# tracked ALEXANDRIA_INDEX.md, which dirties the tree even when nothing
+# material changed. After refresh, if the ONLY diff is the timestamp line,
+# revert the file to keep the tree clean. Real count changes still propagate
+# (they leave non-timestamp +/- lines in the diff). This is the
+# "separate refresh from check" pattern (also CT-0428-16).
 ALEXANDRIA_REFRESHED="no"
 if [ -f "$REPO_ROOT/lib/alexandria.py" ]; then
   if python3 "$REPO_ROOT/lib/alexandria.py" --refresh >/dev/null 2>&1; then
     ALEXANDRIA_REFRESHED="yes"
+    INDEX_DIFF=$(git -C "$REPO_ROOT" diff --no-color library_of_alexandria/ALEXANDRIA_INDEX.md 2>/dev/null)
+    if [ -n "$INDEX_DIFF" ]; then
+      MEANINGFUL=$(echo "$INDEX_DIFF" \
+        | grep -E "^[+-]" \
+        | grep -vE "^(\+\+\+|---|[+-].*Last index refresh:)" \
+        | wc -l | tr -d ' ')
+      if [ "$MEANINGFUL" = "0" ]; then
+        git -C "$REPO_ROOT" checkout -- library_of_alexandria/ALEXANDRIA_INDEX.md 2>/dev/null || true
+      fi
+    fi
   fi
 fi
 echo "ALEXANDRIA_REFRESHED: $ALEXANDRIA_REFRESHED"
