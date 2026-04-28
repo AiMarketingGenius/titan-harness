@@ -140,6 +140,64 @@
   .empty { text-align:center; padding:60px 20px; color:var(--muted); }
   .empty p { margin:8px 0; }
 
+  /* ============ Memory status + provenance + correction ============ */
+  .d-memory { position:relative; }
+  .d-memory.superseded { opacity:0.66; border-left-color:var(--muted); background:linear-gradient(180deg,#f6f4ec,#fbfaf5); }
+  .d-memory.superseded .m-text { text-decoration:line-through; text-decoration-color:rgba(108,118,135,0.45); text-decoration-thickness:1px; }
+  .m-text { margin:4px 0 0; line-height:1.5; color:var(--ink); }
+  .m-status-badge { display:inline-block; padding:2px 8px; font-size:10px; font-weight:600; letter-spacing:0.06em; text-transform:uppercase; border-radius:999px; margin-left:6px; vertical-align:middle; }
+  .m-status-badge.current { color:var(--ok); background:rgba(26,127,77,0.1); border:1px solid rgba(26,127,77,0.22); }
+  .m-status-badge.superseded { color:var(--muted); background:rgba(108,118,135,0.08); border:1px solid rgba(108,118,135,0.22); }
+  .m-historical-note { margin-top:10px; padding:8px 11px; background:rgba(108,118,135,0.07); border:1px solid rgba(108,118,135,0.22); border-radius:7px; font-size:11.5px; line-height:1.5; color:var(--muted); }
+  .m-historical-note b { color:var(--ink); font-weight:500; }
+  .m-provenance { margin-top:9px; padding-top:7px; border-top:1px dashed rgba(108,118,135,0.25); font-size:11px; color:var(--muted); line-height:1.6; }
+  .m-provenance > span { margin-right:2px; }
+  .m-provenance b { color:var(--ink); font-weight:500; }
+  .m-mutation-log { margin-top:7px; font-size:10.5px; color:var(--muted); line-height:1.5; }
+  .m-mutation-log .ml-head { font-weight:600; letter-spacing:0.08em; text-transform:uppercase; margin-bottom:3px; color:var(--muted); }
+  .m-mutation-log .ml-row { padding:2px 0; }
+  .m-mutation-log .ml-row + .ml-row { border-top:1px dotted rgba(108,118,135,0.22); }
+  .m-mutation-log b { color:var(--ink); font-weight:500; }
+  .m-mutation-log details > summary { cursor:pointer; color:var(--royal); font-weight:500; margin-bottom:4px; list-style:none; }
+  .m-mutation-log details > summary::-webkit-details-marker { display:none; }
+  .m-mutation-log details > summary::before { content:'▸'; display:inline-block; margin-right:6px; transition:transform 150ms ease; font-size:9px; }
+  .m-mutation-log details[open] > summary::before { transform:rotate(90deg); }
+  .m-mutation-log details > summary:hover { text-decoration:underline; }
+  .m-actions { margin-top:10px; display:flex; gap:8px; }
+  .m-correct-btn { padding:5px 12px; font:600 11px/1 'Montserrat',sans-serif; background:#fff; border:1px solid var(--line); color:var(--navy-1); border-radius:999px; cursor:pointer; transition:background 150ms ease, border-color 150ms ease, color 150ms ease; letter-spacing:0.02em; }
+  .m-correct-btn:hover { background:#fbfbf7; border-color:var(--royal); color:var(--royal); }
+  .m-correct-btn:focus-visible { outline:2px solid var(--royal); outline-offset:2px; }
+  .m-correction-slot:empty { display:none; }
+  .correction-form { margin-top:12px; padding:14px 14px 12px; background:#fff; border:1px solid rgba(17,109,255,0.38); border-radius:10px; box-shadow:0 6px 22px rgba(17,109,255,0.1); animation:fadein 180ms ease-out; }
+  .correction-form .cf-head { font-size:11px; font-weight:600; letter-spacing:0.09em; text-transform:uppercase; color:var(--royal); margin:0 0 10px; }
+  .correction-form label { display:block; font-size:10.5px; color:var(--muted); margin:10px 0 3px; font-weight:600; letter-spacing:0.05em; text-transform:uppercase; }
+  .correction-form textarea, .correction-form input[type=text], .correction-form input[type=number], .correction-form input[type=password] { width:100%; padding:8px 10px; font:400 13px/1.45 'Montserrat',-apple-system,BlinkMacSystemFont,sans-serif; background:var(--ivory); border:1px solid var(--line); border-radius:7px; color:var(--ink); outline:none; transition:border-color 150ms ease, box-shadow 150ms ease; }
+  .correction-form textarea { min-height:74px; resize:vertical; }
+  .correction-form textarea:focus, .correction-form input:focus { border-color:var(--royal); box-shadow:0 0 0 3px rgba(17,109,255,0.12); }
+  .correction-form .cf-optional { margin-top:12px; padding-top:10px; border-top:1px dashed var(--line); }
+  .correction-form .cf-optional-head { font-size:10px; color:var(--muted); letter-spacing:0.08em; text-transform:uppercase; font-weight:600; margin-bottom:2px; }
+  .correction-form .cf-grid { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+  .correction-form .cf-grid > div > label:first-child { margin-top:6px; }
+  .correction-form .cf-diff { margin:6px 0 8px; padding:9px 11px; background:var(--ivory); border:1px solid var(--line); border-radius:7px; font-size:12.5px; line-height:1.5; }
+  .correction-form .cf-diff-label { font-size:10px; letter-spacing:0.08em; text-transform:uppercase; color:var(--muted); font-weight:600; margin-bottom:4px; }
+  .correction-form .cf-diff-old { color:var(--muted); text-decoration:line-through; text-decoration-color:rgba(160,32,32,0.4); }
+  .correction-form .cf-diff-new { color:var(--ink); border-left:3px solid var(--ok); padding-left:9px; margin-left:-2px; }
+  .correction-form .cf-summary { font-size:11.5px; color:var(--muted); line-height:1.6; padding:4px 0 10px; border-bottom:1px dashed var(--line); margin-bottom:10px; }
+  .correction-form .cf-summary b { color:var(--ink); font-weight:500; }
+  .correction-form .cf-bearer-status { font-size:11px; color:var(--ok); padding:6px 0 4px; display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
+  .correction-form .cf-clear-btn { background:transparent; border:none; color:var(--royal); font:500 11px/1 'Montserrat',sans-serif; cursor:pointer; text-decoration:underline; padding:0; }
+  .correction-form .cf-clear-btn:hover { color:var(--navy-1); }
+  .correction-form .cf-actions { margin-top:14px; display:flex; justify-content:space-between; gap:8px; align-items:center; }
+  .correction-form .cf-actions .right { display:flex; gap:8px; }
+  .correction-form .cf-btn { padding:7px 14px; font:600 12px/1 'Montserrat',sans-serif; border-radius:999px; cursor:pointer; border:none; transition:transform 120ms ease, box-shadow 150ms ease, background 150ms ease, border-color 150ms ease; letter-spacing:0.02em; }
+  .correction-form .cf-btn.primary { background:linear-gradient(135deg,var(--gold),#e0b84a); color:var(--navy-0); box-shadow:0 3px 10px rgba(212,166,39,0.24); }
+  .correction-form .cf-btn.primary:hover:not(:disabled) { transform:translateY(-1px); box-shadow:0 5px 14px rgba(212,166,39,0.3); }
+  .correction-form .cf-btn.primary:disabled { background:#e6e2d4; color:var(--muted); cursor:not-allowed; box-shadow:none; transform:none; }
+  .correction-form .cf-btn.ghost { background:#fff; border:1px solid var(--line); color:var(--navy-1); }
+  .correction-form .cf-btn.ghost:hover { background:#fbfbf7; border-color:var(--navy-2); }
+  .correction-form .cf-btn:focus-visible { outline:2px solid var(--royal); outline-offset:2px; }
+  .correction-form .cf-error { margin-top:10px; padding:8px 11px; background:rgba(160,32,32,0.07); border:1px solid rgba(160,32,32,0.25); border-radius:7px; color:var(--danger); font-size:12px; line-height:1.45; }
+
   @media (prefers-reduced-motion:reduce) { * { transition:none !important; animation:none !important; } }
 </style>
 </head>
@@ -220,6 +278,17 @@
 <script>
 (function(){
   const API = ''; // same-origin; atlas-api serves /api/crm/* and /crm
+
+  // Memory correction session state. Bearer token lives in JS memory only — never
+  // persisted to storage and cleared on drawer close is intentionally NOT done per
+  // spec: token survives across drawer opens for the page session, dies on reload.
+  let sessionBearerToken = null;
+  let sessionActor = null;
+  let currentContactSlug = null;
+  let lastFetchedMemories = [];
+  let correctionDraft = null;
+  let activeCorrectionMemoryId = null;
+
   const els = {
     statusDot: document.getElementById('status-dot'),
     statusTxt: document.getElementById('status-txt'),
@@ -366,9 +435,11 @@
   }
 
   // ── Drawer ───────────────────────────────────────────────
-  async function openContact(slug){
+  async function openContact(slug, opts){
+    opts = opts || {};
     const data = await fetchJson('/api/crm/contacts/' + encodeURIComponent(slug));
-    if(!data || !data.contact){ alert('Contact not found.'); return; }
+    if(!data || !data.contact){ if(!opts.silent) alert('Contact not found.'); return; }
+    currentContactSlug = slug;
     const c = data.contact;
     els.drawerTitle.textContent = c.display_name || '(unnamed)';
     els.drawerSub.textContent = (c.contact_name || '') + (c.tags ? ' · ' + (c.tags||[]).join(' · ') : '');
@@ -400,17 +471,25 @@
       html += '</div>';
     }
 
-    // Persistent memories
-    if(data.memories && data.memories.length){
-      html += '<div class="d-section"><h4>Persistent memories (' + data.memories.length + ')</h4>';
-      data.memories.forEach(m => {
-        html += `
-          <div class="d-memory">
-            <div class="m-meta">${escapeHtml(m.memory_type||'')} · importance ${m.importance}</div>
-            ${escapeHtml(m.text_content||'')}
-          </div>
-        `;
+    // Persistent memories — active first, superseded at bottom. Defensive about shape:
+    // backend may or may not yet return supersede/provenance fields.
+    lastFetchedMemories = Array.isArray(data.memories) ? data.memories : [];
+    if(lastFetchedMemories.length){
+      const sorted = lastFetchedMemories.slice().sort((a,b) => {
+        const sa = isMemorySuperseded(a) ? 1 : 0;
+        const sb = isMemorySuperseded(b) ? 1 : 0;
+        if(sa !== sb) return sa - sb;
+        const ia = a.importance != null ? a.importance : 0;
+        const ib = b.importance != null ? b.importance : 0;
+        return ib - ia;
       });
+      const currentCount = sorted.filter(m => !isMemorySuperseded(m)).length;
+      const supersededCount = sorted.length - currentCount;
+      const header = supersededCount > 0
+        ? `Persistent memories (${currentCount} current · ${supersededCount} superseded)`
+        : `Persistent memories (${sorted.length})`;
+      html += `<div class="d-section"><h4>${escapeHtml(header)}</h4>`;
+      sorted.forEach(m => { html += renderMemoryCard(m); });
       html += '</div>';
     }
 
@@ -433,19 +512,383 @@
     }
 
     els.drawerBody.innerHTML = html;
+    els.drawerBody.querySelectorAll('.m-correct-btn').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const mid = btn.dataset.correct;
+        const card = btn.closest('.d-memory');
+        if(mid && card) openCorrectionForm(card, mid);
+      });
+    });
     els.drawer.hidden = false;
     requestAnimationFrame(() => { els.drawer.classList.add('open'); els.drawerOverlay.classList.add('open'); });
+  }
+
+  // ── Memory status + correction ───────────────────────────
+  function isMemorySuperseded(m){
+    if(!m) return false;
+    if(m.superseded_at) return true;
+    if(m.superseded_by) return true;
+    if(m.superseded_by_id) return true;
+    if(m.replaced_by_id) return true;
+    if(m.replaced_by) return true;
+    if(m.valid_until){
+      const t = Date.parse(m.valid_until);
+      if(!Number.isNaN(t) && t < Date.now()) return true;
+    }
+    if(m.status){
+      const s = String(m.status).toLowerCase();
+      if(s !== 'active' && s !== 'current') return true;
+    }
+    return false;
+  }
+
+  function getMemoryId(m){ return (m && (m.id || m.memory_id || m.memoryId)) || null; }
+  function getMemoryText(m){ return (m && (m.text_content || m.text || m.content)) || ''; }
+
+  function getMutationLog(m){
+    if(!m) return [];
+    const raw = m.mutation_log != null ? m.mutation_log : m.mutationLog;
+    if(Array.isArray(raw)) return raw;
+    if(typeof raw === 'string' && raw.trim()){
+      try { const parsed = JSON.parse(raw); return Array.isArray(parsed) ? parsed : []; } catch(_){ return []; }
+    }
+    return [];
+  }
+
+  function isMemoryReplacement(m){
+    if(!m) return false;
+    if(m.replaces) return true;
+    if(m.replaces_id) return true;
+    if(m.replaces_memory_id) return true;
+    if(m.supersedes) return true;
+    if(m.supersedes_id) return true;
+    const log = getMutationLog(m);
+    return log.some(e => {
+      const op = String(e && e.op || '').toLowerCase();
+      const reason = String(e && e.reason || '').toLowerCase();
+      if(op.includes('supersede') || op.includes('replace')) return true;
+      if(op === 'insert' && (reason.includes('supersede') || reason.includes('replace'))) return true;
+      return false;
+    });
+  }
+
+  function renderMemoryProvenance(m){
+    const parts = [];
+    if(m.source_channel) parts.push(`<span><b>Source:</b> ${escapeHtml(m.source_channel)}</span>`);
+    if(m.extraction_reason) parts.push(`<span><b>Extracted:</b> ${escapeHtml(m.extraction_reason)}</span>`);
+    if(m.written_by) parts.push(`<span><b>By:</b> ${escapeHtml(m.written_by)}</span>`);
+    if(m.created_at) parts.push(`<span><b>Created:</b> ${escapeHtml(fmtRelative(m.created_at))}</span>`);
+    if(m.updated_at && m.updated_at !== m.created_at) parts.push(`<span><b>Updated:</b> ${escapeHtml(fmtRelative(m.updated_at))}</span>`);
+    if(m.superseded_at) parts.push(`<span><b>Superseded:</b> ${escapeHtml(fmtRelative(m.superseded_at))}</span>`);
+    if(!parts.length) return '';
+    return `<div class="m-provenance">${parts.join(' · ')}</div>`;
+  }
+
+  function renderMutationLogPreview(m){
+    const log = getMutationLog(m);
+    if(!log.length) return '';
+    const preview = log.slice(-3).reverse();
+    const rows = preview.map(e => {
+      const bits = [];
+      if(e.op) bits.push(escapeHtml(e.op));
+      if(e.actor) bits.push(`<b>${escapeHtml(e.actor)}</b>`);
+      if(e.ts) bits.push(escapeHtml(fmtRelative(e.ts)));
+      if(e.reason) bits.push(escapeHtml(e.reason));
+      return `<div class="ml-row">${bits.join(' · ') || '&nbsp;'}</div>`;
+    }).join('');
+    if(log.length <= 3){
+      return `<div class="m-mutation-log"><div class="ml-head">Mutation log (${log.length})</div>${rows}</div>`;
+    }
+    return `<div class="m-mutation-log"><details><summary>Mutation log · ${log.length} entries (showing last 3)</summary>${rows}</details></div>`;
+  }
+
+  function renderMemoryCard(m){
+    const superseded = isMemorySuperseded(m);
+    const mid = getMemoryId(m);
+    const text = getMemoryText(m);
+    const isReplacement = !superseded && isMemoryReplacement(m);
+    const badgeClass = superseded ? 'superseded' : 'current';
+    const badgeText = superseded ? 'Superseded' : 'Current';
+    const statusBadge = `<span class="m-status-badge ${badgeClass}">${badgeText}</span>`;
+    const metaParts = [];
+    if(m.memory_type) metaParts.push(escapeHtml(m.memory_type));
+    if(m.importance != null) metaParts.push(`importance ${escapeHtml(String(m.importance))}`);
+    const metaLine = `${metaParts.join(' · ')} ${statusBadge}`.trim();
+    const btnLabel = isReplacement ? 'Correct again' : 'Correct memory';
+    const actions = (!superseded && mid)
+      ? `<div class="m-actions"><button type="button" class="m-correct-btn" data-correct="${escapeHtml(String(mid))}">${btnLabel}</button></div>`
+      : '';
+    const historicalNote = superseded
+      ? `<div class="m-historical-note" role="note"><b>This memory is historical.</b> It cannot be corrected directly because it has already been superseded. Correct the current replacement instead.</div>`
+      : '';
+    return `
+      <div class="d-memory${superseded ? ' superseded' : ''}" data-memory-id="${escapeHtml(String(mid||''))}">
+        <div class="m-meta">${metaLine}</div>
+        <div class="m-text">${escapeHtml(text)}</div>
+        ${renderMemoryProvenance(m)}
+        ${renderMutationLogPreview(m)}
+        ${historicalNote}
+        ${actions}
+        <div class="m-correction-slot"></div>
+      </div>
+    `;
+  }
+
+  function closeAllCorrectionForms(){
+    document.querySelectorAll('.m-correction-slot').forEach(s => { s.innerHTML = ''; });
+    activeCorrectionMemoryId = null;
+  }
+
+  function renderCorrectionDraft(memoryId, memory, draft){
+    draft = draft || {};
+    const v = (s) => escapeHtml(s == null ? '' : String(s));
+    const actorDefault = draft.actor || sessionActor || '';
+    const impPlaceholder = memory.importance != null ? escapeHtml(String(memory.importance)) : '';
+    const headingLabel = isMemoryReplacement(memory) ? 'Correct again' : 'Correct memory';
+    return `
+      <form class="correction-form" data-stage="draft" data-memory-id="${v(memoryId)}" novalidate>
+        <div class="cf-head">${headingLabel} — step 1 of 2</div>
+        <label for="cf-rep-${v(memoryId)}">Replacement text</label>
+        <textarea id="cf-rep-${v(memoryId)}" name="replacement_text" required placeholder="The corrected memory content.">${v(draft.replacement_text)}</textarea>
+        <label for="cf-reason-${v(memoryId)}">Reason for correction</label>
+        <input type="text" id="cf-reason-${v(memoryId)}" name="reason" required placeholder="Why was the original wrong?" value="${v(draft.reason)}">
+        <label for="cf-actor-${v(memoryId)}">Actor (your name or role)</label>
+        <input type="text" id="cf-actor-${v(memoryId)}" name="actor" required placeholder="e.g. solon, crm-operator" value="${v(actorDefault)}">
+        <div class="cf-optional">
+          <div class="cf-optional-head">Optional overrides</div>
+          <div class="cf-grid">
+            <div>
+              <label for="cf-imp-${v(memoryId)}">Importance</label>
+              <input type="number" id="cf-imp-${v(memoryId)}" name="importance" min="1" max="10" placeholder="${impPlaceholder}" value="${draft.importance != null ? v(draft.importance) : ''}">
+            </div>
+            <div>
+              <label for="cf-src-${v(memoryId)}">Source channel</label>
+              <input type="text" id="cf-src-${v(memoryId)}" name="source_channel" placeholder="${v(memory.source_channel||'')}" value="${v(draft.source_channel)}">
+            </div>
+          </div>
+          <label for="cf-ext-${v(memoryId)}">Extraction reason</label>
+          <input type="text" id="cf-ext-${v(memoryId)}" name="extraction_reason" placeholder="${v(memory.extraction_reason||'')}" value="${v(draft.extraction_reason)}">
+        </div>
+        <div class="cf-actions">
+          <button type="button" class="cf-btn ghost" data-action="cancel">Cancel</button>
+          <div class="right"><button type="submit" class="cf-btn primary" data-action="continue">Continue →</button></div>
+        </div>
+      </form>
+    `;
+  }
+
+  function renderCorrectionConfirm(memoryId, memory, draft){
+    const v = (s) => escapeHtml(s == null ? '' : String(s));
+    const tokenCached = !!sessionBearerToken;
+    const summaryExtras = [];
+    if(draft.importance != null) summaryExtras.push(`<b>Importance:</b> ${v(draft.importance)}`);
+    if(draft.source_channel) summaryExtras.push(`<b>Source:</b> ${v(draft.source_channel)}`);
+    if(draft.extraction_reason) summaryExtras.push(`<b>Extraction:</b> ${v(draft.extraction_reason)}`);
+    const tokenBlock = tokenCached
+      ? `<div class="cf-bearer-status"><span>✓ Bearer token cached for this page session.</span><button type="button" class="cf-clear-btn" data-action="clear-bearer">Clear token</button></div>`
+      : `<label for="cf-bearer-${v(memoryId)}">Bearer token (required, not persisted)</label>
+         <input type="password" id="cf-bearer-${v(memoryId)}" name="bearer" required autocomplete="off" placeholder="Paste CRM bearer token">`;
+    return `
+      <form class="correction-form" data-stage="confirm" data-memory-id="${v(memoryId)}" novalidate>
+        <div class="cf-head">Confirm supersede — step 2 of 2</div>
+        <div class="cf-diff">
+          <div class="cf-diff-label">Current memory (will be marked superseded)</div>
+          <div class="cf-diff-old">${v(getMemoryText(memory))}</div>
+        </div>
+        <div class="cf-diff">
+          <div class="cf-diff-label">Replacement (new active memory)</div>
+          <div class="cf-diff-new">${v(draft.replacement_text)}</div>
+        </div>
+        <div class="cf-summary">
+          <b>Reason:</b> ${v(draft.reason)} · <b>Actor:</b> ${v(draft.actor)}${summaryExtras.length ? ' · ' + summaryExtras.join(' · ') : ''}
+        </div>
+        ${tokenBlock}
+        <div class="cf-actions">
+          <button type="button" class="cf-btn ghost" data-action="back">← Back</button>
+          <div class="right">
+            <button type="button" class="cf-btn ghost" data-action="cancel">Cancel</button>
+            <button type="submit" class="cf-btn primary" data-action="submit">Confirm supersede</button>
+          </div>
+        </div>
+      </form>
+    `;
+  }
+
+  function showCorrectionError(form, msg){
+    let err = form.querySelector('.cf-error');
+    if(!err){ err = document.createElement('div'); err.className = 'cf-error'; err.setAttribute('role','alert'); form.appendChild(err); }
+    err.textContent = msg;
+  }
+
+  function readDraftFromForm(form){
+    const fd = new FormData(form);
+    const draft = {
+      replacement_text: (fd.get('replacement_text')||'').toString().trim(),
+      reason: (fd.get('reason')||'').toString().trim(),
+      actor: (fd.get('actor')||'').toString().trim(),
+    };
+    const imp = (fd.get('importance')||'').toString().trim();
+    if(imp){ const n = parseInt(imp, 10); if(!Number.isNaN(n)) draft.importance = n; }
+    const sc = (fd.get('source_channel')||'').toString().trim();
+    if(sc) draft.source_channel = sc;
+    const er = (fd.get('extraction_reason')||'').toString().trim();
+    if(er) draft.extraction_reason = er;
+    return draft;
+  }
+
+  function findMemoryById(memoryId){
+    return lastFetchedMemories.find(m => String(getMemoryId(m)) === String(memoryId));
+  }
+
+  function openCorrectionForm(memoryCard, memoryId){
+    closeAllCorrectionForms();
+    const memory = findMemoryById(memoryId);
+    if(!memory) return;
+    activeCorrectionMemoryId = memoryId;
+    const slot = memoryCard.querySelector('.m-correction-slot');
+    if(!slot) return;
+    slot.innerHTML = renderCorrectionDraft(memoryId, memory, correctionDraft && correctionDraft._memoryId === memoryId ? correctionDraft : null);
+    const form = slot.querySelector('form.correction-form');
+    attachCorrectionFormHandlers(form, memoryId, memoryCard);
+    const ta = form.querySelector('textarea[name=replacement_text]');
+    if(ta) ta.focus();
+  }
+
+  function attachCorrectionFormHandlers(form, memoryId, memoryCard){
+    form.addEventListener('click', (e) => {
+      const t = e.target;
+      const action = t && t.dataset && t.dataset.action;
+      if(!action) return;
+      if(action === 'cancel'){
+        e.preventDefault();
+        closeAllCorrectionForms();
+        correctionDraft = null;
+      } else if(action === 'back'){
+        e.preventDefault();
+        const memory = findMemoryById(memoryId);
+        if(!memory) return;
+        const slot = memoryCard.querySelector('.m-correction-slot');
+        slot.innerHTML = renderCorrectionDraft(memoryId, memory, correctionDraft);
+        const f2 = slot.querySelector('form.correction-form');
+        attachCorrectionFormHandlers(f2, memoryId, memoryCard);
+        const ta = f2.querySelector('textarea[name=replacement_text]');
+        if(ta) ta.focus();
+      } else if(action === 'clear-bearer'){
+        e.preventDefault();
+        sessionBearerToken = null;
+        const memory = findMemoryById(memoryId);
+        if(!memory || !correctionDraft) return;
+        const slot = memoryCard.querySelector('.m-correction-slot');
+        slot.innerHTML = renderCorrectionConfirm(memoryId, memory, correctionDraft);
+        const f2 = slot.querySelector('form.correction-form');
+        attachCorrectionFormHandlers(f2, memoryId, memoryCard);
+        const bearer = f2.querySelector('input[name=bearer]');
+        if(bearer) bearer.focus();
+      }
+    });
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const stage = form.dataset.stage;
+      if(stage === 'draft'){
+        const draft = readDraftFromForm(form);
+        if(!draft.replacement_text || !draft.reason || !draft.actor){
+          showCorrectionError(form, 'Replacement text, reason, and actor are all required.');
+          return;
+        }
+        const memory = findMemoryById(memoryId);
+        if(!memory){ showCorrectionError(form, 'Memory not found in current drawer state. Close and reopen the contact.'); return; }
+        if(draft.replacement_text === getMemoryText(memory)){
+          showCorrectionError(form, 'Replacement text is identical to the current memory.');
+          return;
+        }
+        draft._memoryId = memoryId;
+        correctionDraft = draft;
+        if(draft.actor) sessionActor = draft.actor;
+        const slot = memoryCard.querySelector('.m-correction-slot');
+        slot.innerHTML = renderCorrectionConfirm(memoryId, memory, draft);
+        const f2 = slot.querySelector('form.correction-form');
+        attachCorrectionFormHandlers(f2, memoryId, memoryCard);
+        const bearerInput = f2.querySelector('input[name=bearer]');
+        if(bearerInput){ bearerInput.focus(); }
+        else { const sub = f2.querySelector('button[data-action=submit]'); if(sub) sub.focus(); }
+      } else if(stage === 'confirm'){
+        if(!correctionDraft){ showCorrectionError(form, 'Draft lost — please start over.'); return; }
+        let bearer = sessionBearerToken;
+        const bearerInput = form.querySelector('input[name=bearer]');
+        if(bearerInput){
+          bearer = bearerInput.value.trim();
+          if(!bearer){ showCorrectionError(form, 'Bearer token required.'); bearerInput.focus(); return; }
+          sessionBearerToken = bearer;
+        }
+        if(!bearer){ showCorrectionError(form, 'Bearer token required.'); return; }
+        const submitBtn = form.querySelector('button[data-action=submit]');
+        const prevLabel = submitBtn ? submitBtn.textContent : '';
+        if(submitBtn){ submitBtn.disabled = true; submitBtn.textContent = 'Submitting…'; }
+        try {
+          await submitSupersede(memoryId, correctionDraft, bearer);
+          correctionDraft = null;
+          activeCorrectionMemoryId = null;
+          if(currentContactSlug) await openContact(currentContactSlug, { silent: true });
+        } catch(err){
+          if(err && err.status === 401){ sessionBearerToken = null; }
+          showCorrectionError(form, (err && err.message) || 'Supersede failed.');
+          if(submitBtn){ submitBtn.disabled = false; submitBtn.textContent = prevLabel || 'Confirm supersede'; }
+        }
+      }
+    });
+  }
+
+  async function submitSupersede(memoryId, draft, bearer){
+    const body = {
+      replacement_text: draft.replacement_text,
+      reason: draft.reason,
+      actor: draft.actor,
+    };
+    if(draft.importance != null && !Number.isNaN(draft.importance)) body.importance = draft.importance;
+    if(draft.source_channel) body.source_channel = draft.source_channel;
+    if(draft.extraction_reason) body.extraction_reason = draft.extraction_reason;
+    const r = await fetch(API + '/api/crm/memories/' + encodeURIComponent(memoryId) + '/supersede', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer ' + bearer,
+      },
+      body: JSON.stringify(body),
+    });
+    if(!r.ok){
+      let msg = `HTTP ${r.status}`;
+      try { const j = await r.json(); if(j && (j.error || j.message)) msg = j.error || j.message; } catch(_){}
+      const err = new Error(msg);
+      err.status = r.status;
+      throw err;
+    }
+    try { return await r.json(); } catch(_){ return {}; }
   }
 
   function closeDrawer(){
     els.drawer.classList.remove('open');
     els.drawerOverlay.classList.remove('open');
     setTimeout(() => { els.drawer.hidden = true; }, 250);
+    closeAllCorrectionForms();
+    correctionDraft = null;
+    currentContactSlug = null;
+    lastFetchedMemories = [];
+    // sessionBearerToken intentionally preserved — spec: "in memory only for page session".
   }
 
   els.drawerClose.addEventListener('click', closeDrawer);
   els.drawerOverlay.addEventListener('click', closeDrawer);
-  document.addEventListener('keydown', (e) => { if(e.key === 'Escape' && !els.drawer.hidden) closeDrawer(); });
+  document.addEventListener('keydown', (e) => {
+    if(e.key === 'Escape' && !els.drawer.hidden){
+      if(activeCorrectionMemoryId){
+        closeAllCorrectionForms();
+        correctionDraft = null;
+      } else {
+        closeDrawer();
+      }
+    }
+  });
 
   // ── Search ───────────────────────────────────────────────
   let searchTimer;

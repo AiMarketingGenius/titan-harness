@@ -42,6 +42,30 @@
       "port": 8744
     },
     {
+      "name": "aimg-extension-canonical",
+      "runtimeExecutable": "python3",
+      "runtimeArgs": [
+        "-m",
+        "http.server",
+        "8751",
+        "--directory",
+        "/Users/solonzafiropoulos1/achilles-harness/deploy/aimg-extension-fixes"
+      ],
+      "port": 8751
+    },
+    {
+      "name": "aimg-evidence-runner",
+      "runtimeExecutable": "python3",
+      "runtimeArgs": [
+        "-m",
+        "http.server",
+        "8752",
+        "--directory",
+        "/Users/solonzafiropoulos1/titan-harness/reports/titan_aimg_finalization_2026-04-24.evidence"
+      ],
+      "port": 8752
+    },
+    {
       "name": "chamber-partners",
       "runtimeExecutable": "python3",
       "runtimeArgs": [
