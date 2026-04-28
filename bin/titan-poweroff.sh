@@ -165,14 +165,53 @@ if [ -n "$MAC_HEAD_FULL" ]; then
     fi
   fi
 
-  # GitHub mirror check via post-receive log tail
-  GITHUB_TAIL=$(ssh -o ConnectTimeout=3 -o BatchMode=yes "$VPS_HOST" \
-    "tail -5 /var/log/titan-harness-mirror.log 2>/dev/null" 2>/dev/null || echo "")
-  if echo "$GITHUB_TAIL" | grep -q "mirror push OK"; then
+  # GitHub mirror check — primary: direct GitHub API SHA compare (matches
+  # harness-drift-check.sh leg 3). Falls back to MIRROR_STATUS.md row, then
+  # to post-receive log tail. CT-0428-38 Fix 3.
+  GH_REPO="${TITAN_GH_REPO:-AiMarketingGenius/titan-harness}"
+  GH_SHA=""
+  if command -v curl >/dev/null 2>&1; then
+    if [ -n "${GITHUB_TOKEN:-}" ]; then
+      GH_SHA=$(curl -s -m 5 -H "Authorization: token $GITHUB_TOKEN" \
+        "https://api.github.com/repos/$GH_REPO/commits/$BRANCH" 2>/dev/null \
+        | python3 -c "import json,sys; d=json.load(sys.stdin); print(d.get('sha',''))" 2>/dev/null \
+        || echo "")
+    else
+      GH_SHA=$(curl -s -m 5 "https://api.github.com/repos/$GH_REPO/commits/$BRANCH" 2>/dev/null \
+        | python3 -c "import json,sys; d=json.load(sys.stdin); print(d.get('sha',''))" 2>/dev/null \
+        || echo "")
+    fi
+  fi
+
+  if [ -n "$GH_SHA" ] && [ "$GH_SHA" = "$MAC_HEAD_FULL" ]; then
     GITHUB_STATUS="ok"
-  elif echo "$GITHUB_TAIL" | grep -q "mirror push FAILED"; then
+  elif [ -n "$GH_SHA" ] && [ "$GH_SHA" != "$MAC_HEAD_FULL" ]; then
     GITHUB_STATUS="stale"
     WARN=1
+  else
+    # Fallback 1: MIRROR_STATUS.md SHA row for GitHub
+    if [ -f "$REPO_ROOT/MIRROR_STATUS.md" ]; then
+      MS_GH_LINE=$(grep -E "^\| GitHub" "$REPO_ROOT/MIRROR_STATUS.md" 2>/dev/null | head -1)
+      if echo "$MS_GH_LINE" | grep -q "$MAC_HEAD_FULL"; then
+        GITHUB_STATUS="ok"
+      fi
+    fi
+    # Fallback 2: post-receive log tail with broader pattern matching
+    if [ "$GITHUB_STATUS" = "unknown" ]; then
+      GITHUB_TAIL=$(ssh -o ConnectTimeout=3 -o BatchMode=yes "$VPS_HOST" \
+        "tail -50 /var/log/titan-harness-mirror.log 2>/dev/null" 2>/dev/null || echo "")
+      if echo "$GITHUB_TAIL" | grep -qE "(mirror push OK|MIRROR:.*OK|GitHub.*OK)"; then
+        GITHUB_STATUS="ok"
+      elif echo "$GITHUB_TAIL" | grep -qE "(mirror push FAILED|MIRROR:.*FAIL|GitHub.*FAIL)"; then
+        GITHUB_STATUS="stale"
+        WARN=1
+      elif [ "$DRIFT_STATUS" = "no" ] && [ -n "$GITHUB_TAIL" ]; then
+        # Last resort: 3-leg local sync green AND log readable AND no FAILED
+        # entries — infer ok (same SHA on bare implies post-receive ran).
+        # Tag as "ok (inferred)" so it's distinguishable in reports.
+        GITHUB_STATUS="ok (inferred)"
+      fi
+    fi
   fi
 fi
 
