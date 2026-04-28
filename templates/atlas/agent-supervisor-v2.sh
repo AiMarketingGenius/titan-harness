@@ -22,7 +22,7 @@ FLAG="${CLAUDE_DIR}/${AGENT}-wake.flag"
 LOG="${LOG_DIR}/${AGENT}-supervisor.log"
 
 # Supabase env — read-only, sourced from /etc/amg/supabase.env if readable.
-SUPABASE_ENV="${SUPABASE_ENV:-/etc/amg/supabase.env}"
+SUPABASE_ENV="${SUPABASE_ENV:-/etc/amg-agents/atlas.env}"
 [ -r "${SUPABASE_ENV}" ] && . "${SUPABASE_ENV}" 2>/dev/null || true
 
 mkdir -p "${LOG_DIR}"
@@ -47,7 +47,7 @@ shell_log() {
   local stdout_esc; stdout_esc="$(printf '%s' "${stdout}" | sed "s/'/''/g" | head -c 500)"
   local cmd_esc; cmd_esc="$(printf '%s' "${cmd}" | sed "s/'/''/g")"
   local task_clause="NULL"
-  [ "${task_id}" != "NULL" ] && task_clause="'${task_id}'"
+  if [ "${task_id}" != "NULL" ]; then task_clause="'${task_id}'"; fi
   psql_exec "INSERT INTO amg_shell_logs(task_id, agent, command, stdout_excerpt, exit_code) VALUES (${task_clause}, '${AGENT}', '${cmd_esc}', '${stdout_esc}', ${exit_code});" >/dev/null
 }
 
@@ -82,10 +82,43 @@ claim_next() {
   " | head -1
 }
 
+
+# DeepSeek V4 Flash routing stub (CT-0428-08).
+# Reads DEEPSEEK_API_KEY from /etc/amg-agents/atlas.env (mirrored from
+# /etc/amg/deepseek.env via deploy script). Default model: deepseek-flash.
+# For task_class in builder|decompose: route to DeepSeek; on non-200 fall back
+# to Claude. Today this logs the routing decision; full HTTP invocation lands
+# when the supervisor moves off synthetic cost (deferred from CT-0427-98).
+route_model() {
+  local task_id="$1"; local task_class="${2:-builder}"
+  if [ -z "${DEEPSEEK_API_KEY:-}" ]; then
+    log "ROUTE task=${task_id} class=${task_class} model=claude reason=deepseek_key_unset"
+    echo claude
+    return 0
+  fi
+  case "${task_class}" in
+    builder|decompose|status_synth)
+      log "ROUTE task=${task_id} class=${task_class} model=deepseek-flash fallback=claude"
+      echo deepseek-flash
+      ;;
+    review|gate|security_audit|production_deploy)
+      log "ROUTE task=${task_id} class=${task_class} model=claude reason=premium_required"
+      echo claude
+      ;;
+    *)
+      log "ROUTE task=${task_id} class=${task_class} model=claude reason=default"
+      echo claude
+      ;;
+  esac
+}
+
 process_task() {
   local TASK_ID="$1"
   local FLAG_BODY="${2:-}"
   log "PROCESS task=${TASK_ID} flag_body=${FLAG_BODY}"
+  local TASK_CLASS="${TASK_CLASS:-builder}"
+  local MODEL_CHOSEN; MODEL_CHOSEN="$(route_model "${TASK_ID}" "${TASK_CLASS}")"
+  shell_log "model_router_choice" "model=${MODEL_CHOSEN} class=${TASK_CLASS}" 0 "${TASK_ID}"
   shell_log "process_task start" "claimed task=${TASK_ID}" 0 "${TASK_ID}"
 
   # In production: this would be `claude --print --output-format json '...'`.
@@ -114,20 +147,10 @@ process_task() {
   set_review_status "${TASK_ID}" "${COST_USD}"
   shell_log "op_task_queue PATCH status=review" "task=${TASK_ID}" 0 "${TASK_ID}"
 
-  # PATCH-01: hand off to kimi_code via a flag drop on the local kimi_code lane
-  # (same VPS). The kimi_code reviewer-supervisor.sh will then INSERT into
-  # amg_reviews; that INSERT is the trigger Achilles's Mac receiver listens for.
-  local KIMI_FLAG="/home/kimi_code/.claude/kimi_code-wake.flag"
-  if [ -d "/home/kimi_code/.claude" ]; then
-    printf 'review-handoff task=%s builder=%s artifact=%s\n' "${TASK_ID}" "${AGENT}" "${ARTIFACT}" \
-      | sudo tee "${KIMI_FLAG}" >/dev/null 2>&1 \
-      || echo "review-handoff task=${TASK_ID} builder=${AGENT} artifact=${ARTIFACT}" > "${KIMI_FLAG}" 2>/dev/null \
-      || true
-    log "kimi_code wake flag dropped at ${KIMI_FLAG}"
-    shell_log "kimi_code wake handoff" "flag=${KIMI_FLAG} task=${TASK_ID}" 0 "${TASK_ID}"
-  else
-    log "WARN kimi_code lane not present; skipping wake handoff"
-  fi
+  # PATCH-01 (CT-98 v3): no flag handoff needed — kimi_code reviewer-supervisor
+  # polls op_task_queue WHERE status=review reviewer_agent=kimi_code directly.
+  # The amg_reviews INSERT it eventually performs IS the wake signal.
+  shell_log "review handoff (db-poll mode)" "task=${TASK_ID} reviewer waits for status=review" 0 "${TASK_ID}"
 }
 
 log "SUPERVISOR UP v2 agent=${AGENT} pid=$$ host=$(hostname) ts=$(ts)"
