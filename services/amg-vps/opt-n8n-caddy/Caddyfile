@@ -117,6 +117,12 @@ memory.aimarketinggenius.io {
         root * /opt/aimemoryguard-site/chamber-preview
         file_server
     }
+    @chamber_v2 path /chamber-preview-v2 /chamber-preview-v2/*
+    handle @chamber_v2 {
+        uri strip_prefix /chamber-preview-v2
+        root * /opt/aimemoryguard-site/chamber-preview-v2
+        file_server
+    }
 
 }
 
