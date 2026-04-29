@@ -9,6 +9,14 @@
 }
 
 n8n.aimarketinggenius.io {
+    @qdepth path /webhook/queue-depth
+    handle @qdepth {
+        reverse_proxy 172.18.0.1:5679
+    }
+    @telnyx_in path /webhook/telnyx-inbound
+    handle @telnyx_in {
+        reverse_proxy 172.18.0.1:5681
+    }
     reverse_proxy n8n:5678
 }
 
@@ -16,6 +24,11 @@ memory.aimarketinggenius.io {
     # Atlas voice demo — CT-0415-21 — WebSocket + HTTP API + static orb PWA
     @atlas_api path /api/ask /api/ask/* /api/status /api/agents /api/tts/* /api/backchannel/* /api/dashboard/* /api/alex /api/alex/* /api/chat /api/chat/*
     handle @atlas_api {
+        reverse_proxy 172.18.0.1:8081
+    }
+
+    @atlas_vault_crm path /api/vault/* /api/crm/* /api/revere/* /api/alex/*
+    handle @atlas_vault_crm {
         reverse_proxy 172.18.0.1:8081
     }
     @atlas_ws path /ws/voice /ws/voice/* /ws/text /ws/text/*
@@ -32,7 +45,57 @@ memory.aimarketinggenius.io {
         reverse_proxy 172.18.0.1:8880
     }
 
-    # Existing MCP ingest
+    # Chamber partners landing (CT-0418-12 icing)
+    @chamberpartners path /chamber-partners /chamber-partners/*
+    handle @chamberpartners {
+        uri strip_prefix /chamber-partners
+        root * /opt/operator-dashboard/chamber-partners
+        header Cache-Control "no-cache, must-revalidate"
+        file_server
+        try_files {path} {path}index.html /index.html
+    }
+
+    # Memory Vault Portal (AMG AI Memory Guard consumer surface)
+    # Alex public chat demo (revenue-impacting lead-capture landing, 2026-04-20)
+    @alexchat path /alex /alex/*
+    handle @alexchat {
+        uri strip_prefix /alex
+        root * /opt/operator-dashboard/alex-chat
+        header Cache-Control "no-cache, must-revalidate"
+        file_server
+        try_files {path} {path}index.html /index.html
+    }
+
+    @memoryvault path /memoryvault /memoryvault/*
+    handle @memoryvault {
+        uri strip_prefix /memoryvault
+        root * /opt/operator-dashboard/memoryvault
+        header Cache-Control "no-cache, must-revalidate"
+        file_server
+        try_files {path} {path}index.html /index.html
+    }
+
+    # Same-origin Supabase proxy — eliminates browser cross-origin blocks (Safari ITP etc)
+    @sbproxy path /supabase/* /auth/v1/* /rest/v1/* /storage/v1/* /realtime/v1/*
+    handle @sbproxy {
+        uri strip_prefix /supabase
+        reverse_proxy https://gaybcxzrzfgvcqpkbeiq.supabase.co {
+            header_up Host gaybcxzrzfgvcqpkbeiq.supabase.co
+            header_up X-Forwarded-Proto https
+            transport http {
+                tls
+                tls_server_name gaybcxzrzfgvcqpkbeiq.supabase.co
+            }
+        }
+    }
+
+    # /revere — redirect to canonical ops shell (memory subdomain had doc drift, returns 404)
+    @revere_path path /revere
+    handle @revere_path {
+        redir https://ops.aimarketinggenius.io/revere 301
+    }
+
+# Existing MCP ingest
     @ingest path /ingest /ingest/*
     handle @ingest {
         reverse_proxy host.docker.internal:9977
@@ -48,6 +111,13 @@ memory.aimarketinggenius.io {
             }
         }
     }
+    @chamber path /chamber-preview /chamber-preview/*
+    handle @chamber {
+        uri strip_prefix /chamber-preview
+        root * /opt/aimemoryguard-site/chamber-preview
+        file_server
+    }
+
 }
 
 operator.aimarketinggenius.io {
@@ -59,9 +129,38 @@ operator.aimarketinggenius.io {
     try_files {path} /index.html
 }
 
+webdev.aimarketinggenius.io {
+    encode gzip zstd
+    header {
+        X-Content-Type-Options nosniff
+        X-Frame-Options SAMEORIGIN
+        Referrer-Policy strict-origin-when-cross-origin
+        X-Robots-Tag "noindex, nofollow, noarchive"
+    }
+    handle /api/portal/* {
+        reverse_proxy host.docker.internal:8081 {
+            flush_interval -1
+        }
+    }
+    handle_path /atlas/jdjproperties* {
+        root * /opt/operator-dashboard/webdev/atlas/jdjproperties
+        try_files {path} /index.html
+        file_server
+    }
+    respond "Not Found" 404
+}
+
 ops.aimarketinggenius.io {
-    reverse_proxy host.docker.internal:8081 {
-        flush_interval -1
+    handle /atlas/previews* {
+        respond "Not Found" 404
+    }
+    handle /previews* {
+        respond "Not Found" 404
+    }
+    handle {
+        reverse_proxy host.docker.internal:8081 {
+            flush_interval -1
+        }
     }
     encode gzip
 }
@@ -143,10 +242,41 @@ portal.aimarketinggenius.io {
     encode gzip
     header {
         X-Content-Type-Options nosniff
-        X-Frame-Options DENY
+        X-Frame-Options SAMEORIGIN
         Referrer-Policy strict-origin-when-cross-origin
     }
-    root * /opt/amg-checkout/revere-demo
-    try_files {path} /index.html
-    file_server
+    handle /api/portal/* {
+        reverse_proxy host.docker.internal:8081 {
+            flush_interval -1
+        }
+    }
+    handle /portal/* {
+        reverse_proxy host.docker.internal:8081 {
+            flush_interval -1
+        }
+    }
+    handle /shop-unis/reporting* {
+        redir /portal/shop-unis/reporting 302
+    }
+    handle {
+        root * /opt/amg-checkout/revere-demo
+        try_files {path} /index.html
+        file_server
+    }
 }
+
+# CT-0419-05 Lane D — voice demo static PWA
+voice.aimarketinggenius.io {
+    encode gzip zstd
+    root * /opt/operator-dashboard/voice-demo
+    file_server
+    header Cache-Control "no-cache, must-revalidate"
+    header X-Frame-Options "SAMEORIGIN"
+    header X-Content-Type-Options "nosniff"
+    # Proxy /api/titan/* to Atlas API (same pattern as memory.aimarketinggenius.io)
+    @atlas_api path /api/titan /api/titan/*
+    handle @atlas_api {
+        reverse_proxy 172.18.0.1:8081
+    }
+}
+
