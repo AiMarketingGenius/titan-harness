@@ -64,6 +64,18 @@ titan_supabase_post "titan_audit_log" "{\"session_id\":\"$SID\",\"action\":\"ses
 
 titan_local_audit "SESSION_START instance=$TITAN_INSTANCE"
 
+# --- DIR-009 Phase 1 / CT-0428-40: queue-requery refresh ---
+# Pulls operator_task_queue authoritative state into NEXT_TASK.md so the agent
+# reads the live queue, not in-context plan state. See
+# plans/dir-009/DOCTRINE_AGENT_QUEUE_REQUERY_v1.md.
+QUEUE_REQUERY="$SCRIPT_DIR/../lib/queue_requery.py"
+if [ -f "$QUEUE_REQUERY" ]; then
+  python3 "$QUEUE_REQUERY" --agent "${AGENT_NAME:-titan}" \
+    --output "$TITAN_SESSION_DIR/NEXT_TASK.md" 2>/dev/null \
+    && echo "queue_requery: NEXT_TASK.md refreshed from operator_task_queue" \
+    || echo "queue_requery: refresh failed (non-fatal — claim_task is still authoritative)"
+fi
+
 # --- SOLON OS COLD BOOT audit (CLAUDE.md §7) ---
 # Always run bin/titan-boot-audit.sh on every new session so Titan has the
 # status block in context before emitting the 1-line greeting. No wake word.
